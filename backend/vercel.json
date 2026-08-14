@@ -2,7 +2,11 @@
   "version": 2,
   "routes": [
     {
-      "src": "/api/(.*)",
+      "src": "/(api|api-docs)(/.*)?",
+      "dest": "/server.js"
+    },
+    {
+      "src": "/",
       "dest": "/server.js"
     }
   ],

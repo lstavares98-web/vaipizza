@@ -15,7 +15,7 @@ import ratingRouter from "./routes/ratingRoute.js";
 import riderRouter from "./routes/riderRoute.js";
 import riderOrderRouter from "./routes/riderOrderRoute.js";
 import riderDashboardRouter from "./routes/riderDashboardRoute.js";
-import feedbackRouter from "./routes/feedbackRoute.js"
+import feedbackRouter from "./routes/feedbackRoute.js";
 import cronRouter from "./routes/cronRoute.js";
 import swaggerUi from "swagger-ui-express";
 import swaggerSpec from "./config/swagger.js";
@@ -29,10 +29,10 @@ app.use(
       "https://yummix-admin.vercel.app",
       "https://rider-eta-rust.vercel.app",
       "https://yummixsuperadmin.vercel.app",
-      "https://yummix-backend.vercel.app",
       "http://localhost:5173",
       "http://localhost:5174",
       "http://localhost:5175",
+      "http://localhost:5176",
     ],
     credentials: true,
   }),
@@ -40,11 +40,14 @@ app.use(
 
 app.options("*", cors());
 app.use(express.json());
-app.use(
-  "/api-docs",
-  swaggerUi.serve,
-  swaggerUi.setup(swaggerSpec)
-);
+
+if (swaggerSpec) {
+  app.use("/api-docs", swaggerUi.serve, swaggerUi.setup(swaggerSpec));
+} else {
+  app.get("/api-docs", (req, res) =>
+    res.status(503).send("API documentation is temporarily unavailable"),
+  );
+}
 
 await connectDB();
 

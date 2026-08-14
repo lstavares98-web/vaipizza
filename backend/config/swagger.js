@@ -6,10 +6,13 @@ import { fileURLToPath } from "url";
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-const swaggerPath = path.join(__dirname, "../docs/openapi.yaml");
+let swaggerSpec = null;
 
-const swaggerSpec = yaml.load(
-  fs.readFileSync(swaggerPath, "utf8")
-);
+try {
+  const swaggerPath = path.join(__dirname, "../docs/openapi.yaml");
+  swaggerSpec = yaml.load(fs.readFileSync(swaggerPath, "utf8"));
+} catch (error) {
+  console.error("Failed to load OpenAPI spec:", error.message);
+}
 
 export default swaggerSpec;
