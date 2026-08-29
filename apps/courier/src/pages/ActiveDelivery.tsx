@@ -17,6 +17,7 @@ interface ActiveOrder {
   orderNumber: number;
   status: string;
   total: number;
+  paymentMethod: "CARD" | "CASH" | "MBWAY" | "TERMINAL";
   restaurant: { name: string; address: string; lat: number; lng: number };
   address: { line1: string; city: string; lat: number; lng: number } | null;
   user: { name: string; phone: string | null };
@@ -33,6 +34,9 @@ export default function ActiveDelivery() {
   const navigate = useNavigate();
   const [order, setOrder] = useState<ActiveOrder | null | undefined>(undefined);
   const [busy, setBusy] = useState(false);
+  const [cashStep, setCashStep] = useState(false);
+  const [amountTendered, setAmountTendered] = useState("");
+  const [error, setError] = useState<string | null>(null);
 
   const load = useCallback(() => {
     api.get("/courier/orders/current").then(({ data }) => setOrder(data.order));
@@ -48,20 +52,42 @@ export default function ActiveDelivery() {
 
   const action = NEXT_ACTION[order.status];
 
-  async function advance() {
+  async function advance(extra?: { amountTendered: number }) {
     if (!action || !order) return;
+    setError(null);
     setBusy(true);
     try {
-      await api.patch(`/courier/orders/${order.id}/status`, { status: action.next });
+      await api.patch(`/courier/orders/${order.id}/status`, { status: action.next, ...extra });
       if (action.next === "DELIVERED") {
         navigate("/");
       } else {
         load();
       }
+    } catch (err: any) {
+      setError(err.response?.data?.message ?? "Não foi possível confirmar");
     } finally {
       setBusy(false);
     }
   }
+
+  function handlePrimaryAction() {
+    if (action?.next === "DELIVERED" && order!.paymentMethod === "CASH") {
+      setCashStep(true);
+      return;
+    }
+    advance();
+  }
+
+  function confirmCash() {
+    const value = Number(amountTendered.replace(",", "."));
+    if (!value || value < order!.total) {
+      setError(`O valor entregue tem de ser pelo menos ${order!.total.toFixed(2)} €`);
+      return;
+    }
+    advance({ amountTendered: value });
+  }
+
+  const changeDue = amountTendered ? Number(amountTendered.replace(",", ".")) - order.total : null;
 
   const restaurantPos: [number, number] = [order.restaurant.lat, order.restaurant.lng];
   const customerPos: [number, number] | null = order.address ? [order.address.lat, order.address.lng] : null;
@@ -114,12 +140,40 @@ export default function ActiveDelivery() {
               </li>
             ))}
           </ul>
-          <p className="price">{order.total.toFixed(2)} €</p>
+          <p className="price">
+            {order.total.toFixed(2)} € {order.paymentMethod === "CASH" && "· Dinheiro"}
+          </p>
         </section>
-        {action && (
-          <button className="accept-btn full-width" onClick={advance} disabled={busy}>
-            {busy ? "A processar..." : action.label}
-          </button>
+
+        {cashStep ? (
+          <section className="cash-step">
+            <h3>Valor entregue pelo cliente</h3>
+            <input
+              type="number"
+              step="0.01"
+              inputMode="decimal"
+              placeholder={`Mín. ${order.total.toFixed(2)}`}
+              value={amountTendered}
+              onChange={(e) => setAmountTendered(e.target.value)}
+              autoFocus
+            />
+            {changeDue != null && changeDue >= 0 && (
+              <p className="change-due">Troco a devolver: {changeDue.toFixed(2)} €</p>
+            )}
+            {error && <p className="form-error">{error}</p>}
+            <button className="accept-btn full-width" onClick={confirmCash} disabled={busy}>
+              {busy ? "A confirmar..." : "Confirmar entrega e troco"}
+            </button>
+          </section>
+        ) : (
+          action && (
+            <>
+              {error && <p className="form-error">{error}</p>}
+              <button className="accept-btn full-width" onClick={handlePrimaryAction} disabled={busy}>
+                {busy ? "A processar..." : action.label}
+              </button>
+            </>
+          )
         )}
       </div>
     </div>

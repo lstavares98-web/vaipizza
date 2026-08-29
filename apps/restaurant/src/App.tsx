@@ -4,6 +4,14 @@ import Layout from "./components/Layout";
 import RequireAuth from "./components/RequireAuth";
 import Login from "./pages/Login";
 import OrdersDashboard from "./pages/OrdersDashboard";
+import Menu from "./pages/Menu";
+import Settings from "./pages/Settings";
+import CashSettlement from "./pages/CashSettlement";
+import Reports from "./pages/Reports";
+
+function Protected({ children }: { children: React.ReactNode }) {
+  return <RequireAuth>{children}</RequireAuth>;
+}
 
 export default function App() {
   return (
@@ -15,9 +23,41 @@ export default function App() {
             <Route
               index
               element={
-                <RequireAuth>
+                <Protected>
                   <OrdersDashboard />
-                </RequireAuth>
+                </Protected>
+              }
+            />
+            <Route
+              path="/menu"
+              element={
+                <Protected>
+                  <Menu />
+                </Protected>
+              }
+            />
+            <Route
+              path="/cash"
+              element={
+                <Protected>
+                  <CashSettlement />
+                </Protected>
+              }
+            />
+            <Route
+              path="/reports"
+              element={
+                <Protected>
+                  <Reports />
+                </Protected>
+              }
+            />
+            <Route
+              path="/settings"
+              element={
+                <Protected>
+                  <Settings />
+                </Protected>
               }
             />
             <Route path="*" element={<Navigate to="/" replace />} />

@@ -70,13 +70,16 @@ courierRouter.get(
   }),
 );
 
-const statusSchema = z.object({ status: z.enum(["PICKED_UP", "OUT_FOR_DELIVERY", "DELIVERED"]) });
+const statusSchema = z.object({
+  status: z.enum(["PICKED_UP", "OUT_FOR_DELIVERY", "DELIVERED"]),
+  amountTendered: z.number().nonnegative().optional(),
+});
 
 courierRouter.patch(
   "/orders/:orderId/status",
   asyncHandler(async (req, res) => {
-    const { status } = statusSchema.parse(req.body);
-    const order = await courierService.updateDeliveryStatus(req.auth!.sub, req.params.orderId!, status);
+    const { status, amountTendered } = statusSchema.parse(req.body);
+    const order = await courierService.updateDeliveryStatus(req.auth!.sub, req.params.orderId!, status, amountTendered);
     res.json({ success: true, order });
   }),
 );

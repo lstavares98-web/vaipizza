@@ -17,6 +17,10 @@ import { courierRouter } from "./modules/couriers/courier.routes.js";
 import { uploadsRouter } from "./modules/uploads/uploads.routes.js";
 import { adminRouter } from "./modules/admin/admin.routes.js";
 import { feedbackRouter } from "./modules/feedback/feedback.routes.js";
+import { catalogRouter } from "./modules/catalog/catalog.routes.js";
+import { restaurantSettingsRouter } from "./modules/restaurants/settings.routes.js";
+import { cashSettlementRouter } from "./modules/restaurants/cashSettlement.routes.js";
+import { reportsRouter } from "./modules/restaurants/reports.routes.js";
 
 export function createApp() {
   const app = express();
@@ -50,6 +54,10 @@ export function createApp() {
   app.use("/api/uploads", uploadsRouter);
   app.use("/api/admin", adminRouter);
   app.use("/api/feedback", feedbackRouter);
+  app.use("/api/restaurant/catalog", catalogRouter);
+  app.use("/api/restaurant/settings", restaurantSettingsRouter);
+  app.use("/api/restaurant", cashSettlementRouter);
+  app.use("/api/restaurant/reports", reportsRouter);
 
   app.use(notFoundHandler);
   app.use(errorHandler);

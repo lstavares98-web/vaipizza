@@ -4,6 +4,7 @@ import { haversineKm } from "../../utils/geo.js";
 import { attemptRefund } from "../../services/refund.service.js";
 import { getIO, rooms } from "../../sockets/io.js";
 import { Role } from "@yummix/types";
+import { badRequest, notFound } from "../../utils/AppError.js";
 
 /**
  * Nearest-available-courier selection, generalizing the legacy Yummix's
@@ -143,6 +144,81 @@ export async function acceptAssignment(courierId: string, assignmentId: string) 
   getIO()?.to(rooms.restaurant(order.restaurantId)).emit("order:status", { orderId: order.id, status: "COURIER_ASSIGNED" });
   getIO()?.to(rooms.customer(order.userId)).emit("order:status", { orderId: order.id, status: "COURIER_ASSIGNED" });
   return order;
+}
+
+// Every currently-online courier with a distance from the restaurant, for
+// the "reatribuir manualmente" screen — lets the restaurant see who's too
+// far away before picking, instead of trusting the nearest-first algorithm
+// blindly.
+export async function listNearbyCouriers(restaurantId: string) {
+  const restaurant = await prisma.restaurant.findUnique({ where: { id: restaurantId } });
+  if (!restaurant) throw notFound("Restaurant not found");
+
+  const couriers = await prisma.courier.findMany({
+    where: { status: "AVAILABLE", verificationStatus: "APPROVED", lat: { not: null }, lng: { not: null } },
+    include: { user: true },
+  });
+
+  return couriers
+    .map((c) => ({
+      id: c.id,
+      name: c.user.name,
+      vehicleType: c.vehicleType,
+      distanceKm: Math.round(haversineKm(restaurant.lat, restaurant.lng, c.lat!, c.lng!) * 10) / 10,
+      tooFar: haversineKm(restaurant.lat, restaurant.lng, c.lat!, c.lng!) > restaurant.deliveryRadiusKm,
+    }))
+    .sort((a, b) => a.distanceKm - b.distanceKm);
+}
+
+/**
+ * Restaurant picks a specific courier directly, bypassing the offer/accept
+ * flow — this is a manual override, so consent is implicit in the
+ * restaurant's action instead of requiring the courier to accept an offer.
+ * Frees whoever was previously holding the order (if anyone).
+ */
+export async function forceReassignCourier(restaurantId: string, orderId: string, newCourierId: string) {
+  const order = await prisma.order.findFirst({ where: { id: orderId, restaurantId } });
+  if (!order) throw notFound("Order not found");
+  if (!["WAITING_FOR_COURIER", "COURIER_ASSIGNED"].includes(order.status)) {
+    throw badRequest("Este pedido não está à espera de estafeta", "NOT_AWAITING_COURIER");
+  }
+
+  const newCourier = await prisma.courier.findUnique({ where: { id: newCourierId } });
+  if (!newCourier || newCourier.status !== "AVAILABLE" || newCourier.verificationStatus !== "APPROVED") {
+    throw badRequest("Este estafeta já não está disponível", "COURIER_UNAVAILABLE");
+  }
+
+  await prisma.$transaction([
+    ...(order.courierId
+      ? [prisma.courier.update({ where: { id: order.courierId }, data: { status: "AVAILABLE" as const } })]
+      : []),
+    prisma.courierAssignment.updateMany({
+      where: { orderId, status: "OFFERED" },
+      data: { status: "CANCELLED", respondedAt: new Date() },
+    }),
+    prisma.courier.update({ where: { id: newCourierId }, data: { status: "ASSIGNED" } }),
+    prisma.courierAssignment.create({
+      data: {
+        orderId,
+        courierId: newCourierId,
+        status: "ACCEPTED",
+        respondedAt: new Date(),
+        expiresAt: new Date(),
+      },
+    }),
+    prisma.order.update({
+      where: { id: orderId },
+      data: {
+        status: "COURIER_ASSIGNED",
+        courierId: newCourierId,
+        statusHistory: { create: { status: "COURIER_ASSIGNED", actor: Role.RESTAURANT_OWNER } },
+      },
+    }),
+  ]);
+
+  getIO()?.to(rooms.courier(newCourier.userId)).emit("assignment:offered", { orderId });
+  getIO()?.to(rooms.customer(order.userId)).emit("order:status", { orderId, status: "COURIER_ASSIGNED" });
+  getIO()?.to(rooms.restaurant(restaurantId)).emit("order:status", { orderId, status: "COURIER_ASSIGNED" });
 }
 
 export async function rejectAssignment(courierId: string, assignmentId: string) {

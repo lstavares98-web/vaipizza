@@ -17,7 +17,7 @@ export default function Register() {
     setError(null);
     setSubmitting(true);
     try {
-      await register(name, email, password, phone || undefined);
+      await register(name, email, password, phone);
       navigate("/restaurants");
     } catch (err: any) {
       setError(err.response?.data?.message ?? "Não foi possível criar a conta");
@@ -39,8 +39,8 @@ export default function Register() {
           <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} required />
         </label>
         <label>
-          Telefone (opcional)
-          <input value={phone} onChange={(e) => setPhone(e.target.value)} />
+          Telefone
+          <input value={phone} onChange={(e) => setPhone(e.target.value)} required minLength={6} />
         </label>
         <label>
           Palavra-passe

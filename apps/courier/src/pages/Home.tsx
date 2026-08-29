@@ -23,15 +23,25 @@ interface Assignment {
   };
 }
 
+interface TodaySummary {
+  today: { deliveries: number; total: number };
+  pendingCashTotal: number;
+}
+
 export default function Home() {
   const navigate = useNavigate();
   const [courier, setCourier] = useState<CourierProfile | null>(null);
   const [assignment, setAssignment] = useState<Assignment | null>(null);
+  const [today, setToday] = useState<TodaySummary | null>(null);
   const [now, setNow] = useState(Date.now());
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const online = courier?.status === "AVAILABLE";
+  // ASSIGNED means "has a pending offer, not yet accepted" here — once
+  // accepted, current.order below is set and we navigate away before this
+  // matters. Treat it as online so the status bar and offer-polling stay
+  // consistent instead of flashing back to "Offline" while an offer is live.
+  const online = courier?.status === "AVAILABLE" || courier?.status === "ASSIGNED";
   useLocationReporting(online);
 
   const load = useCallback(async () => {
@@ -44,7 +54,7 @@ export default function Home() {
       navigate("/delivery");
       return;
     }
-    if (me.courier.status === "AVAILABLE") {
+    if (me.courier.status === "AVAILABLE" || me.courier.status === "ASSIGNED") {
       const { data: offer } = await api.get("/courier/assignments/current");
       setAssignment(offer.assignment);
     } else {
@@ -57,6 +67,10 @@ export default function Home() {
     const t = setInterval(load, 10_000);
     return () => clearInterval(t);
   }, [load]);
+
+  useEffect(() => {
+    api.get("/courier/earnings").then(({ data }) => setToday({ today: data.today, pendingCashTotal: data.pendingCashTotal }));
+  }, []);
 
   useEffect(() => {
     const t = setInterval(() => setNow(Date.now()), 1000);
@@ -136,6 +150,20 @@ export default function Home() {
           {online ? "Ficar offline" : "Ficar online"}
         </button>
       </div>
+
+      {today && (
+        <div className="today-bar">
+          <span>
+            Hoje: <strong>{today.today.deliveries}</strong> entregas · <strong>{today.today.total.toFixed(2)} €</strong>
+          </span>
+          {today.pendingCashTotal > 0 && (
+            <span>
+              💵 Por acertar: <strong>{today.pendingCashTotal.toFixed(2)} €</strong>
+            </span>
+          )}
+        </div>
+      )}
+
       {error && <p className="form-error">{error}</p>}
 
       {assignment ? (

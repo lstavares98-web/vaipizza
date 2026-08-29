@@ -21,13 +21,13 @@ interface OrderRow {
   items: OrderItem[];
 }
 
-const ACTIVE_EARLY = ["NEW", "ACCEPTED", "PREPARING"];
 const READY_STAGE = ["READY_FOR_PICKUP", "WAITING_FOR_COURIER", "COURIER_ASSIGNED", "PICKED_UP", "OUT_FOR_DELIVERY"];
-const DONE_STAGE = ["DELIVERED", "COLLECTED", "CANCELLED"];
+const REASSIGNABLE_STAGE = ["WAITING_FOR_COURIER", "COURIER_ASSIGNED"];
 
 export default function OrdersDashboard() {
   const [orders, setOrders] = useState<OrderRow[]>([]);
   const [busyId, setBusyId] = useState<string | null>(null);
+  const [reassignOrder, setReassignOrder] = useState<OrderRow | null>(null);
 
   const load = useCallback(() => {
     api.get("/restaurant/orders").then(({ data }) => setOrders(data.orders));
@@ -57,9 +57,9 @@ export default function OrdersDashboard() {
   const preparing = orders.filter((o) => o.status === "ACCEPTED" || o.status === "PREPARING");
   const ready = orders.filter((o) => READY_STAGE.includes(o.status));
   const done = orders
-    .filter((o) => DONE_STAGE.includes(o.status))
+    .filter((o) => ["DELIVERED", "COLLECTED", "CANCELLED"].includes(o.status))
     .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
-    .slice(0, 20);
+    .slice(0, 30);
 
   const todayStats = useMemo(() => {
     const today = new Date().toDateString();
@@ -69,11 +69,11 @@ export default function OrdersDashboard() {
   }, [orders]);
 
   async function accept(order: OrderRow) {
-    const prepTimeMinutes = Number(window.prompt("Tempo de preparação estimado (minutos)?", "20") ?? "");
-    if (!prepTimeMinutes || prepTimeMinutes <= 0) return;
+    // Prep time is computed automatically server-side from the products in
+    // the order (or the restaurant's default) — no more typing it in.
     setBusyId(order.id);
     try {
-      await api.patch(`/restaurant/orders/${order.id}/status`, { status: "ACCEPTED", prepTimeMinutes });
+      await api.patch(`/restaurant/orders/${order.id}/status`, { status: "ACCEPTED" });
       load();
     } finally {
       setBusyId(null);
@@ -135,16 +135,38 @@ export default function OrdersDashboard() {
 
         <Column title={`Prontos / A caminho (${ready.length})`}>
           {ready.map((o) => (
-            <OrderCard key={o.id} order={o} />
+            <OrderCard key={o.id} order={o}>
+              {o.fulfillmentType === "DELIVERY" && REASSIGNABLE_STAGE.includes(o.status) && (
+                <button onClick={() => setReassignOrder(o)}>Reatribuir estafeta</button>
+              )}
+            </OrderCard>
           ))}
         </Column>
 
-        <Column title="Concluídos (últimos 20)">
-          {done.map((o) => (
-            <OrderCard key={o.id} order={o} />
-          ))}
+        <Column title="Concluídos (últimos 30)">
+          <ul className="compact-list">
+            {done.map((o) => (
+              <li key={o.id}>
+                <span>
+                  #{o.orderNumber} · {ORDER_STATUS_LABELS[o.status] ?? o.status}
+                </span>
+                <span className="price">{o.total.toFixed(2)} €</span>
+              </li>
+            ))}
+          </ul>
         </Column>
       </div>
+
+      {reassignOrder && (
+        <ReassignCourierModal
+          order={reassignOrder}
+          onClose={() => setReassignOrder(null)}
+          onDone={() => {
+            setReassignOrder(null);
+            load();
+          }}
+        />
+      )}
     </div>
   );
 }
@@ -178,6 +200,65 @@ function OrderCard({ order, children }: { order: OrderRow; children?: React.Reac
       <p className="price">{order.total.toFixed(2)} €</p>
       <p className="hint">{ORDER_STATUS_LABELS[order.status] ?? order.status}</p>
       {children}
+    </div>
+  );
+}
+
+interface NearbyCourier {
+  id: string;
+  name: string;
+  vehicleType: string;
+  distanceKm: number;
+  tooFar: boolean;
+}
+
+function ReassignCourierModal({ order, onClose, onDone }: { order: OrderRow; onClose: () => void; onDone: () => void }) {
+  const [couriers, setCouriers] = useState<NearbyCourier[] | null>(null);
+  const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    api.get("/restaurant/orders/couriers/nearby").then(({ data }) => setCouriers(data.couriers));
+  }, []);
+
+  async function assign(courierId: string) {
+    setBusy(true);
+    try {
+      await api.post(`/restaurant/orders/${order.id}/reassign-courier`, { courierId });
+      onDone();
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="modal-backdrop" onClick={onClose}>
+      <div className="modal" onClick={(e) => e.stopPropagation()}>
+        <h2>Reatribuir estafeta — #{order.orderNumber}</h2>
+        {couriers === null ? (
+          <p className="hint">A carregar estafetas online...</p>
+        ) : couriers.length === 0 ? (
+          <p className="hint">Nenhum estafeta online de momento.</p>
+        ) : (
+          <ul className="courier-list">
+            {couriers.map((c) => (
+              <li key={c.id}>
+                <div>
+                  <strong>{c.name}</strong>
+                  <p className="hint">
+                    {c.vehicleType} · {c.distanceKm} km {c.tooFar && <span className="warning">⚠ muito distante</span>}
+                  </p>
+                </div>
+                <button disabled={busy} onClick={() => assign(c.id)}>
+                  Escolher
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
+        <button className="link-btn" onClick={onClose}>
+          Cancelar
+        </button>
+      </div>
     </div>
   );
 }

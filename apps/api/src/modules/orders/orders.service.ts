@@ -218,6 +218,23 @@ interface UpdateStatusInput {
   rejectionReason?: string;
 }
 
+// The counter no longer types a prep time on every order — max of each
+// product's own default (falls back to the restaurant-wide default) gives
+// a reasonable estimate for free. An explicit prepTimeMinutes in the
+// request still overrides it (e.g. the counter knows this one will take
+// longer for some reason).
+async function computeAutoPrepTime(orderId: string, restaurantId: string): Promise<number> {
+  const [items, restaurant] = await Promise.all([
+    prisma.orderItem.findMany({
+      where: { orderId },
+      include: { product: { select: { defaultPrepTimeMinutes: true } } },
+    }),
+    prisma.restaurant.findUniqueOrThrow({ where: { id: restaurantId }, select: { defaultPrepTimeMinutes: true } }),
+  ]);
+  const productTimes = items.map((i) => i.product.defaultPrepTimeMinutes).filter((t): t is number => t != null);
+  return productTimes.length > 0 ? Math.max(...productTimes) : restaurant.defaultPrepTimeMinutes;
+}
+
 export async function updateOrderStatusByRestaurant(
   restaurantId: string,
   actorRole: RoleType,
@@ -244,6 +261,33 @@ export async function updateOrderStatusByRestaurant(
     });
     await attemptRefund(updated, actorRole);
     getIO()?.to(rooms.customer(order.userId)).emit("order:status", { orderId: order.id, status: "CANCELLED" });
+    return updated;
+  }
+
+  // "Aceitar" is now a single click for the counter: it folds NEW->ACCEPTED
+  // and the old separate "iniciar preparação" (ACCEPTED->PREPARING, used to
+  // be a KDS-only action) into one atomic transition, with the prep time
+  // computed automatically instead of asked via a prompt. The kitchen ticket
+  // screen only ever sees orders already in PREPARING.
+  if (order.status === "NEW" && input.status === "ACCEPTED") {
+    assertTransitionAllowed(order.status, "ACCEPTED", actorRole);
+    const prepTimeMinutes = input.prepTimeMinutes ?? (await computeAutoPrepTime(order.id, restaurantId));
+    const updated = await prisma.order.update({
+      where: { id: order.id },
+      data: {
+        status: "PREPARING",
+        prepTimeMinutes,
+        acceptedAt: new Date(),
+        statusHistory: {
+          create: [
+            { status: "ACCEPTED", actor: actorRole },
+            { status: "PREPARING", actor: actorRole },
+          ],
+        },
+      },
+    });
+    getIO()?.to(rooms.restaurant(restaurantId)).emit("order:status", { orderId: order.id, status: "PREPARING" });
+    getIO()?.to(rooms.customer(order.userId)).emit("order:status", { orderId: order.id, status: "PREPARING" });
     return updated;
   }
 

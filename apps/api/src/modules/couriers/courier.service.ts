@@ -4,6 +4,8 @@ import { badRequest, notFound } from "../../utils/AppError.js";
 import { assertTransitionAllowed } from "../orders/orderStateMachine.js";
 import { getIO, rooms } from "../../sockets/io.js";
 import { computeDeliveryEarning } from "./earnings.js";
+import { computeChangeDue } from "./cash.js";
+import { round2 } from "../../utils/pricing.js";
 
 export async function getCourierByUserId(userId: string) {
   const courier = await prisma.courier.findUnique({ where: { userId } });
@@ -49,19 +51,40 @@ export async function getCurrentOrder(userId: string) {
   });
 }
 
-export async function updateDeliveryStatus(userId: string, orderId: string, status: "PICKED_UP" | "OUT_FOR_DELIVERY" | "DELIVERED") {
+export async function updateDeliveryStatus(
+  userId: string,
+  orderId: string,
+  status: "PICKED_UP" | "OUT_FOR_DELIVERY" | "DELIVERED",
+  amountTendered?: number,
+) {
   const courier = await getCourierByUserId(userId);
   const order = await prisma.order.findFirst({ where: { id: orderId, courierId: courier.id } });
   if (!order) throw notFound("Order not found");
 
   assertTransitionAllowed(order.status, status, Role.COURIER);
 
+  // Cash orders need the amount the customer actually handed over, captured
+  // at the door (not at checkout, when it isn't known yet) so the change
+  // owed is computed and shown before the courier leaves.
+  let changeDue: number | undefined;
+  if (status === "DELIVERED" && order.paymentMethod === "CASH") {
+    if (amountTendered == null) throw badRequest("Indique o valor entregue pelo cliente", "AMOUNT_TENDERED_REQUIRED");
+    changeDue = computeChangeDue(order.total, amountTendered);
+  }
+
   const data: Record<string, unknown> = {
     status,
     statusHistory: { create: { status, actor: Role.COURIER } },
   };
   if (status === "PICKED_UP") data.pickedUpAt = new Date();
-  if (status === "DELIVERED") data.deliveredAt = new Date();
+  if (status === "DELIVERED") {
+    data.deliveredAt = new Date();
+    if (amountTendered != null) {
+      data.amountTendered = amountTendered;
+      data.changeDue = changeDue;
+      data.paymentStatus = "PAID";
+    }
+  }
 
   const updated = await prisma.order.update({ where: { id: order.id }, data });
 
@@ -94,10 +117,22 @@ export async function updateDeliveryStatus(userId: string, orderId: string, stat
 export async function getEarningsSummary(userId: string) {
   const courier = await getCourierByUserId(userId);
   const sevenDaysAgo = new Date(Date.now() - 7 * 86_400_000);
-  const recent = await prisma.courierEarning.findMany({
-    where: { courierId: courier.id, createdAt: { gte: sevenDaysAgo } },
-    orderBy: { createdAt: "asc" },
-  });
+  const startOfToday = new Date();
+  startOfToday.setHours(0, 0, 0, 0);
+
+  const [recent, todayEarnings, pendingCash] = await Promise.all([
+    prisma.courierEarning.findMany({
+      where: { courierId: courier.id, createdAt: { gte: sevenDaysAgo } },
+      orderBy: { createdAt: "asc" },
+    }),
+    prisma.courierEarning.findMany({
+      where: { courierId: courier.id, kind: "DELIVERY", createdAt: { gte: startOfToday } },
+    }),
+    prisma.courierEarning.aggregate({
+      where: { courierId: courier.id, kind: "DELIVERY", settledAt: null, order: { paymentMethod: "CASH" } },
+      _sum: { amount: true },
+    }),
+  ]);
 
   const byDay = new Map<string, number>();
   for (const e of recent) {
@@ -109,6 +144,8 @@ export async function getEarningsSummary(userId: string) {
     totalEarnings: courier.totalEarnings,
     lifetimeDeliveries: courier.lifetimeDeliveries,
     avgRating: courier.avgRating,
+    today: { deliveries: todayEarnings.length, total: round2(todayEarnings.reduce((s, e) => s + e.amount, 0)) },
+    pendingCashTotal: round2(pendingCash._sum?.amount ?? 0),
     last7Days: Array.from(byDay.entries()).map(([date, amount]) => ({ date, amount })),
   };
 }

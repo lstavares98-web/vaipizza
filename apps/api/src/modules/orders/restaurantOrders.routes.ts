@@ -5,6 +5,7 @@ import { OrderStatus, Role } from "@yummix/types";
 import { asyncHandler } from "../../middleware/errorHandler.js";
 import { requireAuth, requireOwnRestaurant, requireRole } from "../../middleware/auth.js";
 import * as ordersService from "./orders.service.js";
+import { forceReassignCourier, listNearbyCouriers } from "../dispatch/dispatch.service.js";
 
 export const restaurantOrdersRouter = Router();
 restaurantOrdersRouter.use(
@@ -24,6 +25,23 @@ restaurantOrdersRouter.get(
     const statuses = status ? (status.split(",") as OrderStatus[]) : undefined;
     const orders = await ordersService.listOrdersForRestaurant(req.auth!.restaurantId!, statuses);
     res.json({ success: true, orders });
+  }),
+);
+
+restaurantOrdersRouter.get(
+  "/couriers/nearby",
+  asyncHandler(async (req, res) => {
+    const couriers = await listNearbyCouriers(req.auth!.restaurantId!);
+    res.json({ success: true, couriers });
+  }),
+);
+
+restaurantOrdersRouter.post(
+  "/:id/reassign-courier",
+  asyncHandler(async (req, res) => {
+    const { courierId } = z.object({ courierId: z.string() }).parse(req.body);
+    await forceReassignCourier(req.auth!.restaurantId!, req.params.id!, courierId);
+    res.json({ success: true });
   }),
 );
 

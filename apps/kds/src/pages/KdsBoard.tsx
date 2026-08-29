@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { api } from "../lib/api";
 import { getSocket } from "../lib/socket";
+import { playReadyBell } from "../lib/sound";
 
 interface OrderItemModifier {
   id: string;
@@ -23,15 +24,17 @@ interface OrderRow {
   items: OrderItem[];
 }
 
-const RELEVANT_STATUSES = "ACCEPTED,PREPARING,READY_FOR_PICKUP,WAITING_FOR_COURIER,COURIER_ASSIGNED";
-
+// The counter's single "Aceitar" click now moves an order straight to
+// PREPARING (see orders.service.ts) — there is no separate "iniciar
+// preparação" step anymore, so the kitchen only ever has one thing to do:
+// ring the bell once a ticket is ready.
 export default function KdsBoard() {
   const [orders, setOrders] = useState<OrderRow[]>([]);
   const [now, setNow] = useState(Date.now());
   const [busyId, setBusyId] = useState<string | null>(null);
 
   const load = useCallback(() => {
-    api.get("/restaurant/orders", { params: { status: RELEVANT_STATUSES } }).then(({ data }) => setOrders(data.orders));
+    api.get("/restaurant/orders", { params: { status: "PREPARING" } }).then(({ data }) => setOrders(data.orders));
   }, []);
 
   useEffect(load, [load]);
@@ -52,17 +55,8 @@ export default function KdsBoard() {
     };
   }, [load]);
 
-  async function startPreparing(order: OrderRow) {
-    setBusyId(order.id);
-    try {
-      await api.patch(`/restaurant/orders/${order.id}/status`, { status: "PREPARING" });
-      load();
-    } finally {
-      setBusyId(null);
-    }
-  }
-
-  async function markReady(order: OrderRow) {
+  async function ringBellAndMarkReady(order: OrderRow) {
+    playReadyBell();
     setBusyId(order.id);
     try {
       await api.patch(`/restaurant/orders/${order.id}/status`, { status: "READY_FOR_PICKUP" });
@@ -72,79 +66,44 @@ export default function KdsBoard() {
     }
   }
 
-  const novos = orders.filter((o) => o.status === "ACCEPTED");
-  const preparando = orders.filter((o) => o.status === "PREPARING");
-  const prontos = orders.filter((o) => !["ACCEPTED", "PREPARING"].includes(o.status));
+  const sorted = [...orders].sort((a, b) => a.createdAt.localeCompare(b.createdAt));
 
   return (
-    <div className="kds-board">
-      <Column title="NOVOS" count={novos.length}>
-        {novos.map((o) => (
-          <KdsCard key={o.id} order={o} now={now}>
-            <button className="kds-btn" disabled={busyId === o.id} onClick={() => startPreparing(o)}>
-              INICIAR PREPARAÇÃO
+    <div className="ticket-board">
+      {sorted.length === 0 && <p className="ticket-empty">Sem pedidos em preparação.</p>}
+      {sorted.map((order) => {
+        const elapsedMin = Math.round((now - new Date(order.createdAt).getTime()) / 60000);
+        const urgent = elapsedMin >= 15;
+        return (
+          <div className={`ticket ${urgent ? "ticket-urgent" : ""}`} key={order.id}>
+            <div className="ticket-header">
+              <span className="ticket-number">#{order.orderNumber}</span>
+              <span className="ticket-elapsed">{elapsedMin} min</span>
+            </div>
+            <ul className="ticket-items">
+              {order.items.map((item) => (
+                <li key={item.id}>
+                  <strong>
+                    {item.quantity}x {item.productNameSnapshot}
+                    {item.secondaryProductNameSnapshot ? ` / ${item.secondaryProductNameSnapshot}` : ""}
+                  </strong>
+                  {item.modifiers.length > 0 && (
+                    <span className="ticket-modifiers">
+                      {" — "}
+                      {item.modifiers.map((m) => m.nameSnapshot).join(", ")}
+                    </span>
+                  )}
+                  {item.notes && <p className="ticket-note">Obs: {item.notes}</p>}
+                </li>
+              ))}
+            </ul>
+            {order.notes && <p className="ticket-note">OBS geral: "{order.notes}"</p>}
+            <button className="bell-btn" disabled={busyId === order.id} onClick={() => ringBellAndMarkReady(order)}>
+              🔔 Tocar campainha — Pronto para recolha
             </button>
-          </KdsCard>
-        ))}
-      </Column>
-      <Column title="EM PREPARAÇÃO" count={preparando.length}>
-        {preparando.map((o) => (
-          <KdsCard key={o.id} order={o} now={now}>
-            <button className="kds-btn kds-btn-ready" disabled={busyId === o.id} onClick={() => markReady(o)}>
-              PEDIDO PRONTO
-            </button>
-          </KdsCard>
-        ))}
-      </Column>
-      <Column title="PRONTOS" count={prontos.length}>
-        {prontos.map((o) => (
-          <KdsCard key={o.id} order={o} now={now} done />
-        ))}
-      </Column>
-    </div>
-  );
-}
-
-function Column({ title, count, children }: { title: string; count: number; children: React.ReactNode }) {
-  return (
-    <div className="kds-column">
-      <h2>
-        {title} <span className="kds-count">{count}</span>
-      </h2>
-      <div className="kds-column-body">{children}</div>
-    </div>
-  );
-}
-
-function KdsCard({ order, now, done, children }: { order: OrderRow; now: number; done?: boolean; children?: React.ReactNode }) {
-  const elapsedMin = Math.round((now - new Date(order.createdAt).getTime()) / 60000);
-  const urgent = elapsedMin >= 15 && !done;
-  return (
-    <div className={`kds-card ${urgent ? "kds-card-urgent" : ""} ${done ? "kds-card-done" : ""}`}>
-      <div className="kds-card-header">
-        <span className="kds-order-number">#{order.orderNumber}</span>
-        <span className="kds-elapsed">{elapsedMin} min</span>
-      </div>
-      <ul className="kds-items">
-        {order.items.map((item) => (
-          <li key={item.id}>
-            <strong>
-              {item.quantity}x {item.productNameSnapshot}
-              {item.secondaryProductNameSnapshot ? ` / ${item.secondaryProductNameSnapshot}` : ""}
-            </strong>
-            {item.modifiers.length > 0 && (
-              <ul className="kds-modifiers">
-                {item.modifiers.map((m) => (
-                  <li key={m.id}>{m.nameSnapshot}</li>
-                ))}
-              </ul>
-            )}
-            {item.notes && <p className="kds-note">Obs: {item.notes}</p>}
-          </li>
-        ))}
-      </ul>
-      {order.notes && <p className="kds-note">OBS geral: "{order.notes}"</p>}
-      {children}
+          </div>
+        );
+      })}
     </div>
   );
 }

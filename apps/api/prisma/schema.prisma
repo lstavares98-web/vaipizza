@@ -150,6 +150,11 @@ model Restaurant {
   acceptsPickup   Boolean @default(true)
   acceptsDelivery Boolean @default(true)
 
+  // Fallback used when a product on the order doesn't set its own
+  // defaultPrepTimeMinutes — lets "Aceitar" be a single click instead of
+  // asking the restaurant to type a prep time on every order.
+  defaultPrepTimeMinutes Int @default(20)
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -219,6 +224,7 @@ model Product {
   stock        Int?    // null = unlimited
   allowsSplit  Boolean @default(false) // e.g. "half & half" pizza
   splitPricingRule PricingRule @default(MOST_EXPENSIVE)
+  defaultPrepTimeMinutes Int? // falls back to Restaurant.defaultPrepTimeMinutes when unset
 
   avgRating   Float @default(0)
   ratingCount Int   @default(0)
@@ -453,6 +459,12 @@ model Order {
   notes           String?
   rejectionReason String?
 
+  // Cash handling — only meaningful when paymentMethod = CASH. Filled in by
+  // the courier at hand-off time (not at checkout), since the customer's
+  // actual cash tendered is only known on delivery.
+  amountTendered Float?
+  changeDue      Float?
+
   cancelledBy  Role?
   cancelledAt  DateTime?
   acceptedAt   DateTime?
@@ -470,6 +482,7 @@ model Order {
   items              OrderItem[]
   statusHistory      OrderStatusEvent[]
   courierAssignments CourierAssignment[]
+  courierEarnings    CourierEarning[]
   couponRedemption   CouponRedemption?
   courierRating      CourierRating?
   adminAlerts        AdminAlert[]
@@ -609,11 +622,20 @@ model CourierEarning {
   courierId String
   courier   Courier  @relation(fields: [courierId], references: [id], onDelete: Cascade)
   orderId   String?
+  order     Order?   @relation(fields: [orderId], references: [id], onDelete: SetNull)
   amount    Float
   kind      String // "DELIVERY" | "BONUS"
   createdAt DateTime @default(now())
 
+  // Cash-in-hand reconciliation: null = the courier is still holding this
+  // money (or it's owed to them) and it counts toward "por acertar". Set
+  // once the restaurant confirms the cash/payout was handed over — from
+  // that point it drops out of the courier's own pending view but stays
+  // in the row for the restaurant's audit trail.
+  settledAt DateTime?
+
   @@index([courierId])
+  @@index([courierId, settledAt])
 }
 
 // ---------------------------------------------------------------------------
