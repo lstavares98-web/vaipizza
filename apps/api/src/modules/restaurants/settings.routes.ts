@@ -18,10 +18,45 @@ restaurantSettingsRouter.get(
   asyncHandler(async (req, res) => {
     const restaurant = await prisma.restaurant.findUnique({
       where: { id: req.auth!.restaurantId! },
-      include: { deliveryFeeTiers: { orderBy: { upToKm: "asc" } } },
+      include: {
+        deliveryFeeTiers: { orderBy: { upToKm: "asc" } },
+        hours: { orderBy: { dayOfWeek: "asc" } },
+      },
     });
     if (!restaurant) throw notFound("Restaurant not found");
     res.json({ success: true, restaurant });
+  }),
+);
+
+const hourSchema = z.object({
+  dayOfWeek: z.number().int().min(0).max(6),
+  opensAt: z.string().regex(/^\d{2}:\d{2}$/),
+  closesAt: z.string().regex(/^\d{2}:\d{2}$/),
+  isClosed: z.boolean().optional(),
+});
+
+const hoursSchema = z.object({
+  // Always the full week (0-6) — simpler to replace the whole schedule
+  // at once than to reconcile a partial patch against 7 unique rows.
+  days: z.array(hourSchema).min(1).max(7),
+});
+
+restaurantSettingsRouter.put(
+  "/hours",
+  asyncHandler(async (req, res) => {
+    const { days } = hoursSchema.parse(req.body);
+    const restaurantId = req.auth!.restaurantId!;
+    await prisma.$transaction(
+      days.map((d) =>
+        prisma.restaurantHours.upsert({
+          where: { restaurantId_dayOfWeek: { restaurantId, dayOfWeek: d.dayOfWeek } },
+          create: { restaurantId, ...d },
+          update: { opensAt: d.opensAt, closesAt: d.closesAt, isClosed: d.isClosed ?? false },
+        }),
+      ),
+    );
+    const hours = await prisma.restaurantHours.findMany({ where: { restaurantId }, orderBy: { dayOfWeek: "asc" } });
+    res.json({ success: true, hours });
   }),
 );
 

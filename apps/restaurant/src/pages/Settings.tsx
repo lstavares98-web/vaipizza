@@ -5,6 +5,12 @@ interface Tier {
   upToKm: number;
   fee: number;
 }
+interface DayHours {
+  dayOfWeek: number;
+  opensAt: string;
+  closesAt: string;
+  isClosed: boolean;
+}
 interface RestaurantSettings {
   deliveryFeeMode: "TIERED" | "BASE_PLUS_PER_KM";
   deliveryFeeBase: number;
@@ -15,18 +21,50 @@ interface RestaurantSettings {
   acceptsPickup: boolean;
   acceptsDelivery: boolean;
   defaultPrepTimeMinutes: number;
+  hours: DayHours[];
+}
+
+const DAY_LABELS = ["Domingo", "Segunda", "Terça", "Quarta", "Quinta", "Sexta", "Sábado"];
+
+function fullWeek(existing: DayHours[]): DayHours[] {
+  return Array.from({ length: 7 }, (_, dayOfWeek) => {
+    const found = existing.find((h) => h.dayOfWeek === dayOfWeek);
+    return found ?? { dayOfWeek, opensAt: "09:00", closesAt: "22:00", isClosed: false };
+  });
 }
 
 export default function Settings() {
   const [settings, setSettings] = useState<RestaurantSettings | null>(null);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
+  const [hours, setHours] = useState<DayHours[]>([]);
+  const [savingHours, setSavingHours] = useState(false);
+  const [hoursSaved, setHoursSaved] = useState(false);
 
   useEffect(() => {
-    api.get("/restaurant/settings").then(({ data }) => setSettings(data.restaurant));
+    api.get("/restaurant/settings").then(({ data }) => {
+      setSettings(data.restaurant);
+      setHours(fullWeek(data.restaurant.hours ?? []));
+    });
   }, []);
 
   if (!settings) return <p className="page-content">A carregar...</p>;
+
+  function updateDay(dayOfWeek: number, patch: Partial<DayHours>) {
+    setHours((hs) => hs.map((h) => (h.dayOfWeek === dayOfWeek ? { ...h, ...patch } : h)));
+    setHoursSaved(false);
+  }
+
+  async function handleSaveHours(e: React.FormEvent) {
+    e.preventDefault();
+    setSavingHours(true);
+    try {
+      await api.put("/restaurant/settings/hours", { days: hours });
+      setHoursSaved(true);
+    } finally {
+      setSavingHours(false);
+    }
+  }
 
   function set<K extends keyof RestaurantSettings>(key: K, value: RestaurantSettings[K]) {
     setSettings((s) => (s ? { ...s, [key]: value } : s));
@@ -144,6 +182,42 @@ export default function Settings() {
         {saved && <p className="hint">Guardado.</p>}
         <button type="submit" disabled={saving}>
           {saving ? "A guardar..." : "Guardar definições"}
+        </button>
+      </form>
+
+      <h1 style={{ marginTop: "2rem" }}>Horário de funcionamento</h1>
+      <form onSubmit={handleSaveHours} className="product-form" style={{ maxWidth: 520 }}>
+        {hours.map((h) => (
+          <div className="modifier-option-row" key={h.dayOfWeek}>
+            <span style={{ minWidth: 90 }}>{DAY_LABELS[h.dayOfWeek]}</span>
+            <label className="checkbox">
+              <input
+                type="checkbox"
+                checked={h.isClosed}
+                onChange={(e) => updateDay(h.dayOfWeek, { isClosed: e.target.checked })}
+              />
+              Fechado
+            </label>
+            {!h.isClosed && (
+              <>
+                <input
+                  type="time"
+                  value={h.opensAt}
+                  onChange={(e) => updateDay(h.dayOfWeek, { opensAt: e.target.value })}
+                />
+                <span>às</span>
+                <input
+                  type="time"
+                  value={h.closesAt}
+                  onChange={(e) => updateDay(h.dayOfWeek, { closesAt: e.target.value })}
+                />
+              </>
+            )}
+          </div>
+        ))}
+        {hoursSaved && <p className="hint">Horário guardado.</p>}
+        <button type="submit" disabled={savingHours}>
+          {savingHours ? "A guardar..." : "Guardar horário"}
         </button>
       </form>
     </div>
