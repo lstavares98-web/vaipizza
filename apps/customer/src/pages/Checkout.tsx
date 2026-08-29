@@ -21,6 +21,7 @@ export default function Checkout() {
   const [addressId, setAddressId] = useState<string>("");
   const [fulfillmentType, setFulfillmentType] = useState<FulfillmentType>("DELIVERY");
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>("CASH");
+  const [amountTendered, setAmountTendered] = useState("");
   const [couponCode, setCouponCode] = useState("");
   const [notes, setNotes] = useState("");
   const [submitting, setSubmitting] = useState(false);
@@ -56,6 +57,8 @@ export default function Checkout() {
         paymentMethod,
         couponCode: couponCode || undefined,
         notes: notes || undefined,
+        amountTendered:
+          paymentMethod === "CASH" && amountTendered ? Number(amountTendered) : undefined,
       });
       await clear().catch(() => {});
       if (data.stripeSessionUrl) {
@@ -111,6 +114,22 @@ export default function Checkout() {
             {{ CASH: "Dinheiro na entrega", CARD: "Cartão (Stripe)", MBWAY: "MB Way", TERMINAL: "Pagamento presencial (terminal)" }[method]}
           </label>
         ))}
+        {paymentMethod === "CASH" && (
+          <label className="cash-tendered">
+            Troco para quanto? (opcional)
+            <input
+              type="number"
+              step="0.01"
+              min={0}
+              placeholder="ex.: 50"
+              value={amountTendered}
+              onChange={(e) => setAmountTendered(e.target.value)}
+            />
+            <span className="hint">
+              Diga com que nota vai pagar e o restaurante já envia o troco certo com o estafeta.
+            </span>
+          </label>
+        )}
       </section>
 
       <section className="modifier-group">

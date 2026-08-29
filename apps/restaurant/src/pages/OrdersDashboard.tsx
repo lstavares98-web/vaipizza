@@ -15,6 +15,9 @@ interface OrderRow {
   orderNumber: number;
   status: string;
   fulfillmentType: "DELIVERY" | "PICKUP";
+  paymentMethod: "CARD" | "CASH" | "MBWAY" | "TERMINAL";
+  amountTendered: number | null;
+  changeDue: number | null;
   total: number;
   createdAt: string;
   notes: string | null;
@@ -198,6 +201,13 @@ function OrderCard({ order, children }: { order: OrderRow; children?: React.Reac
       </ul>
       {order.notes && <p className="hint">Obs: {order.notes}</p>}
       <p className="price">{order.total.toFixed(2)} €</p>
+      {order.paymentMethod === "CASH" && order.changeDue != null && (
+        <p className="cash-warning">
+          💶 Dinheiro · cliente paga com {order.amountTendered?.toFixed(2)} € → preparar{" "}
+          <strong>{order.changeDue.toFixed(2)} € de troco</strong>
+        </p>
+      )}
+      {order.paymentMethod === "CASH" && order.changeDue == null && <p className="hint">💶 Dinheiro na entrega</p>}
       <p className="hint">{ORDER_STATUS_LABELS[order.status] ?? order.status}</p>
       {children}
     </div>

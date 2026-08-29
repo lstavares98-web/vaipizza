@@ -87,9 +87,26 @@ export default function ProductForm({ categories, defaultCategoryId, product, on
     setGroups((gs) => gs.filter((_, i) => i !== gIndex));
   }
 
+  // Pressing Enter in any text/number input inside a <form> submits it by
+  // default — with a dozen small fields (name, price, prep time, every
+  // modifier option...) that meant hitting Enter while typing a value
+  // quietly saved the product early, closing the modal before the image
+  // upload had even finished. Only an explicit click on the Save button
+  // (or Enter inside the multi-line description) should submit.
+  function blockImplicitSubmit(e: React.KeyboardEvent<HTMLFormElement>) {
+    const target = e.target as HTMLElement;
+    if (e.key === "Enter" && target.tagName !== "TEXTAREA") {
+      e.preventDefault();
+    }
+  }
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
+    if (uploading) {
+      setError("Aguarde o envio da imagem terminar");
+      return;
+    }
     if (!categoryId) {
       setError("Escolha uma categoria");
       return;
@@ -127,7 +144,7 @@ export default function ProductForm({ categories, defaultCategoryId, product, on
     <div className="modal-backdrop" onClick={onClose}>
       <div className="modal" onClick={(e) => e.stopPropagation()} style={{ maxWidth: 560 }}>
         <h2>{product ? "Editar produto" : "Novo produto"}</h2>
-        <form onSubmit={handleSubmit} className="product-form">
+        <form onSubmit={handleSubmit} onKeyDown={blockImplicitSubmit} className="product-form">
           <label>
             Categoria
             <select value={categoryId} onChange={(e) => setCategoryId(e.target.value)} required>

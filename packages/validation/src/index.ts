@@ -100,6 +100,10 @@ export const checkoutSchema = z.object({
   paymentMethod: z.enum(["CARD", "CASH", "MBWAY", "TERMINAL"]),
   couponCode: z.string().optional(),
   notes: z.string().max(500).optional(),
+  // Only meaningful for CASH: what note/bill the customer expects to pay
+  // with, so the restaurant can send the courier out with the right
+  // change already in hand — nobody has to count cash at the door.
+  amountTendered: z.number().nonnegative().optional(),
 });
 export type CheckoutInput = z.infer<typeof checkoutSchema>;
 

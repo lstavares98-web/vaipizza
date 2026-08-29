@@ -11,6 +11,7 @@ import { assertTransitionAllowed, CUSTOMER_CANCELLABLE_STATUSES } from "./orderS
 import { attemptRefund } from "../../services/refund.service.js";
 import { getIO, rooms } from "../../sockets/io.js";
 import { tryAssignOrder } from "../dispatch/dispatch.service.js";
+import { computeChangeDue } from "../couriers/cash.js";
 
 const stripe = env.STRIPE_SECRET_KEY ? new Stripe(env.STRIPE_SECRET_KEY) : null;
 
@@ -93,6 +94,16 @@ export async function checkout(userId: string, input: CheckoutInput) {
 
   const total = round2(subtotal - discount + deliveryFee);
 
+  // Change is worked out now, at order time, not at the door — the
+  // customer says which note/bill they'll pay with, so the restaurant can
+  // send the courier out with the right change already counted.
+  let amountTendered: number | undefined;
+  let changeDue: number | undefined;
+  if (input.paymentMethod === "CASH" && input.amountTendered != null) {
+    changeDue = computeChangeDue(total, input.amountTendered);
+    amountTendered = input.amountTendered;
+  }
+
   const order = await prisma.$transaction(async (tx) => {
     const created = await tx.order.create({
       data: {
@@ -109,6 +120,8 @@ export async function checkout(userId: string, input: CheckoutInput) {
         paymentMethod: input.paymentMethod,
         paymentStatus: "PENDING",
         notes: input.notes,
+        amountTendered,
+        changeDue,
         items: {
           create: pricedItems.map((i) => ({
             productId: i.productId,

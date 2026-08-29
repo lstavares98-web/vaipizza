@@ -18,6 +18,8 @@ interface ActiveOrder {
   status: string;
   total: number;
   paymentMethod: "CARD" | "CASH" | "MBWAY" | "TERMINAL";
+  amountTendered: number | null;
+  changeDue: number | null;
   restaurant: { name: string; address: string; lat: number; lng: number };
   address: { line1: string; city: string; lat: number; lng: number } | null;
   user: { name: string; phone: string | null };
@@ -34,15 +36,16 @@ export default function ActiveDelivery() {
   const navigate = useNavigate();
   const [order, setOrder] = useState<ActiveOrder | null | undefined>(undefined);
   const [busy, setBusy] = useState(false);
-  const [cashStep, setCashStep] = useState(false);
-  const [amountTendered, setAmountTendered] = useState("");
   const [error, setError] = useState<string | null>(null);
 
-  const load = useCallback(() => {
-    api.get("/courier/orders/current").then(({ data }) => setOrder(data.order));
+  const load = useCallback(async () => {
+    const { data } = await api.get("/courier/orders/current");
+    setOrder(data.order);
   }, []);
 
-  useEffect(load, [load]);
+  useEffect(() => {
+    load();
+  }, [load]);
   useEffect(() => {
     if (order === null) navigate("/");
   }, [order, navigate]);
@@ -52,42 +55,28 @@ export default function ActiveDelivery() {
 
   const action = NEXT_ACTION[order.status];
 
-  async function advance(extra?: { amountTendered: number }) {
+  // Awaiting the refetch before clearing `busy` matters: without it the
+  // button re-enables while `order.status` (and therefore `action`) is
+  // still stale, so a quick second tap resends the *same* status the
+  // order is already in — the backend correctly rejects "PICKED_UP ->
+  // PICKED_UP", but the courier just sees a confusing error.
+  async function advance() {
     if (!action || !order) return;
     setError(null);
     setBusy(true);
     try {
-      await api.patch(`/courier/orders/${order.id}/status`, { status: action.next, ...extra });
+      await api.patch(`/courier/orders/${order.id}/status`, { status: action.next });
       if (action.next === "DELIVERED") {
         navigate("/");
-      } else {
-        load();
+        return;
       }
+      await load();
     } catch (err: any) {
       setError(err.response?.data?.message ?? "Não foi possível confirmar");
     } finally {
       setBusy(false);
     }
   }
-
-  function handlePrimaryAction() {
-    if (action?.next === "DELIVERED" && order!.paymentMethod === "CASH") {
-      setCashStep(true);
-      return;
-    }
-    advance();
-  }
-
-  function confirmCash() {
-    const value = Number(amountTendered.replace(",", "."));
-    if (!value || value < order!.total) {
-      setError(`O valor entregue tem de ser pelo menos ${order!.total.toFixed(2)} €`);
-      return;
-    }
-    advance({ amountTendered: value });
-  }
-
-  const changeDue = amountTendered ? Number(amountTendered.replace(",", ".")) - order.total : null;
 
   const restaurantPos: [number, number] = [order.restaurant.lat, order.restaurant.lng];
   const customerPos: [number, number] | null = order.address ? [order.address.lat, order.address.lng] : null;
@@ -145,35 +134,24 @@ export default function ActiveDelivery() {
           </p>
         </section>
 
-        {cashStep ? (
+        {/* The restaurant already prepared this change based on what the
+            customer declared at checkout — the courier just carries it and
+            hands it over, nothing to type here. */}
+        {order.paymentMethod === "CASH" && order.changeDue != null && (
           <section className="cash-step">
-            <h3>Valor entregue pelo cliente</h3>
-            <input
-              type="number"
-              step="0.01"
-              inputMode="decimal"
-              placeholder={`Mín. ${order.total.toFixed(2)}`}
-              value={amountTendered}
-              onChange={(e) => setAmountTendered(e.target.value)}
-              autoFocus
-            />
-            {changeDue != null && changeDue >= 0 && (
-              <p className="change-due">Troco a devolver: {changeDue.toFixed(2)} €</p>
+            <h3>Troco a levar</h3>
+            <p className="change-due">{order.changeDue.toFixed(2)} €</p>
+            {order.amountTendered != null && (
+              <p className="hint">Cliente vai pagar com {order.amountTendered.toFixed(2)} €</p>
             )}
-            {error && <p className="form-error">{error}</p>}
-            <button className="accept-btn full-width" onClick={confirmCash} disabled={busy}>
-              {busy ? "A confirmar..." : "Confirmar entrega e troco"}
-            </button>
           </section>
-        ) : (
-          action && (
-            <>
-              {error && <p className="form-error">{error}</p>}
-              <button className="accept-btn full-width" onClick={handlePrimaryAction} disabled={busy}>
-                {busy ? "A processar..." : action.label}
-              </button>
-            </>
-          )
+        )}
+
+        {error && <p className="form-error">{error}</p>}
+        {action && (
+          <button className="accept-btn full-width" onClick={advance} disabled={busy}>
+            {busy ? "A processar..." : action.label}
+          </button>
         )}
       </div>
     </div>

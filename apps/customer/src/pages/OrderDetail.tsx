@@ -15,6 +15,8 @@ interface OrderDetailView {
   total: number;
   paymentMethod: string;
   paymentStatus: string;
+  amountTendered: number | null;
+  changeDue: number | null;
   restaurant: { name: string };
   courier: { user: { name: string; phone: string | null } } | null;
   items: { id: string; productNameSnapshot: string; quantity: number; lineTotal: number }[];
@@ -105,6 +107,12 @@ export default function OrderDetail() {
           <span>Total</span>
           <span>{order.total.toFixed(2)} €</span>
         </div>
+        {order.paymentMethod === "CASH" && order.changeDue != null && (
+          <div className="cart-summary" style={{ fontWeight: 400 }}>
+            <span>Troco (paga com {order.amountTendered?.toFixed(2)} €)</span>
+            <span>{order.changeDue.toFixed(2)} €</span>
+          </div>
+        )}
       </section>
 
       <section className="modifier-group">

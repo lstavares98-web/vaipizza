@@ -4,7 +4,6 @@ import { badRequest, notFound } from "../../utils/AppError.js";
 import { assertTransitionAllowed } from "../orders/orderStateMachine.js";
 import { getIO, rooms } from "../../sockets/io.js";
 import { computeDeliveryEarning } from "./earnings.js";
-import { computeChangeDue } from "./cash.js";
 import { round2 } from "../../utils/pricing.js";
 
 export async function getCourierByUserId(userId: string) {
@@ -55,7 +54,6 @@ export async function updateDeliveryStatus(
   userId: string,
   orderId: string,
   status: "PICKED_UP" | "OUT_FOR_DELIVERY" | "DELIVERED",
-  amountTendered?: number,
 ) {
   const courier = await getCourierByUserId(userId);
   const order = await prisma.order.findFirst({ where: { id: orderId, courierId: courier.id } });
@@ -63,15 +61,9 @@ export async function updateDeliveryStatus(
 
   assertTransitionAllowed(order.status, status, Role.COURIER);
 
-  // Cash orders need the amount the customer actually handed over, captured
-  // at the door (not at checkout, when it isn't known yet) so the change
-  // owed is computed and shown before the courier leaves.
-  let changeDue: number | undefined;
-  if (status === "DELIVERED" && order.paymentMethod === "CASH") {
-    if (amountTendered == null) throw badRequest("Indique o valor entregue pelo cliente", "AMOUNT_TENDERED_REQUIRED");
-    changeDue = computeChangeDue(order.total, amountTendered);
-  }
-
+  // Change (if any) was already worked out at checkout from what the
+  // customer declared they'd pay with — the courier just hands it over,
+  // nothing to enter here. See orders.service.ts checkout().
   const data: Record<string, unknown> = {
     status,
     statusHistory: { create: { status, actor: Role.COURIER } },
@@ -79,11 +71,7 @@ export async function updateDeliveryStatus(
   if (status === "PICKED_UP") data.pickedUpAt = new Date();
   if (status === "DELIVERED") {
     data.deliveredAt = new Date();
-    if (amountTendered != null) {
-      data.amountTendered = amountTendered;
-      data.changeDue = changeDue;
-      data.paymentStatus = "PAID";
-    }
+    if (order.paymentMethod === "CASH") data.paymentStatus = "PAID";
   }
 
   const updated = await prisma.order.update({ where: { id: order.id }, data });
