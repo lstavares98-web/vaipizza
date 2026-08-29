@@ -1,29 +1,21 @@
 version: "3.9"
 
+# Local development infrastructure only. The apps themselves run via
+# `npm run dev` at the repo root (see README) — this just gives you a
+# disposable PostgreSQL instance matching apps/api/.env.example.
 services:
-  backend:
-    build: ./backend
-    container_name: yummix-backend
+  postgres:
+    image: postgres:16-alpine
+    container_name: yummix-postgres
+    environment:
+      POSTGRES_USER: yummix
+      POSTGRES_PASSWORD: yummix
+      POSTGRES_DB: yummix
     ports:
-      - "4000:4000"
-    env_file:
-      - ./backend/.env
+      - "5432:5432"
+    volumes:
+      - yummix_postgres_data:/var/lib/postgresql/data
     restart: unless-stopped
 
-  frontend:
-    build: ./frontend
-    container_name: yummix-frontend
-    ports:
-      - "5173:5173"
-    depends_on:
-      - backend
-    restart: unless-stopped
-
-  admin:
-    build: ./admin
-    container_name: yummix-admin
-    ports:
-      - "5174:5174"
-    depends_on:
-      - backend
-    restart: unless-stopped
+volumes:
+  yummix_postgres_data:

@@ -1,23 +1,34 @@
 {
-  "dependencies": {
-    "@tailwindcss/vite": "^4.3.1",
-    "axios": "^1.17.0",
-    "cloudinary": "^1.41.3",
-    "leaflet": "^1.9.4",
-    "lucide-react": "^1.18.0",
-    "multer-storage-cloudinary": "^4.0.0",
-    "react": "^19.2.7",
-    "react-dom": "^19.2.7",
-    "react-leaflet": "^5.0.0",
-    "react-router-dom": "^7.17.0",
-    "react-toastify": "^11.1.0",
-    "recharts": "^3.8.1"
+  "name": "yummix",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Yummix — professional multi-restaurant food delivery platform (monorepo)",
+  "type": "module",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev": "concurrently -k -n API,CUSTOMER,RESTAURANT,KDS,COURIER,ADMIN -c blue,green,yellow,magenta,cyan,red \"npm:dev:api\" \"npm:dev:customer\" \"npm:dev:restaurant\" \"npm:dev:kds\" \"npm:dev:courier\" \"npm:dev:admin\"",
+    "dev:api": "npm run dev -w apps/api",
+    "dev:customer": "npm run dev -w apps/customer",
+    "dev:restaurant": "npm run dev -w apps/restaurant",
+    "dev:kds": "npm run dev -w apps/kds",
+    "dev:courier": "npm run dev -w apps/courier",
+    "dev:admin": "npm run dev -w apps/admin",
+    "build": "npm run build --workspaces --if-present",
+    "lint": "npm run lint --workspaces --if-present",
+    "test": "npm run test --workspaces --if-present",
+    "test:e2e": "npm run test:e2e -w apps/customer --if-present",
+    "db:generate": "npm run db:generate -w apps/api",
+    "db:migrate": "npm run db:migrate -w apps/api",
+    "db:seed": "npm run db:seed -w apps/api",
+    "db:studio": "npm run db:studio -w apps/api"
   },
   "devDependencies": {
-    "@vitejs/plugin-react": "^6.0.2",
-    "autoprefixer": "^10.5.0",
-    "postcss": "^8.5.15",
-    "tailwindcss": "^4.3.1",
-    "vite": "^8.0.16"
+    "concurrently": "^9.1.0"
+  },
+  "engines": {
+    "node": ">=20"
   }
 }

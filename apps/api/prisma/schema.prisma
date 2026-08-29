@@ -1,0 +1,643 @@
+// Yummix — full relational schema.
+// Design notes:
+// - OrderItem stores an immutable snapshot (name/price/modifiers) taken at
+//   purchase time, so later menu edits never change historical orders.
+// - Modifier groups/options belong to a Product; a group can be reused by
+//   duplicating it onto another product (no cross-product sharing) to keep
+//   per-restaurant customization simple and avoid accidental coupling.
+// - Split products (e.g. half-and-half pizza) are represented as a second
+//   optional product reference + pricing rule on the OrderItem, not as a
+//   separate catalog entity — any product can be "split" at order time.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ---------------------------------------------------------------------------
+// Auth / accounts
+// ---------------------------------------------------------------------------
+
+enum Role {
+  CUSTOMER
+  RESTAURANT_OWNER
+  RESTAURANT_STAFF
+  KITCHEN
+  COURIER
+  SUPER_ADMIN
+}
+
+model User {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  passwordHash String
+  name         String
+  phone        String?
+  role         Role
+  isBlocked    Boolean  @default(false)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  // Present only for RESTAURANT_OWNER / RESTAURANT_STAFF / KITCHEN accounts.
+  restaurantId String?
+  restaurant   Restaurant? @relation(fields: [restaurantId], references: [id])
+
+  addresses         Address[]
+  orders            Order[]
+  cart              Cart?
+  courier           Courier?
+  productRatings    ProductRating[]
+  courierRatings    CourierRating[]
+  passwordResetTokens PasswordResetToken[]
+  refreshTokens     RefreshToken[]
+
+  @@index([role])
+  @@index([restaurantId])
+}
+
+model RefreshToken {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tokenHash String   @unique
+  expiresAt DateTime
+  revokedAt DateTime?
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+}
+
+model PasswordResetToken {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tokenHash String   @unique
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+}
+
+model Address {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  label     String // "Home", "Work", ...
+  line1     String
+  line2     String?
+  city      String
+  postalCode String?
+  lat       Float
+  lng       Float
+  isDefault Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  orders Order[]
+
+  @@index([userId])
+}
+
+// ---------------------------------------------------------------------------
+// Restaurants
+// ---------------------------------------------------------------------------
+
+enum RestaurantStatus {
+  PENDING
+  APPROVED
+  SUSPENDED
+  REJECTED
+}
+
+enum DeliveryFeeMode {
+  TIERED // fixed € per distance bracket
+  BASE_PLUS_PER_KM // base fee + €/km
+}
+
+model Restaurant {
+  id          String           @id @default(cuid())
+  name        String
+  slug        String           @unique
+  description String?
+  logoUrl     String?
+  bannerUrl   String?
+  status      RestaurantStatus @default(PENDING)
+  rejectionReason String?
+
+  email   String @unique
+  phone   String
+
+  address    String
+  lat        Float
+  lng        Float
+  deliveryRadiusKm Float @default(8)
+
+  deliveryFeeMode      DeliveryFeeMode @default(BASE_PLUS_PER_KM)
+  deliveryFeeBase      Float           @default(2)
+  deliveryFeePerKm     Float           @default(0.5)
+  deliveryFeeFreeKm    Float           @default(2)
+  deliveryFeeTiers     DeliveryFeeTier[]
+
+  commissionPercent Float @default(20) // platform commission
+
+  avgRating   Float @default(0)
+  ratingCount Int   @default(0)
+
+  acceptsPickup   Boolean @default(true)
+  acceptsDelivery Boolean @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  staff      User[]
+  hours      RestaurantHours[]
+  categories Category[]
+  products   Product[]
+  orders     Order[]
+  coupons    Coupon[]
+  carts      Cart[]
+
+  @@index([status])
+}
+
+// Only used when deliveryFeeMode = TIERED.
+model DeliveryFeeTier {
+  id           String     @id @default(cuid())
+  restaurantId String
+  restaurant   Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  upToKm       Float // tier applies for distance <= upToKm (last tier = no cap, upToKm = null handled as +Infinity in code via 999)
+  fee          Float
+
+  @@index([restaurantId])
+}
+
+model RestaurantHours {
+  id           String     @id @default(cuid())
+  restaurantId String
+  restaurant   Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  dayOfWeek    Int // 0 = Sunday ... 6 = Saturday
+  opensAt      String // "09:00"
+  closesAt     String // "22:00"
+  isClosed     Boolean @default(false)
+
+  @@unique([restaurantId, dayOfWeek])
+}
+
+// ---------------------------------------------------------------------------
+// Catalog: categories, products, modifiers
+// ---------------------------------------------------------------------------
+
+model Category {
+  id           String     @id @default(cuid())
+  restaurantId String
+  restaurant   Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  name         String
+  sortOrder    Int        @default(0)
+  products     Product[]
+
+  @@unique([restaurantId, name])
+}
+
+model Product {
+  id           String     @id @default(cuid())
+  restaurantId String
+  restaurant   Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  categoryId   String
+  category     Category   @relation(fields: [categoryId], references: [id])
+
+  name        String
+  description String?
+  basePrice   Float
+  imageUrl    String?
+  imagePublicId String?
+
+  isAvailable  Boolean @default(true)
+  stock        Int?    // null = unlimited
+  allowsSplit  Boolean @default(false) // e.g. "half & half" pizza
+  splitPricingRule PricingRule @default(MOST_EXPENSIVE)
+
+  avgRating   Float @default(0)
+  ratingCount Int   @default(0)
+  sortOrder   Int   @default(0)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  modifierGroups ModifierGroup[]
+  ratings        ProductRating[]
+  orderItems     OrderItem[] @relation("PrimaryProduct")
+  splitOrderItems OrderItem[] @relation("SecondaryProduct")
+  cartItems      CartItem[] @relation("CartPrimaryProduct")
+  splitCartItems CartItem[] @relation("CartSecondaryProduct")
+
+  @@index([restaurantId])
+  @@index([categoryId])
+}
+
+enum PricingRule {
+  MOST_EXPENSIVE
+  AVERAGE
+}
+
+// A group of options on a product, e.g. "Size", "Crust", "Extras".
+model ModifierGroup {
+  id        String  @id @default(cuid())
+  productId String
+  product   Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  name      String
+  required  Boolean @default(false)
+  minSelect Int     @default(0)
+  maxSelect Int     @default(1)
+  sortOrder Int     @default(0)
+
+  options ModifierOption[]
+
+  @@index([productId])
+}
+
+model ModifierOption {
+  id      String        @id @default(cuid())
+  groupId String
+  group   ModifierGroup @relation(fields: [groupId], references: [id], onDelete: Cascade)
+
+  name       String
+  priceDelta Float @default(0)
+  isDefault  Boolean @default(false)
+  sortOrder  Int     @default(0)
+
+  cartItemModifiers CartItemModifier[]
+  orderItemModifiers OrderItemModifier[]
+
+  @@index([groupId])
+}
+
+model ProductRating {
+  id        String   @id @default(cuid())
+  productId String
+  product   Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+  orderItemId String @unique
+  orderItem OrderItem @relation(fields: [orderItemId], references: [id])
+  stars     Int
+  comment   String?
+  createdAt DateTime @default(now())
+
+  @@index([productId])
+}
+
+model CourierRating {
+  id        String   @id @default(cuid())
+  courierId String
+  courier   Courier  @relation(fields: [courierId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+  orderId   String   @unique
+  order     Order    @relation(fields: [orderId], references: [id])
+  stars     Int
+  comment   String?
+  createdAt DateTime @default(now())
+
+  @@index([courierId])
+}
+
+// ---------------------------------------------------------------------------
+// Cart (one active cart per customer, single-restaurant enforced in service layer)
+// ---------------------------------------------------------------------------
+
+model Cart {
+  id           String      @id @default(cuid())
+  userId       String      @unique
+  user         User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  restaurantId String?
+  restaurant   Restaurant? @relation(fields: [restaurantId], references: [id])
+  updatedAt    DateTime    @updatedAt
+
+  items CartItem[]
+}
+
+model CartItem {
+  id        String  @id @default(cuid())
+  cartId    String
+  cart      Cart    @relation(fields: [cartId], references: [id], onDelete: Cascade)
+  productId String
+  product   Product @relation("CartPrimaryProduct", fields: [productId], references: [id])
+  secondaryProductId String? // set when the customer splits the product (half & half)
+  secondaryProduct   Product? @relation("CartSecondaryProduct", fields: [secondaryProductId], references: [id])
+  quantity  Int    @default(1)
+  notes     String?
+
+  modifiers CartItemModifier[]
+
+  @@index([cartId])
+}
+
+model CartItemModifier {
+  id         String   @id @default(cuid())
+  cartItemId String
+  cartItem   CartItem @relation(fields: [cartItemId], references: [id], onDelete: Cascade)
+  optionId   String
+  option     ModifierOption @relation(fields: [optionId], references: [id])
+
+  @@index([cartItemId])
+}
+
+// ---------------------------------------------------------------------------
+// Coupons
+// ---------------------------------------------------------------------------
+
+model Coupon {
+  id           String   @id @default(cuid())
+  code         String   @unique
+  restaurantId String? // null = platform-wide
+  restaurant   Restaurant? @relation(fields: [restaurantId], references: [id])
+  percentOff   Float?
+  amountOff    Float?
+  maxUsesTotal Int?
+  maxUsesPerUser Int    @default(1)
+  minSubtotal  Float?
+  expiresAt    DateTime?
+  isActive     Boolean  @default(true)
+  createdAt    DateTime @default(now())
+
+  redemptions CouponRedemption[]
+}
+
+model CouponRedemption {
+  id        String   @id @default(cuid())
+  couponId  String
+  coupon    Coupon   @relation(fields: [couponId], references: [id], onDelete: Cascade)
+  userId    String
+  orderId   String   @unique
+  order     Order    @relation(fields: [orderId], references: [id])
+  createdAt DateTime @default(now())
+
+  @@index([couponId, userId])
+}
+
+// ---------------------------------------------------------------------------
+// Orders
+// ---------------------------------------------------------------------------
+
+enum OrderStatus {
+  NEW
+  ACCEPTED
+  PREPARING
+  READY_FOR_PICKUP
+  WAITING_FOR_COURIER
+  COURIER_ASSIGNED
+  PICKED_UP
+  OUT_FOR_DELIVERY
+  DELIVERED
+  COLLECTED
+  CANCELLED
+}
+
+enum FulfillmentType {
+  DELIVERY
+  PICKUP
+}
+
+enum PaymentMethod {
+  CARD
+  CASH
+  MBWAY
+  TERMINAL
+}
+
+enum PaymentStatus {
+  PENDING
+  PAID
+  FAILED
+  REFUNDED
+}
+
+model Order {
+  id           String   @id @default(cuid())
+  orderNumber  Int      @default(autoincrement()) // short human-friendly id, e.g. "#154"
+
+  userId       String
+  user         User     @relation(fields: [userId], references: [id])
+  restaurantId String
+  restaurant   Restaurant @relation(fields: [restaurantId], references: [id])
+
+  fulfillmentType FulfillmentType @default(DELIVERY)
+  addressId       String?
+  address         Address?        @relation(fields: [addressId], references: [id])
+  customerLat     Float?
+  customerLng     Float?
+
+  status OrderStatus @default(NEW)
+
+  subtotal     Float
+  discount     Float @default(0)
+  deliveryFee  Float @default(0)
+  total        Float
+
+  paymentMethod PaymentMethod
+  paymentStatus PaymentStatus @default(PENDING)
+  stripeSessionId       String? @unique
+  stripePaymentIntentId String?
+  refundId              String?
+  refundFailed          Boolean @default(false)
+  refundRetryCount      Int     @default(0)
+  lastRefundError       String?
+  refundNeedsManualReview Boolean @default(false)
+
+  prepTimeMinutes Int? // set by restaurant on accept
+  notes           String?
+  rejectionReason String?
+
+  cancelledBy  Role?
+  cancelledAt  DateTime?
+  acceptedAt   DateTime?
+  readyAt      DateTime?
+  pickedUpAt   DateTime?
+  deliveredAt  DateTime?
+
+  courierId String?
+  courier   Courier? @relation(fields: [courierId], references: [id])
+  assignmentRetryCount Int @default(0)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  items              OrderItem[]
+  statusHistory      OrderStatusEvent[]
+  courierAssignments CourierAssignment[]
+  couponRedemption   CouponRedemption?
+  courierRating      CourierRating?
+  adminAlerts        AdminAlert[]
+
+  @@index([restaurantId, status])
+  @@index([userId])
+  @@index([courierId])
+  @@index([status])
+}
+
+model OrderStatusEvent {
+  id        String      @id @default(cuid())
+  orderId   String
+  order     Order       @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  status    OrderStatus
+  actor     Role?
+  createdAt DateTime    @default(now())
+
+  @@index([orderId])
+}
+
+// Immutable snapshot of what was purchased — never edited after creation.
+model OrderItem {
+  id        String @id @default(cuid())
+  orderId   String
+  order     Order  @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  productId String
+  product   Product @relation("PrimaryProduct", fields: [productId], references: [id])
+  productNameSnapshot String
+  secondaryProductId  String?
+  secondaryProduct    Product? @relation("SecondaryProduct", fields: [secondaryProductId], references: [id])
+  secondaryProductNameSnapshot String?
+  splitPricingRule    PricingRule?
+
+  quantity   Int
+  unitPrice  Float // includes modifiers, excludes quantity multiplication
+  lineTotal  Float
+  notes      String?
+
+  modifiers OrderItemModifier[]
+  rating    ProductRating?
+
+  @@index([orderId])
+}
+
+model OrderItemModifier {
+  id          String    @id @default(cuid())
+  orderItemId String
+  orderItem   OrderItem @relation(fields: [orderItemId], references: [id], onDelete: Cascade)
+  optionId    String
+  option      ModifierOption @relation(fields: [optionId], references: [id])
+  nameSnapshot String
+  priceDeltaSnapshot Float
+
+  @@index([orderItemId])
+}
+
+// ---------------------------------------------------------------------------
+// Couriers / dispatch
+// ---------------------------------------------------------------------------
+
+enum CourierStatus {
+  OFFLINE
+  AVAILABLE
+  ASSIGNED
+  GOING_TO_RESTAURANT
+  AT_RESTAURANT
+  PICKED_UP
+  DELIVERING
+}
+
+enum VerificationStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+model Courier {
+  id     String @id @default(cuid())
+  userId String @unique
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  vehicleType   String @default("BIKE")
+  vehicleNumber String?
+
+  documentIdUrl      String?
+  documentLicenseUrl String?
+  verificationStatus VerificationStatus @default(PENDING)
+
+  status    CourierStatus @default(OFFLINE)
+  lat       Float?
+  lng       Float?
+  locationUpdatedAt DateTime?
+
+  totalEarnings       Float @default(0)
+  lifetimeDeliveries  Int   @default(0)
+  avgRating           Float @default(0)
+  ratingCount         Int   @default(0)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  orders      Order[]
+  assignments CourierAssignment[]
+  earnings    CourierEarning[]
+  ratings     CourierRating[]
+
+  @@index([status])
+}
+
+enum CourierAssignmentStatus {
+  OFFERED
+  ACCEPTED
+  REJECTED
+  EXPIRED
+  CANCELLED
+}
+
+model CourierAssignment {
+  id        String   @id @default(cuid())
+  orderId   String
+  order     Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  courierId String
+  courier   Courier  @relation(fields: [courierId], references: [id])
+  status    CourierAssignmentStatus @default(OFFERED)
+  offeredAt DateTime @default(now())
+  respondedAt DateTime?
+  expiresAt DateTime
+
+  @@index([orderId])
+  @@index([courierId])
+}
+
+model CourierEarning {
+  id        String   @id @default(cuid())
+  courierId String
+  courier   Courier  @relation(fields: [courierId], references: [id], onDelete: Cascade)
+  orderId   String?
+  amount    Float
+  kind      String // "DELIVERY" | "BONUS"
+  createdAt DateTime @default(now())
+
+  @@index([courierId])
+}
+
+// ---------------------------------------------------------------------------
+// Platform admin
+// ---------------------------------------------------------------------------
+
+model AdminAlert {
+  id        String   @id @default(cuid())
+  orderId   String?
+  order     Order?   @relation(fields: [orderId], references: [id])
+  type      String // "REFUND_FAILED" | "ASSIGNMENT_EXHAUSTED" | ...
+  message   String
+  resolved  Boolean  @default(false)
+  resolvedAt DateTime?
+  createdAt DateTime @default(now())
+
+  @@index([resolved])
+}
+
+model FeedbackSubmission {
+  id        String   @id @default(cuid())
+  kind      String // "CUSTOMER_FEEDBACK" | "PARTNER_REQUEST"
+  name      String
+  email     String
+  message   String
+  createdAt DateTime @default(now())
+}
