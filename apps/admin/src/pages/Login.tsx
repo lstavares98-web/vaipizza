@@ -26,7 +26,7 @@ export default function Login() {
 
   return (
     <div className="auth-page">
-      <h1>Yummix Super Admin</h1>
+      <h1>VaiPizza Super Admin</h1>
       <form onSubmit={handleSubmit} className="auth-form">
         <label>
           Email

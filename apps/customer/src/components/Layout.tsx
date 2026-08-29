@@ -11,7 +11,7 @@ export default function Layout() {
     <div className="app-shell">
       <nav className="navbar">
         <Link to="/restaurants" className="brand">
-          🍔 Yummix
+          🍕 VaiPizza
         </Link>
         <div className="nav-links">
           {user ? (

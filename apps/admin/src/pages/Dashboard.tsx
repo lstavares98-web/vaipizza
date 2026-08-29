@@ -56,7 +56,7 @@ export default function Dashboard() {
             <XAxis dataKey="date" tick={{ fontSize: 11 }} tickFormatter={(d) => d.slice(5)} />
             <YAxis tick={{ fontSize: 11 }} />
             <Tooltip formatter={(v: number) => `${v.toFixed(2)} €`} />
-            <Line type="monotone" dataKey="revenue" stroke="#ff4d30" strokeWidth={2} dot={false} />
+            <Line type="monotone" dataKey="revenue" stroke="#a51f10" strokeWidth={2} dot={false} />
           </LineChart>
         </ResponsiveContainer>
       </div>

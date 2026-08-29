@@ -8,10 +8,10 @@ export default defineConfig({
     VitePWA({
       registerType: "autoUpdate",
       manifest: {
-        name: "Yummix Estafeta",
-        short_name: "Yummix Courier",
-        theme_color: "#111318",
-        background_color: "#111318",
+        name: "VaiPizza Estafeta",
+        short_name: "VaiPizza",
+        theme_color: "#0B4D2B",
+        background_color: "#161616",
         display: "standalone",
         start_url: "/",
         icons: [

@@ -1,14 +1,20 @@
 :root {
   color-scheme: light;
-  --brand: #ff4d30;
-  --brand-dark: #e23f24;
-  --bg: #faf9f7;
+  --brand: #a51f10;
+  --brand-dark: #7c170c;
+  --brand-green: #0b4d2b;
+  --brand-yellow: #f5a000;
+  --brand-orange: #dc7200;
+  --brand-cream: #f7e8c8;
+  --bg: #f7e8c8;
   --surface: #ffffff;
-  --text: #1a1a1a;
+  --text: #161616;
   --muted: #6b6b6b;
   --border: #ececec;
   --radius: 14px;
-  font-family: -apple-system, "Segoe UI", system-ui, sans-serif;
+  --font-heading: "Anton", "Segoe UI", sans-serif;
+  --font-body: "Poppins", -apple-system, "Segoe UI", system-ui, sans-serif;
+  font-family: var(--font-body);
 }
 
 * {
@@ -19,6 +25,15 @@ body {
   margin: 0;
   background: var(--bg);
   color: var(--text);
+}
+
+h1,
+h2,
+h3 {
+  font-family: var(--font-heading);
+  font-weight: 400;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
 }
 
 button {
@@ -55,9 +70,11 @@ select {
   border-bottom: 1px solid var(--border);
 }
 .brand {
-  font-weight: 800;
-  font-size: 1.2rem;
-  color: var(--text);
+  font-family: var(--font-heading);
+  font-weight: 400;
+  font-size: 1.3rem;
+  letter-spacing: 0.02em;
+  color: var(--brand-green);
   text-decoration: none;
 }
 .nav-links {

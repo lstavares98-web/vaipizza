@@ -14,7 +14,7 @@ export default function Layout() {
   return (
     <div className="app-shell">
       <nav className="navbar">
-        <span className="brand">🏪 Yummix Restaurante</span>
+        <span className="brand">🍕 VaiPizza Restaurante</span>
         {user && (
           <div className="nav-links">
             {NAV.map((item) => (

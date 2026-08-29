@@ -1,12 +1,18 @@
 :root {
   color-scheme: light;
-  --brand: #ff4d30;
+  --brand: #a51f10;
+  --brand-green: #0b4d2b;
+  --brand-yellow: #f5a000;
+  --brand-orange: #dc7200;
+  --brand-cream: #f7e8c8;
   --bg: #f5f6f8;
   --surface: #ffffff;
-  --text: #1a1a1a;
+  --text: #161616;
   --muted: #6b6b6b;
   --border: #e4e4e7;
-  font-family: -apple-system, "Segoe UI", system-ui, sans-serif;
+  --font-heading: "Anton", "Segoe UI", sans-serif;
+  --font-body: "Poppins", -apple-system, "Segoe UI", system-ui, sans-serif;
+  font-family: var(--font-body);
 }
 * {
   box-sizing: border-box;
@@ -15,6 +21,14 @@ body {
   margin: 0;
   background: var(--bg);
   color: var(--text);
+}
+h1,
+h2,
+h3 {
+  font-family: var(--font-heading);
+  font-weight: 400;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
 }
 button {
   font-family: inherit;
@@ -42,7 +56,10 @@ textarea {
   border-bottom: 1px solid var(--border);
 }
 .brand {
-  font-weight: 800;
+  font-family: var(--font-heading);
+  font-weight: 400;
+  letter-spacing: 0.02em;
+  color: var(--brand-green);
 }
 .nav-links {
   display: flex;

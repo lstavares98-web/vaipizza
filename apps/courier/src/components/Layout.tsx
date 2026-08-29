@@ -6,7 +6,7 @@ export default function Layout() {
   return (
     <div className="app-shell">
       <header className="top-bar">
-        <span className="brand">🛵 Yummix</span>
+        <span className="brand">🛵 VaiPizza</span>
         {user && (
           <button className="link-btn" onClick={logout}>
             Sair

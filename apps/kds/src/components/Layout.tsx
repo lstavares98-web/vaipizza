@@ -6,7 +6,7 @@ export default function Layout() {
   return (
     <div className="kds-shell">
       <header className="kds-header">
-        <span className="kds-brand">YUMMIX KDS</span>
+        <span className="kds-brand">VAIPIZZA COZINHA</span>
         {user && (
           <div className="kds-header-right">
             <span>{user.name}</span>

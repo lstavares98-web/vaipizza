@@ -11,11 +11,11 @@ export default defineConfig({
     VitePWA({
       registerType: "autoUpdate",
       manifest: {
-        name: "Yummix",
-        short_name: "Yummix",
-        description: "Peça comida dos seus restaurantes favoritos",
-        theme_color: "#ff4d30",
-        background_color: "#ffffff",
+        name: "VaiPizza Delivery",
+        short_name: "VaiPizza",
+        description: "Pediu? Vai. Peça comida dos seus restaurantes favoritos",
+        theme_color: "#0B4D2B",
+        background_color: "#F7E8C8",
         display: "standalone",
         start_url: "/",
         icons: [
