@@ -69,7 +69,12 @@ export default function Home() {
   }, [load]);
 
   useEffect(() => {
-    api.get("/courier/earnings").then(({ data }) => setToday({ today: data.today, pendingCashTotal: data.pendingCashTotal }));
+    // Defensive against an older API deploy that doesn't return these
+    // fields yet — never crash the whole screen over an optional summary.
+    api.get("/courier/earnings").then(({ data }) => {
+      if (!data.today) return;
+      setToday({ today: data.today, pendingCashTotal: data.pendingCashTotal ?? 0 });
+    });
   }, []);
 
   useEffect(() => {
