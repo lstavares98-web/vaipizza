@@ -15,3 +15,17 @@ export function computeChangeDue(total: number, amountTendered: number): number 
   }
   return round2(amountTendered - total);
 }
+
+/**
+ * Cash the courier is physically holding after delivering a CASH order,
+ * and therefore owes back to the restaurant. The restaurant sends the
+ * change out with the courier in advance, so handing it to the customer
+ * leaves the courier holding the *whole* note the customer paid with —
+ * e.g. a €20 order paid with a €100 note: restaurant advances €80 change,
+ * courier gives that €80 to the customer, and is left holding the €100
+ * the customer just handed over. That full €100 is what must come back,
+ * not just the €20 order value or the courier's own delivery fee.
+ */
+export function cashHeldByCourier(orderTotal: number, amountTendered: number | null): number {
+  return round2(amountTendered ?? orderTotal);
+}

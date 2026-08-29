@@ -205,6 +205,11 @@ function OrderCard({ order, children }: { order: OrderRow; children?: React.Reac
         <p className="cash-warning">
           💶 Dinheiro · cliente paga com {order.amountTendered?.toFixed(2)} € → preparar{" "}
           <strong>{order.changeDue.toFixed(2)} € de troco</strong>
+          <br />
+          <span className="hint">
+            O estafeta leva {order.changeDue.toFixed(2)} € de troco e deve voltar com{" "}
+            {order.amountTendered?.toFixed(2)} € (o valor todo que o cliente entregou).
+          </span>
         </p>
       )}
       {order.paymentMethod === "CASH" && order.changeDue == null && <p className="hint">💶 Dinheiro na entrega</p>}

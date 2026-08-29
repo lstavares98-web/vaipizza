@@ -1,5 +1,6 @@
 import { prisma } from "../../config/prisma.js";
 import { round2 } from "../../utils/pricing.js";
+import { cashHeldByCourier } from "../couriers/cash.js";
 
 // Only DELIVERY-kind earnings tied to one of this restaurant's own orders
 // count here — BONUS rows (orderId null) are platform-wide milestone
@@ -28,8 +29,14 @@ export async function getPendingCashByCourier(restaurantId: string) {
       total: 0,
       orders: [],
     };
-    entry.total = round2(entry.total + e.amount);
-    if (e.order) entry.orders.push({ orderId: e.order.id, orderNumber: e.order.orderNumber, amount: e.amount });
+    // What the courier owes back is the whole note the customer paid
+    // with (e.g. a delivery of €20 paid with a €100 bill: the restaurant
+    // already sent €80 change out with the courier, so after handing that
+    // change to the customer the courier is left holding the full €100,
+    // not just the €20 order value) — not the courier's own delivery fee.
+    const cashHeld = e.order ? cashHeldByCourier(e.order.total, e.order.amountTendered) : 0;
+    entry.total = round2(entry.total + cashHeld);
+    if (e.order) entry.orders.push({ orderId: e.order.id, orderNumber: e.order.orderNumber, amount: cashHeld });
     byCourier.set(key, entry);
   }
   return Array.from(byCourier.values());

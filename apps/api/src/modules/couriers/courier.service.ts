@@ -4,6 +4,7 @@ import { badRequest, notFound } from "../../utils/AppError.js";
 import { assertTransitionAllowed } from "../orders/orderStateMachine.js";
 import { getIO, rooms } from "../../sockets/io.js";
 import { computeDeliveryEarning } from "./earnings.js";
+import { cashHeldByCourier } from "./cash.js";
 import { round2 } from "../../utils/pricing.js";
 
 export async function getCourierByUserId(userId: string) {
@@ -108,7 +109,7 @@ export async function getEarningsSummary(userId: string) {
   const startOfToday = new Date();
   startOfToday.setHours(0, 0, 0, 0);
 
-  const [recent, todayEarnings, pendingCash] = await Promise.all([
+  const [recent, todayEarnings, pendingCashEarnings] = await Promise.all([
     prisma.courierEarning.findMany({
       where: { courierId: courier.id, createdAt: { gte: sevenDaysAgo } },
       orderBy: { createdAt: "asc" },
@@ -116,9 +117,9 @@ export async function getEarningsSummary(userId: string) {
     prisma.courierEarning.findMany({
       where: { courierId: courier.id, kind: "DELIVERY", createdAt: { gte: startOfToday } },
     }),
-    prisma.courierEarning.aggregate({
+    prisma.courierEarning.findMany({
       where: { courierId: courier.id, kind: "DELIVERY", settledAt: null, order: { paymentMethod: "CASH" } },
-      _sum: { amount: true },
+      include: { order: true },
     }),
   ]);
 
@@ -128,12 +129,23 @@ export async function getEarningsSummary(userId: string) {
     byDay.set(key, (byDay.get(key) ?? 0) + e.amount);
   }
 
+  // The courier's cash-in-hand liability is what the customer actually
+  // handed over (amountTendered), not the courier's own delivery fee —
+  // the restaurant already sent the change out with the courier, so
+  // handing the customer their change leaves the courier holding the
+  // *whole* note/bill the customer paid with, all of which is owed back
+  // to the restaurant (who pays the courier's fee separately).
+  const pendingCashTotal = pendingCashEarnings.reduce(
+    (sum, e) => sum + (e.order ? cashHeldByCourier(e.order.total, e.order.amountTendered) : 0),
+    0,
+  );
+
   return {
     totalEarnings: courier.totalEarnings,
     lifetimeDeliveries: courier.lifetimeDeliveries,
     avgRating: courier.avgRating,
     today: { deliveries: todayEarnings.length, total: round2(todayEarnings.reduce((s, e) => s + e.amount, 0)) },
-    pendingCashTotal: round2(pendingCash._sum?.amount ?? 0),
+    pendingCashTotal: round2(pendingCashTotal),
     last7Days: Array.from(byDay.entries()).map(([date, amount]) => ({ date, amount })),
   };
 }
