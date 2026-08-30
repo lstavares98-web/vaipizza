@@ -59,3 +59,31 @@ export function LogoutIcon(_: IconProps) {
     </svg>
   );
 }
+
+export function StarIcon(_: IconProps) {
+  return (
+    <svg {...common}>
+      <path d="M12 3.5l2.47 5.18 5.53.68-4.03 3.98 1.02 5.66L12 16.2l-4.99 2.8 1.02-5.66-4.03-3.98 5.53-.68L12 3.5Z" />
+    </svg>
+  );
+}
+
+export function BikeIcon(_: IconProps) {
+  return (
+    <svg {...common}>
+      <circle cx="5.5" cy="17.5" r="3" />
+      <circle cx="18.5" cy="17.5" r="3" />
+      <path d="M5.5 17.5 9 10h4l2.5 3.2M9 10 8 7h-2" />
+      <path d="M12.5 13.2 15 17.5h3.5" />
+    </svg>
+  );
+}
+
+export function PinIcon(_: IconProps) {
+  return (
+    <svg {...common}>
+      <path d="M12 21s7-6.3 7-11.5A7 7 0 0 0 5 9.5C5 14.7 12 21 12 21Z" />
+      <circle cx="12" cy="9.5" r="2.3" />
+    </svg>
+  );
+}

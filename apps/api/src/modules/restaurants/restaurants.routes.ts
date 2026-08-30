@@ -53,6 +53,7 @@ restaurantsRouter.get(
           description: r.description,
           logoUrl: r.logoUrl,
           bannerUrl: r.bannerUrl,
+          phone: r.phone,
           avgRating: r.avgRating,
           ratingCount: r.ratingCount,
           acceptsPickup: r.acceptsPickup,
@@ -80,7 +81,7 @@ restaurantsRouter.get(
       include: {
         hours: true,
         categories: {
-          orderBy: { sortOrder: "asc" },
+          orderBy: { name: "asc" },
           include: {
             products: {
               where: { isAvailable: true },

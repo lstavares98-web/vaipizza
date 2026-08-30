@@ -65,6 +65,8 @@ export async function createProduct(restaurantId: string, input: ProductInput) {
       stock: input.stock ?? null,
       allowsSplit: input.allowsSplit ?? false,
       splitPricingRule: input.splitPricingRule ?? "MOST_EXPENSIVE",
+      imageUrl: input.imageUrl,
+      imagePublicId: input.imagePublicId,
       modifierGroups: input.modifierGroups
         ? {
             create: input.modifierGroups.map((g, gi) => ({

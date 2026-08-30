@@ -14,6 +14,7 @@ import Checkout from "./pages/Checkout";
 import Profile from "./pages/Profile";
 import Orders from "./pages/Orders";
 import OrderDetail from "./pages/OrderDetail";
+import PrivacyPolicy from "./pages/PrivacyPolicy";
 
 export default function App() {
   return (
@@ -26,6 +27,7 @@ export default function App() {
               <Route path="/login" element={<Login />} />
               <Route path="/register" element={<Register />} />
               <Route path="/forgot-password" element={<ForgotPassword />} />
+              <Route path="/privacidade" element={<PrivacyPolicy />} />
               {/* Kept reachable for when a second restaurant is added — not linked from the nav for now. */}
               <Route path="/restaurants" element={<Restaurants />} />
               <Route path="/restaurants/:slug" element={<RestaurantMenu />} />

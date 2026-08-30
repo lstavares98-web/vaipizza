@@ -63,6 +63,9 @@ restaurantSettingsRouter.put(
 const tierSchema = z.object({ upToKm: z.number().positive(), fee: z.number().nonnegative() });
 
 const settingsSchema = z.object({
+  name: z.string().min(1).max(120).optional(),
+  address: z.string().min(1).max(200).optional(),
+  phone: z.string().min(6).max(20).optional(),
   deliveryFeeMode: z.enum(["TIERED", "BASE_PLUS_PER_KM"]).optional(),
   deliveryFeeBase: z.number().nonnegative().optional(),
   deliveryFeePerKm: z.number().nonnegative().optional(),

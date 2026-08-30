@@ -12,6 +12,9 @@ interface DayHours {
   isClosed: boolean;
 }
 interface RestaurantSettings {
+  name: string;
+  address: string;
+  phone: string;
   deliveryFeeMode: "TIERED" | "BASE_PLUS_PER_KM";
   deliveryFeeBase: number;
   deliveryFeePerKm: number;
@@ -103,6 +106,18 @@ export default function Settings() {
     <div className="page-content">
       <h1>Definições</h1>
       <form onSubmit={handleSave} className="product-form" style={{ maxWidth: 520 }}>
+        <label>
+          Nome do restaurante
+          <input value={settings.name} onChange={(e) => set("name", e.target.value)} required />
+        </label>
+        <label>
+          Morada
+          <input value={settings.address} onChange={(e) => set("address", e.target.value)} required />
+        </label>
+        <label>
+          Telefone (usado no botão de WhatsApp da app do cliente)
+          <input value={settings.phone} onChange={(e) => set("phone", e.target.value)} placeholder="+351 912 345 678" required />
+        </label>
         <label className="checkbox">
           <input type="checkbox" checked={settings.acceptsDelivery} onChange={(e) => set("acceptsDelivery", e.target.checked)} />
           Aceita entregas

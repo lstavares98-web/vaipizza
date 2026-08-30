@@ -70,8 +70,6 @@ catalogRouter.post(
 );
 
 const updateProductSchema = productSchema.partial().extend({
-  imageUrl: z.string().url().optional(),
-  imagePublicId: z.string().optional(),
   defaultPrepTimeMinutes: z.number().int().positive().nullable().optional(),
 });
 

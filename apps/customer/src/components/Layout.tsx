@@ -1,12 +1,22 @@
+import { useEffect, useState } from "react";
 import { NavLink, Outlet } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import { useCart } from "../context/CartContext";
+import { api } from "../lib/api";
 import { BagIcon, HomeIcon, LogoutIcon, ReceiptIcon, UserIcon } from "./NavIcons";
 
 export default function Layout() {
   const { user, logout } = useAuth();
   const { items } = useCart();
   const cartCount = items.reduce((sum, i) => sum + i.quantity, 0);
+  const [whatsapp, setWhatsapp] = useState<string | null>(null);
+
+  useEffect(() => {
+    api.get("/restaurants").then(({ data }) => {
+      const phone = data.restaurants[0]?.phone as string | undefined;
+      if (phone) setWhatsapp(phone.replace(/[^\d+]/g, ""));
+    });
+  }, []);
 
   return (
     <div className="app-shell">
@@ -31,6 +41,17 @@ export default function Layout() {
       <main>
         <Outlet />
       </main>
+      {whatsapp && (
+        <a
+          className="whatsapp-fab"
+          href={`https://wa.me/${whatsapp.replace("+", "")}`}
+          target="_blank"
+          rel="noopener noreferrer"
+          aria-label="Fale connosco no WhatsApp"
+        >
+          <img src="/logo.png" alt="" />
+        </a>
+      )}
       <div className="bottom-nav">
         <NavLink to="/" end className={({ isActive }) => (isActive ? "active" : "")}>
           <HomeIcon />

@@ -77,6 +77,8 @@ export const productSchema = z.object({
   allowsSplit: z.boolean().optional(),
   splitPricingRule: z.enum(["MOST_EXPENSIVE", "AVERAGE"]).optional(),
   modifierGroups: z.array(modifierGroupSchema).optional(),
+  imageUrl: z.string().url().optional(),
+  imagePublicId: z.string().optional(),
 });
 export type ProductInput = z.infer<typeof productSchema>;
 
