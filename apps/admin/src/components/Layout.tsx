@@ -16,7 +16,10 @@ export default function Layout() {
   return (
     <div className="app-shell">
       <aside className="sidebar">
-        <div className="brand">🍕 VaiPizza Admin</div>
+        <div className="brand">
+          <img src="/logo.png" alt="" />
+          VaiPizza
+        </div>
         <nav>
           {NAV.map((item) => (
             <NavLink key={item.to} to={item.to} end={item.end}>
