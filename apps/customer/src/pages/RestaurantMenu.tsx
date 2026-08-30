@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { api } from "../lib/api";
 import ProductModal, { type ProductForModal } from "../components/ProductModal";
@@ -49,10 +49,99 @@ export default function RestaurantMenu() {
     [restaurant],
   );
 
+  // Scrollspy: the tab bar sticks under the top nav, and whichever category
+  // section currently occupies that band becomes the active tab — no need
+  // to tap a tab to browse, scrolling alone keeps it in sync.
+  const suppressSpyUntil = useRef(0);
+  useEffect(() => {
+    if (categoriesWithProducts.length === 0) return;
+    // Each IntersectionObserver callback only reports targets whose state
+    // just changed, not the full current picture — so a fast scroll that
+    // skips a section's threshold crossing can leave stale entries out of
+    // the batch entirely. Track membership ourselves instead of trusting
+    // each batch to be a complete snapshot.
+    const intersecting = new Map<string, number>();
+    const SPY_LINE = 112;
+
+    function evaluate() {
+      if (Date.now() < suppressSpyUntil.current) return;
+      const firstCategory = categoriesWithProducts[0];
+      const lastCategory = categoriesWithProducts[categoriesWithProducts.length - 1];
+      // Above the first category (still in the hero) or below the last
+      // one (page can't scroll further) — these idle endpoints don't
+      // necessarily coincide with an intersection threshold crossing, so
+      // they're checked on every scroll tick rather than only inside the
+      // observer callback.
+      if (window.scrollY <= 4 && firstCategory) {
+        setActiveCategory(firstCategory.id);
+        return;
+      }
+      const atBottom = window.innerHeight + window.scrollY >= document.documentElement.scrollHeight - 2;
+      if (atBottom && lastCategory) {
+        setActiveCategory(lastCategory.id);
+        return;
+      }
+      if (intersecting.size === 0) return;
+      // Otherwise, the active section is the one whose top edge most
+      // recently scrolled past the reference line (just under the sticky
+      // tab bar) — not simply "whichever top value is smallest", which
+      // would keep crediting a section that's almost entirely scrolled
+      // away with only its trailing edge still poking in.
+      const all = [...intersecting.entries()];
+      const passed = all.filter(([, top]) => top <= SPY_LINE);
+      const [id] = passed.length > 0
+        ? passed.reduce((a, b) => (a[1] > b[1] ? a : b))
+        : all.reduce((a, b) => (a[1] < b[1] ? a : b));
+      setActiveCategory(id);
+    }
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        for (const entry of entries) {
+          const id = entry.target.id.replace("category-", "");
+          if (entry.isIntersecting) intersecting.set(id, entry.boundingClientRect.top);
+          else intersecting.delete(id);
+        }
+        evaluate();
+      },
+      { rootMargin: `-${SPY_LINE}px 0px -60% 0px`, threshold: 0 },
+    );
+    for (const cat of categoriesWithProducts) {
+      const el = document.getElementById(`category-${cat.id}`);
+      if (el) observer.observe(el);
+    }
+
+    // Catches the top/bottom idle endpoints on ticks where nothing
+    // crossed an intersection threshold (e.g. easing to a stop exactly at
+    // scrollY 0 after the last section already exited the spy band).
+    let raf = 0;
+    function onScroll() {
+      cancelAnimationFrame(raf);
+      raf = requestAnimationFrame(evaluate);
+    }
+    window.addEventListener("scroll", onScroll, { passive: true });
+
+    return () => {
+      observer.disconnect();
+      window.removeEventListener("scroll", onScroll);
+      cancelAnimationFrame(raf);
+    };
+  }, [categoriesWithProducts]);
+
+  useEffect(() => {
+    if (!activeCategory) return;
+    document
+      .querySelector(`[data-category-tab="${activeCategory}"]`)
+      ?.scrollIntoView({ behavior: "smooth", block: "nearest", inline: "center" });
+  }, [activeCategory]);
+
   if (!restaurant) return <p className="page">A carregar menu...</p>;
 
   function scrollToCategory(id: string) {
     setActiveCategory(id);
+    // A tap should win outright, even while the smooth-scroll it triggers
+    // passes through other sections' intersection bands on the way there.
+    suppressSpyUntil.current = Date.now() + 700;
     document.getElementById(`category-${id}`)?.scrollIntoView({ behavior: "smooth", block: "start" });
   }
 
@@ -87,6 +176,7 @@ export default function RestaurantMenu() {
           {categoriesWithProducts.map((cat) => (
             <button
               key={cat.id}
+              data-category-tab={cat.id}
               className={`category-tab ${activeCategory === cat.id ? "active" : ""}`}
               onClick={() => scrollToCategory(cat.id)}
             >

@@ -1,6 +1,7 @@
 import { NavLink, Outlet } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import { useCart } from "../context/CartContext";
+import { BagIcon, HomeIcon, LogoutIcon, ReceiptIcon, UserIcon } from "./NavIcons";
 
 export default function Layout() {
   const { user, logout } = useAuth();
@@ -18,7 +19,7 @@ export default function Layout() {
           {user ? (
             <>
               <NavLink to="/cart" className="cart-btn">
-                🛍️
+                <BagIcon />
                 {cartCount > 0 && <span className="cart-badge">{cartCount}</span>}
               </NavLink>
             </>
@@ -32,32 +33,32 @@ export default function Layout() {
       </main>
       <div className="bottom-nav">
         <NavLink to="/" end className={({ isActive }) => (isActive ? "active" : "")}>
-          <span className="nav-icon">🏠</span>
+          <HomeIcon />
           Início
         </NavLink>
         <NavLink to="/cart" className={({ isActive }) => (isActive ? "active" : "")}>
-          <span className="nav-icon">🛍️</span>
+          <BagIcon />
           Carrinho
           {cartCount > 0 && <span className="nav-dot" />}
         </NavLink>
         {user ? (
           <>
             <NavLink to="/orders" className={({ isActive }) => (isActive ? "active" : "")}>
-              <span className="nav-icon">🧾</span>
+              <ReceiptIcon />
               Pedidos
             </NavLink>
             <NavLink to="/profile" className={({ isActive }) => (isActive ? "active" : "")}>
-              <span className="nav-icon">👤</span>
+              <UserIcon />
               Perfil
             </NavLink>
             <button onClick={logout}>
-              <span className="nav-icon">↩️</span>
+              <LogoutIcon />
               Sair
             </button>
           </>
         ) : (
           <NavLink to="/login" className={({ isActive }) => (isActive ? "active" : "")}>
-            <span className="nav-icon">👤</span>
+            <UserIcon />
             Entrar
           </NavLink>
         )}
