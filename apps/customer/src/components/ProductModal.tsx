@@ -1,5 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
+import { Link } from "react-router-dom";
 import { api } from "../lib/api";
+import { useAuth } from "../context/AuthContext";
 import { useCart } from "../context/CartContext";
 
 interface ModifierOption {
@@ -35,6 +37,7 @@ interface Props {
 }
 
 export default function ProductModal({ restaurantSlug, product, onClose, onAdded }: Props) {
+  const { user } = useAuth();
   const { addItem } = useCart();
   const [selections, setSelections] = useState<Record<string, Set<string>>>(() => {
     const initial: Record<string, Set<string>> = {};
@@ -117,7 +120,11 @@ export default function ProductModal({ restaurantSlug, product, onClose, onAdded
       onAdded(result.restaurantSwitched ? "Carrinho anterior substituído — novo item adicionado." : "Adicionado ao carrinho.");
       onClose();
     } catch (err: any) {
-      setError(err.response?.data?.message ?? "Não foi possível adicionar ao carrinho");
+      if (err.response?.status === 401) {
+        setError("A tua sessão expirou — entra de novo para continuar.");
+      } else {
+        setError(err.response?.data?.message ?? "Não foi possível adicionar ao carrinho");
+      }
     } finally {
       setSubmitting(false);
     }
@@ -219,9 +226,15 @@ export default function ProductModal({ restaurantSlug, product, onClose, onAdded
 
         {error && <p className="form-error">{error}</p>}
 
-        <button className="add-to-cart-btn" onClick={handleAdd} disabled={submitting}>
-          {submitting ? "A adicionar..." : `Adicionar — ${total.toFixed(2)} €`}
-        </button>
+        {user ? (
+          <button className="add-to-cart-btn" onClick={handleAdd} disabled={submitting}>
+            {submitting ? "A adicionar..." : `Adicionar — ${total.toFixed(2)} €`}
+          </button>
+        ) : (
+          <Link to="/login" className="add-to-cart-btn" style={{ textAlign: "center" }}>
+            Inicia sessão para adicionar — {total.toFixed(2)} €
+          </Link>
+        )}
       </div>
     </div>
   );
