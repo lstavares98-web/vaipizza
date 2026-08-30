@@ -30,16 +30,16 @@ async function main() {
   // ---- Super admin --------------------------------------------------
   await upsertUser("admin@demo.local", "Plataforma Admin", Role.SUPER_ADMIN);
 
-  // ---- Restaurant 1: Bella Napoli (pizza, split-topping demo) -------
+  // ---- Restaurant 1: VaiPizza (pizza, split-topping demo) -------
   const bella = await prisma.restaurant.upsert({
-    where: { slug: "bella-napoli" },
+    where: { slug: "vaipizza" },
     update: {},
     create: {
-      name: "Bella Napoli",
-      slug: "bella-napoli",
-      description: "Pizza napolitana tradicional, forno a lenha.",
+      name: "VaiPizza",
+      slug: "vaipizza",
+      description: "Pediu? Vai. Pizza artesanal, forno a lenha.",
       status: RestaurantStatus.APPROVED,
-      email: "contact@bellanapoli.demo",
+      email: "contact@vaipizza.demo",
       phone: "+351910000001",
       address: "Rua das Flores 12, Braga",
       lat: 41.5454,
@@ -52,8 +52,8 @@ async function main() {
       commissionPercent: 18,
     },
   });
-  const bellaOwner = await upsertUser("restaurante@demo.local", "Dono Bella Napoli", Role.RESTAURANT_OWNER, bella.id);
-  await upsertUser("cozinha@demo.local", "Cozinha Bella Napoli", Role.KITCHEN, bella.id);
+  const bellaOwner = await upsertUser("restaurante@demo.local", "VaiPizza", Role.RESTAURANT_OWNER, bella.id);
+  await upsertUser("cozinha@demo.local", "Cozinha VaiPizza", Role.KITCHEN, bella.id);
 
   const bellaPizzas = await prisma.category.upsert({
     where: { restaurantId_name: { restaurantId: bella.id, name: "Pizzas" } },

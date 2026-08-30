@@ -13,6 +13,14 @@ const listQuerySchema = z.object({
   search: z.string().optional(),
 });
 
+function computeIsOpen(hours: { dayOfWeek: number; opensAt: string; closesAt: string; isClosed: boolean }[]) {
+  const now = new Date();
+  const dayOfWeek = now.getDay();
+  const hhmm = `${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}`;
+  const todayHours = hours.find((h) => h.dayOfWeek === dayOfWeek);
+  return todayHours ? !todayHours.isClosed && hhmm >= todayHours.opensAt && hhmm <= todayHours.closesAt : true;
+}
+
 // Public: restaurant discovery. Mirrors the legacy Yummix's 10km-radius
 // browse, generalized to each restaurant's own configurable radius, plus
 // live open/closed + estimated delivery fee when the customer's location
@@ -31,15 +39,10 @@ restaurantsRouter.get(
       orderBy: { name: "asc" },
     });
 
-    const now = new Date();
-    const dayOfWeek = now.getDay();
-    const hhmm = `${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}`;
-
     const withDerived = restaurants
       .map((r) => {
         const distanceKm = lat != null && lng != null ? haversineKm(lat, lng, r.lat, r.lng) : null;
-        const todayHours = r.hours.find((h) => h.dayOfWeek === dayOfWeek);
-        const isOpen = todayHours ? !todayHours.isClosed && hhmm >= todayHours.opensAt && hhmm <= todayHours.closesAt : true;
+        const isOpen = computeIsOpen(r.hours);
         const deliveryFee = distanceKm != null ? calcDeliveryFee(r, distanceKm) : null;
         // ~4 min/km average urban delivery speed, +restaurant prep buffer.
         const etaMinutes = distanceKm != null ? Math.round(distanceKm * 4 + 15) : null;
@@ -94,7 +97,7 @@ restaurantsRouter.get(
       },
     });
     if (!restaurant) throw notFound("Restaurant not found");
-    res.json({ success: true, restaurant });
+    res.json({ success: true, restaurant: { ...restaurant, isOpen: computeIsOpen(restaurant.hours) } });
   }),
 );
 

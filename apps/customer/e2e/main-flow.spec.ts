@@ -1,21 +1,21 @@
 import { expect, test } from "@playwright/test";
 
 // End-to-end happy path for the core order flow described in
-// PROJECT_ANALYSIS.md: customer logs in, browses a restaurant, adds a
-// product with modifiers to the cart, and checks out with cash on
-// delivery. Requires a running API against a freshly seeded database
-// (`npm run db:seed`) — the seed creates the demo account and the Bella
-// Napoli / Pizza Margherita fixtures this test relies on.
+// PROJECT_ANALYSIS.md: customer logs in, lands straight on the (only)
+// restaurant's menu, adds a product with modifiers to the cart, and checks
+// out with cash on delivery. Requires a running API against a freshly
+// seeded database (`npm run db:seed`) — the seed creates the demo account
+// and the VaiPizza / Pizza Margherita fixtures this test relies on.
 test("customer can browse, add a modified product to cart, and place an order", async ({ page }) => {
   await page.goto("/login");
   await page.getByLabel("Email").fill("cliente@demo.local");
   await page.getByLabel("Palavra-passe").fill("Demo1234!");
   await page.getByRole("button", { name: "Entrar" }).click();
 
-  await expect(page).toHaveURL(/\/restaurants/);
-  await page.getByRole("heading", { name: "Bella Napoli" }).click();
-
-  await expect(page.getByRole("heading", { name: "Bella Napoli" })).toBeVisible();
+  // Login redirects straight into the single restaurant's menu — no
+  // restaurant-picker step to click through.
+  await expect(page).toHaveURL(/\/restaurants\//);
+  await expect(page.getByRole("heading", { name: "VaiPizza" })).toBeVisible();
   await page.getByRole("button", { name: /Pizza Margherita/ }).click();
 
   // Required "Tamanho" group defaults to "Média" — explicitly pick "Grande".

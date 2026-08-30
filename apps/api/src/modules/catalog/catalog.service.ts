@@ -105,7 +105,16 @@ export async function updateProduct(restaurantId: string, id: string, input: Upd
   if (input.categoryId) await assertCategoryBelongsToRestaurant(restaurantId, input.categoryId);
 
   if (input.modifierGroups) {
-    await prisma.modifierGroup.deleteMany({ where: { productId: id } });
+    // A customer may already have this product sitting in their cart with
+    // one of the old modifier options selected — CartItemModifier has no
+    // cascade back to ModifierOption, so deleting the old groups directly
+    // would crash on the foreign key. Since the modifier structure is being
+    // replaced wholesale, any cart line for this product is stale anyway —
+    // drop it (and its secondary-product split pairing, if any) first.
+    await prisma.$transaction([
+      prisma.cartItem.deleteMany({ where: { OR: [{ productId: id }, { secondaryProductId: id }] } }),
+      prisma.modifierGroup.deleteMany({ where: { productId: id } }),
+    ]);
   }
 
   return prisma.product.update({

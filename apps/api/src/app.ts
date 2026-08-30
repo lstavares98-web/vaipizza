@@ -25,6 +25,11 @@ import { reportsRouter } from "./modules/restaurants/reports.routes.js";
 export function createApp() {
   const app = express();
 
+  // Render sits the app behind a reverse proxy — without this,
+  // express-rate-limit refuses to trust the X-Forwarded-For header it needs
+  // to key rate limits per real client IP instead of per proxy hop.
+  app.set("trust proxy", 1);
+
   app.use(helmet());
   app.use(
     cors({
