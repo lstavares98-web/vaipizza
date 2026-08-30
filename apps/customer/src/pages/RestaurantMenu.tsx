@@ -66,11 +66,11 @@ export default function RestaurantMenu() {
 
   return (
     <div className="page">
-      <header
-        key={restaurant.id}
-        className="restaurant-header"
-        style={{ backgroundImage: `url(${restaurant.bannerUrl ?? FALLBACK_BANNER})` }}
-      >
+      <header className="restaurant-header">
+        <div
+          className="restaurant-header-bg"
+          style={{ backgroundImage: `url(${restaurant.bannerUrl ?? FALLBACK_BANNER})` }}
+        />
         <div className="restaurant-header-inner">
           <p className="eyebrow anim-fade-up" style={{ animationDelay: "0.05s" }}>
             {restaurant.isOpen === false ? "Fechado de momento" : "Aberto agora"}

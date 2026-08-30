@@ -427,11 +427,10 @@ textarea {
   margin-bottom: 2rem;
   overflow: hidden;
 }
-.restaurant-header::after {
-  content: "";
+.restaurant-header-bg {
   position: absolute;
   inset: -3%;
-  background: inherit;
+  background-color: #1b2a20;
   background-size: cover;
   background-position: center;
   animation: hero-kenburns 16s ease-out forwards;
@@ -452,7 +451,7 @@ textarea {
   }
 }
 @media (prefers-reduced-motion: reduce) {
-  .restaurant-header::after {
+  .restaurant-header-bg {
     animation: none;
   }
 }
