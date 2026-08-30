@@ -1,6 +1,7 @@
-import { Link, Outlet } from "react-router-dom";
+import { NavLink, Outlet } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import { useCart } from "../context/CartContext";
+import BrandMark from "./BrandMark";
 
 export default function Layout() {
   const { user, logout } = useAuth();
@@ -10,27 +11,59 @@ export default function Layout() {
   return (
     <div className="app-shell">
       <nav className="navbar">
-        <Link to="/restaurants" className="brand">
-          🍕 VaiPizza
-        </Link>
+        <span />
+        <NavLink to="/" className="brand">
+          <BrandMark size={36} />
+          VaiPizza
+        </NavLink>
         <div className="nav-links">
           {user ? (
             <>
-              <Link to="/orders">Meus Pedidos</Link>
-              <Link to="/cart">Carrinho{cartCount > 0 ? ` (${cartCount})` : ""}</Link>
-              <Link to="/profile">Perfil</Link>
-              <button className="link-btn" onClick={logout}>
-                Sair
-              </button>
+              <NavLink to="/cart" className="cart-btn">
+                🛍️
+                {cartCount > 0 && <span className="cart-badge">{cartCount}</span>}
+              </NavLink>
             </>
           ) : (
-            <Link to="/login">Entrar</Link>
+            <NavLink to="/login">Entrar</NavLink>
           )}
         </div>
       </nav>
       <main>
         <Outlet />
       </main>
+      <div className="bottom-nav">
+        <NavLink to="/" end className={({ isActive }) => (isActive ? "active" : "")}>
+          <span className="nav-icon">🏠</span>
+          Início
+        </NavLink>
+        <NavLink to="/cart" className={({ isActive }) => (isActive ? "active" : "")}>
+          <span className="nav-icon">🛍️</span>
+          Carrinho
+          {cartCount > 0 && <span className="nav-dot" />}
+        </NavLink>
+        {user ? (
+          <>
+            <NavLink to="/orders" className={({ isActive }) => (isActive ? "active" : "")}>
+              <span className="nav-icon">🧾</span>
+              Pedidos
+            </NavLink>
+            <NavLink to="/profile" className={({ isActive }) => (isActive ? "active" : "")}>
+              <span className="nav-icon">👤</span>
+              Perfil
+            </NavLink>
+            <button onClick={logout}>
+              <span className="nav-icon">↩️</span>
+              Sair
+            </button>
+          </>
+        ) : (
+          <NavLink to="/login" className={({ isActive }) => (isActive ? "active" : "")}>
+            <span className="nav-icon">👤</span>
+            Entrar
+          </NavLink>
+        )}
+      </div>
     </div>
   );
 }

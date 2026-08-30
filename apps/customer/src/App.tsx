@@ -6,6 +6,7 @@ import RequireAuth from "./components/RequireAuth";
 import Login from "./pages/Login";
 import Register from "./pages/Register";
 import ForgotPassword from "./pages/ForgotPassword";
+import Home from "./pages/Home";
 import Restaurants from "./pages/Restaurants";
 import RestaurantMenu from "./pages/RestaurantMenu";
 import Cart from "./pages/Cart";
@@ -21,10 +22,11 @@ export default function App() {
         <CartProvider>
           <Routes>
             <Route element={<Layout />}>
-              <Route index element={<Navigate to="/restaurants" replace />} />
+              <Route index element={<Home />} />
               <Route path="/login" element={<Login />} />
               <Route path="/register" element={<Register />} />
               <Route path="/forgot-password" element={<ForgotPassword />} />
+              {/* Kept reachable for when a second restaurant is added — not linked from the nav for now. */}
               <Route path="/restaurants" element={<Restaurants />} />
               <Route path="/restaurants/:slug" element={<RestaurantMenu />} />
               <Route
@@ -67,7 +69,7 @@ export default function App() {
                   </RequireAuth>
                 }
               />
-              <Route path="*" element={<Navigate to="/restaurants" replace />} />
+              <Route path="*" element={<Navigate to="/" replace />} />
             </Route>
           </Routes>
         </CartProvider>

@@ -129,6 +129,7 @@ export default function ProductModal({ restaurantSlug, product, onClose, onAdded
         <button className="modal-close" onClick={onClose} aria-label="Fechar">
           ✕
         </button>
+        {product.imageUrl && <div className="modal-image" style={{ backgroundImage: `url(${product.imageUrl})` }} />}
         <h2>{product.name}</h2>
         {product.description && <p className="muted">{product.description}</p>}
         <p className="price">{product.basePrice.toFixed(2)} €</p>

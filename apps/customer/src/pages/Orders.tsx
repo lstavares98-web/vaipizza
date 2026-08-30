@@ -25,7 +25,9 @@ export default function Orders() {
     return (
       <div className="page empty-state">
         <h1>Ainda não fez nenhum pedido</h1>
-        <Link to="/restaurants">Procurar restaurantes</Link>
+        <Link to="/" className="btn-gold">
+          Ver o menu
+        </Link>
       </div>
     );
   }

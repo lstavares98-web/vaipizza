@@ -10,7 +10,9 @@ export default function Cart() {
     return (
       <div className="page empty-state">
         <h1>O seu carrinho está vazio</h1>
-        <Link to="/restaurants">Procurar restaurantes</Link>
+        <Link to="/" className="btn-gold">
+          Ver o menu
+        </Link>
       </div>
     );
   }

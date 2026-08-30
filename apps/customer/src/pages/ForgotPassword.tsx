@@ -14,21 +14,25 @@ export default function ForgotPassword() {
 
   return (
     <div className="auth-page">
-      <h1>Recuperar palavra-passe</h1>
-      {sent ? (
-        <p>Se esse email existir, foi enviado um link de recuperação.</p>
-      ) : (
-        <form onSubmit={handleSubmit} className="auth-form">
-          <label>
-            Email
-            <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} required />
-          </label>
-          <button type="submit">Enviar link</button>
-        </form>
-      )}
-      <p>
-        <Link to="/login">Voltar ao login</Link>
-      </p>
+      <div className="auth-hero">
+        <h1>Recuperar acesso</h1>
+      </div>
+      <div className="auth-card">
+        {sent ? (
+          <p>Se esse email existir, foi enviado um link de recuperação.</p>
+        ) : (
+          <form onSubmit={handleSubmit} className="auth-form">
+            <label>
+              Email
+              <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} required />
+            </label>
+            <button type="submit">Enviar link</button>
+          </form>
+        )}
+        <div className="auth-links">
+          <Link to="/login">Voltar ao login</Link>
+        </div>
+      </div>
     </div>
   );
 }
