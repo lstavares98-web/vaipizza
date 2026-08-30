@@ -6,7 +6,10 @@ export default function Layout() {
   return (
     <div className="app-shell">
       <header className="top-bar">
-        <span className="brand">🛵 VaiPizza</span>
+        <span className="brand">
+          <img src="/logo.png" alt="VaiPizza" style={{ width: 28, height: 28, borderRadius: "50%" }} />
+          VaiPizza
+        </span>
         {user && (
           <button className="link-btn" onClick={logout}>
             Sair

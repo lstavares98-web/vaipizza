@@ -1,7 +1,6 @@
 import { NavLink, Outlet } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import { useCart } from "../context/CartContext";
-import BrandMark from "./BrandMark";
 
 export default function Layout() {
   const { user, logout } = useAuth();
@@ -13,8 +12,7 @@ export default function Layout() {
       <nav className="navbar">
         <span />
         <NavLink to="/" className="brand">
-          <BrandMark size={36} />
-          VaiPizza
+          <img src="/logo.png" alt="VaiPizza" className="brand-logo" />
         </NavLink>
         <div className="nav-links">
           {user ? (

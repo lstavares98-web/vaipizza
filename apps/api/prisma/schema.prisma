@@ -533,8 +533,13 @@ model OrderItemModifier {
   id          String    @id @default(cuid())
   orderItemId String
   orderItem   OrderItem @relation(fields: [orderItemId], references: [id], onDelete: Cascade)
-  optionId    String
-  option      ModifierOption @relation(fields: [optionId], references: [id])
+  // Nullable + SetNull: nameSnapshot/priceDeltaSnapshot already carry
+  // everything needed to display this line on a past order, so the live
+  // ModifierOption row is free to be edited or removed later (e.g. the
+  // restaurant reworks a product's modifier groups) without that history
+  // blocking the deletion or being rewritten.
+  optionId    String?
+  option      ModifierOption? @relation(fields: [optionId], references: [id], onDelete: SetNull)
   nameSnapshot String
   priceDeltaSnapshot Float
 

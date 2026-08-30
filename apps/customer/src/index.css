@@ -102,14 +102,15 @@ textarea {
   grid-column: 2;
   display: flex;
   align-items: center;
-  gap: 0.5rem;
-  font-family: var(--font-display);
-  font-style: italic;
-  font-weight: 700;
-  font-size: 1.35rem;
-  color: var(--brand-green);
   text-decoration: none;
   justify-self: center;
+}
+.brand-logo {
+  width: 52px;
+  height: 52px;
+  border-radius: 50%;
+  object-fit: cover;
+  display: block;
 }
 .nav-links {
   grid-column: 3;

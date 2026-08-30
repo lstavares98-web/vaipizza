@@ -23,7 +23,10 @@ export async function getRestaurantReport(restaurantId: string, range: DateRange
     for (const item of order.items) {
       productCounts.set(item.productNameSnapshot, (productCounts.get(item.productNameSnapshot) ?? 0) + item.quantity);
       for (const mod of item.modifiers) {
-        const groupName = mod.option.group.name;
+        // The modifier group/option may have since been edited or removed
+        // from the product — nameSnapshot survives that, but there's no
+        // snapshot of the *group* name, so fall back to a generic bucket.
+        const groupName = mod.option?.group.name ?? "Outros";
         const group = modifierCounts.get(groupName) ?? new Map<string, number>();
         group.set(mod.nameSnapshot, (group.get(mod.nameSnapshot) ?? 0) + item.quantity);
         modifierCounts.set(groupName, group);
