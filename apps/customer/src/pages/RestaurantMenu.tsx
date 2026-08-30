@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { api } from "../lib/api";
 import ProductModal, { type ProductForModal } from "../components/ProductModal";
-import { BikeIcon, PinIcon, StarIcon } from "../components/NavIcons";
+import { BikeIcon, CheckIcon, PinIcon, StarIcon } from "../components/NavIcons";
 
 interface Category {
   id: string;
@@ -33,6 +33,13 @@ export default function RestaurantMenu() {
   const [activeCategory, setActiveCategory] = useState<string | null>(null);
   const [activeProduct, setActiveProduct] = useState<ProductForModal | null>(null);
   const [toast, setToast] = useState<string | null>(null);
+  const [justAddedId, setJustAddedId] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!justAddedId) return;
+    const t = setTimeout(() => setJustAddedId(null), 1800);
+    return () => clearTimeout(t);
+  }, [justAddedId]);
 
   useEffect(() => {
     api.get(`/restaurants/${slug}`).then(({ data }) => {
@@ -126,6 +133,11 @@ export default function RestaurantMenu() {
                   className="product-card-image"
                   style={{ backgroundImage: p.imageUrl ? `url(${p.imageUrl})` : undefined }}
                 >
+                  {justAddedId === p.id && (
+                    <span className="product-card-added">
+                      <CheckIcon />
+                    </span>
+                  )}
                   <span className="product-card-add">+ Adicionar ao Pedido</span>
                 </div>
                 <div className="product-card-body">
@@ -157,7 +169,10 @@ export default function RestaurantMenu() {
           restaurantSlug={slug!}
           product={activeProduct}
           onClose={() => setActiveProduct(null)}
-          onAdded={(msg) => setToast(msg)}
+          onAdded={(msg) => {
+            setToast(msg);
+            setJustAddedId(activeProduct.id);
+          }}
         />
       )}
       {toast && <div className="toast">{toast}</div>}

@@ -18,29 +18,79 @@ export default function Layout() {
     });
   }, []);
 
+  // Shared between the desktop sidebar and the mobile floating nav so the
+  // two never drift apart.
+  const navItems = (
+    <>
+      <NavLink to="/" end className={({ isActive }) => (isActive ? "active" : "")}>
+        <HomeIcon />
+        Início
+      </NavLink>
+      <NavLink to="/cart" className={({ isActive }) => (isActive ? "active" : "")}>
+        <BagIcon />
+        Carrinho
+        {cartCount > 0 && <span className="nav-dot" />}
+      </NavLink>
+      {user ? (
+        <>
+          <NavLink to="/orders" className={({ isActive }) => (isActive ? "active" : "")}>
+            <ReceiptIcon />
+            Pedidos
+          </NavLink>
+          <NavLink to="/profile" className={({ isActive }) => (isActive ? "active" : "")}>
+            <UserIcon />
+            Perfil
+          </NavLink>
+          <button onClick={logout}>
+            <LogoutIcon />
+            Sair
+          </button>
+        </>
+      ) : (
+        <NavLink to="/login" className={({ isActive }) => (isActive ? "active" : "")}>
+          <UserIcon />
+          Entrar
+        </NavLink>
+      )}
+    </>
+  );
+
   return (
     <div className="app-shell">
-      <nav className="navbar">
-        <span />
-        <NavLink to="/" className="brand">
-          <img src="/logo.png" alt="VaiPizza" className="brand-logo" />
+      {/* Desktop only — hidden under 900px in favour of the top navbar + floating bottom nav. */}
+      <aside className="customer-sidebar">
+        <NavLink to="/" className="sidebar-brand">
+          <img src="/logo.png" alt="" className="sidebar-logo" />
+          <span>
+            <strong>VaiPizza</strong>
+            <em>Pediu? Vai.</em>
+          </span>
         </NavLink>
-        <div className="nav-links">
-          {user ? (
-            <>
+        <nav className="sidebar-nav">{navItems}</nav>
+      </aside>
+
+      <div className="customer-content">
+        <nav className="navbar">
+          <span />
+          <NavLink to="/" className="brand">
+            <img src="/logo.png" alt="VaiPizza" className="brand-logo" />
+          </NavLink>
+          <div className="nav-links">
+            {user ? (
               <NavLink to="/cart" className="cart-btn">
                 <BagIcon />
                 {cartCount > 0 && <span className="cart-badge">{cartCount}</span>}
               </NavLink>
-            </>
-          ) : (
-            <NavLink to="/login">Entrar</NavLink>
-          )}
-        </div>
-      </nav>
-      <main>
-        <Outlet />
-      </main>
+            ) : (
+              <NavLink to="/login">Entrar</NavLink>
+            )}
+          </div>
+        </nav>
+        <main>
+          <Outlet />
+        </main>
+      </div>
+
       {whatsapp && (
         <a
           className="whatsapp-fab"
@@ -52,38 +102,7 @@ export default function Layout() {
           <img src="/logo.png" alt="" />
         </a>
       )}
-      <div className="bottom-nav">
-        <NavLink to="/" end className={({ isActive }) => (isActive ? "active" : "")}>
-          <HomeIcon />
-          Início
-        </NavLink>
-        <NavLink to="/cart" className={({ isActive }) => (isActive ? "active" : "")}>
-          <BagIcon />
-          Carrinho
-          {cartCount > 0 && <span className="nav-dot" />}
-        </NavLink>
-        {user ? (
-          <>
-            <NavLink to="/orders" className={({ isActive }) => (isActive ? "active" : "")}>
-              <ReceiptIcon />
-              Pedidos
-            </NavLink>
-            <NavLink to="/profile" className={({ isActive }) => (isActive ? "active" : "")}>
-              <UserIcon />
-              Perfil
-            </NavLink>
-            <button onClick={logout}>
-              <LogoutIcon />
-              Sair
-            </button>
-          </>
-        ) : (
-          <NavLink to="/login" className={({ isActive }) => (isActive ? "active" : "")}>
-            <UserIcon />
-            Entrar
-          </NavLink>
-        )}
-      </div>
+      <div className="bottom-nav">{navItems}</div>
     </div>
   );
 }

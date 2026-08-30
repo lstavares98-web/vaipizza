@@ -32,7 +32,11 @@ export default function ProductForm({ categories, defaultCategoryId, product, on
   const [categoryId, setCategoryId] = useState(product?.categoryId ?? defaultCategoryId ?? "");
   const [name, setName] = useState(product?.name ?? "");
   const [description, setDescription] = useState(product?.description ?? "");
-  const [basePrice, setBasePrice] = useState(product?.basePrice ?? 0);
+  // Kept as text rather than a number: starting a new product's price at
+  // the number 0 meant typing without first moving the cursor past it
+  // inserted before the "0" (e.g. typing "9" produced "90"), since the
+  // input showed "0" as real content instead of being empty.
+  const [basePrice, setBasePrice] = useState(product?.basePrice?.toString() ?? "");
   const [isAvailable, setIsAvailable] = useState(product?.isAvailable ?? true);
   const [allowsSplit, setAllowsSplit] = useState(product?.allowsSplit ?? false);
   const [splitPricingRule, setSplitPricingRule] = useState<"MOST_EXPENSIVE" | "AVERAGE">(
@@ -122,7 +126,7 @@ export default function ProductForm({ categories, defaultCategoryId, product, on
           categoryId,
           name,
           description: description || undefined,
-          basePrice,
+          basePrice: Number(basePrice) || 0,
           isAvailable,
           allowsSplit,
           splitPricingRule,
@@ -171,7 +175,8 @@ export default function ProductForm({ categories, defaultCategoryId, product, on
               step="0.01"
               min={0}
               value={basePrice}
-              onChange={(e) => setBasePrice(Number(e.target.value))}
+              onChange={(e) => setBasePrice(e.target.value)}
+              placeholder="0.00"
               required
             />
           </label>

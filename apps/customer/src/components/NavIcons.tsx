@@ -79,6 +79,14 @@ export function BikeIcon(_: IconProps) {
   );
 }
 
+export function CheckIcon(_: IconProps) {
+  return (
+    <svg {...common} strokeWidth={2.4}>
+      <path d="M5 12.5l4.5 4.5L19 7" />
+    </svg>
+  );
+}
+
 export function PinIcon(_: IconProps) {
   return (
     <svg {...common}>

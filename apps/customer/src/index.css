@@ -84,6 +84,9 @@ textarea {
   flex-direction: column;
   padding-bottom: 5.5rem;
 }
+.customer-sidebar {
+  display: none;
+}
 
 /* ---------- Top bar ---------- */
 .navbar {
@@ -222,11 +225,13 @@ textarea {
   padding: 0 1.1rem 3rem;
   width: 100%;
 }
-/* Hero bleeds to the viewport edge even though .page has side padding. */
+/* Hero bleeds to the edges of its own container (.page) rather than the
+   viewport — a 100vw-based bleed would ignore the desktop sidebar's width
+   and overflow past the right edge of the actual content column. */
 .restaurant-header {
-  margin-left: calc(50% - 50vw);
-  margin-right: calc(50% - 50vw);
-  width: 100vw;
+  margin-left: -1.1rem;
+  margin-right: -1.1rem;
+  width: calc(100% + 2.2rem);
 }
 
 /* ---------- Auth pages ---------- */
@@ -239,9 +244,7 @@ textarea {
   height: 38vh;
   min-height: 200px;
   max-height: 320px;
-  width: 100vw;
-  margin-left: calc(50% - 50vw);
-  margin-right: calc(50% - 50vw);
+  border-radius: 0 0 22px 22px;
   background: linear-gradient(180deg, rgba(11, 77, 43, 0.1), rgba(7, 50, 25, 0.9)),
     url("https://images.unsplash.com/photo-1595854341625-f33ee10dbf94?q=80&w=1200&auto=format&fit=crop") center/cover
       no-repeat;
@@ -630,6 +633,35 @@ textarea {
   justify-content: center;
   gap: 0.4rem;
 }
+.product-card-added {
+  position: absolute;
+  top: 0.6rem;
+  right: 0.6rem;
+  z-index: 2;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  background: var(--brand-green);
+  color: white;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  animation: pop-in 0.25s ease-out;
+}
+.product-card-added svg {
+  width: 15px;
+  height: 15px;
+}
+@keyframes pop-in {
+  from {
+    transform: scale(0.4);
+    opacity: 0;
+  }
+  to {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
 .product-card-body {
   padding: 0.85rem 0.15rem 0;
   display: flex;
@@ -793,6 +825,23 @@ textarea {
   border-radius: var(--radius);
   flex-wrap: wrap;
 }
+.cart-item-thumb {
+  width: 64px;
+  height: 64px;
+  border-radius: 10px;
+  background: #e4dcc8 center/cover no-repeat;
+  flex-shrink: 0;
+}
+.cart-item-main {
+  flex: 1;
+  min-width: 0;
+}
+.cart-item-title-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.75rem;
+  align-items: baseline;
+}
 .cart-item-modifiers {
   margin: 0.3rem 0 0;
   padding-left: 1.1rem;
@@ -802,7 +851,9 @@ textarea {
 .cart-item-actions {
   display: flex;
   align-items: center;
+  justify-content: space-between;
   gap: 1rem;
+  margin-top: 0.6rem;
 }
 .cart-summary {
   display: flex;
@@ -812,6 +863,59 @@ textarea {
   margin: 1.5rem 0;
   padding-top: 1rem;
   border-top: 1px solid var(--border);
+}
+
+/* ---------- Cart page: two-column layout with a sticky summary panel ---------- */
+.cart-layout {
+  display: grid;
+  grid-template-columns: 1fr 320px;
+  gap: 1.75rem;
+  align-items: start;
+}
+@media (max-width: 780px) {
+  .cart-layout {
+    grid-template-columns: 1fr;
+  }
+}
+.cart-summary-panel {
+  position: sticky;
+  top: 96px;
+  background: var(--brand-green-dark);
+  color: #dfe9e3;
+  border-radius: var(--radius);
+  padding: 1.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.9rem;
+}
+.cart-summary-row {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.92rem;
+  color: #b7cabf;
+}
+.cart-summary-total {
+  display: flex;
+  justify-content: space-between;
+  font-family: var(--font-display);
+  font-style: italic;
+  font-size: 1.4rem;
+  color: white;
+  padding-top: 0.75rem;
+  border-top: 1px solid rgba(255, 255, 255, 0.15);
+}
+.cart-summary-hint {
+  font-size: 0.78rem;
+  color: #b7cabf;
+  margin: 0;
+}
+.cart-summary-panel .checkout-btn {
+  margin: 0;
+  background: var(--brand-yellow);
+  color: var(--brand-green-dark);
+}
+.cart-summary-panel .checkout-btn:hover {
+  background: #ffb733;
 }
 .link-danger {
   background: none;
@@ -883,4 +987,112 @@ textarea {
   height: 100%;
   object-fit: cover;
   display: block;
+}
+
+/* ---------- Desktop: sidebar replaces the top navbar + floating bottom nav ----------
+   Placed last in the file (not simply inside its own early media block) so its
+   `display` declarations reliably win the cascade over the unconditional
+   .navbar/.bottom-nav rules defined further up — two rules of equal
+   specificity where only one carries a media condition still resolve by
+   source order, not by which one is "more specific" to the viewport. */
+@media (min-width: 900px) {
+  .app-shell {
+    flex-direction: row;
+    padding-bottom: 0;
+  }
+  .customer-sidebar {
+    display: flex;
+    flex-direction: column;
+    width: 240px;
+    flex-shrink: 0;
+    background: var(--brand-green);
+    color: #cfe3d6;
+    padding: 1.75rem 1.25rem;
+    position: sticky;
+    top: 0;
+    height: 100vh;
+  }
+  .sidebar-brand {
+    display: flex;
+    align-items: center;
+    gap: 0.7rem;
+    text-decoration: none;
+    color: white;
+    margin-bottom: 2.5rem;
+  }
+  .sidebar-logo {
+    width: 46px;
+    height: 46px;
+    border-radius: 50%;
+    object-fit: cover;
+    flex-shrink: 0;
+  }
+  .sidebar-brand span {
+    display: flex;
+    flex-direction: column;
+    line-height: 1.2;
+  }
+  .sidebar-brand strong {
+    font-family: var(--font-display);
+    font-style: italic;
+    font-weight: 700;
+    font-size: 1.2rem;
+  }
+  .sidebar-brand em {
+    font-style: normal;
+    font-size: 0.68rem;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--brand-yellow);
+  }
+  .sidebar-nav {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+  }
+  .sidebar-nav a,
+  .sidebar-nav button {
+    display: flex;
+    align-items: center;
+    gap: 0.7rem;
+    padding: 0.65rem 0.85rem;
+    border-radius: 10px;
+    color: #cfe3d6;
+    text-decoration: none;
+    font-size: 0.88rem;
+    font-weight: 600;
+    background: none;
+    border: none;
+    text-align: left;
+    position: relative;
+    font-family: inherit;
+    text-transform: none;
+    letter-spacing: normal;
+  }
+  .sidebar-nav a.active {
+    background: rgba(255, 255, 255, 0.1);
+    color: var(--brand-yellow);
+  }
+  .sidebar-nav svg {
+    width: 19px;
+    height: 19px;
+  }
+  .sidebar-nav .nav-dot {
+    position: absolute;
+    top: 8px;
+    left: 32px;
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: var(--brand);
+  }
+
+  .customer-content {
+    flex: 1;
+    min-width: 0;
+  }
+  .navbar,
+  .bottom-nav {
+    display: none;
+  }
 }
