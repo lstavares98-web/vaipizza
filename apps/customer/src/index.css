@@ -225,14 +225,10 @@ textarea {
   padding: 0 1.1rem 3rem;
   width: 100%;
 }
-/* Hero bleeds to the edges of its own container (.page) rather than the
-   viewport — a 100vw-based bleed would ignore the desktop sidebar's width
-   and overflow past the right edge of the actual content column. */
-.restaurant-header {
-  margin-left: -1.1rem;
-  margin-right: -1.1rem;
-  width: calc(100% + 2.2rem);
-}
+/* .restaurant-header itself now renders as a sibling of .page (see
+   RestaurantMenu.tsx) instead of inside it, so it naturally spans the full
+   width of .customer-content — no bleed hack needed, and no more cream
+   gaps on screens wider than the old 1000px + sidebar cap. */
 
 /* ---------- Auth pages ---------- */
 .auth-page {
@@ -379,6 +375,7 @@ textarea {
 }
 .restaurant-card:hover {
   transform: translateY(-2px);
+  box-shadow: 0 16px 32px rgba(11, 20, 14, 0.12);
 }
 .restaurant-card.closed {
   opacity: 0.6;
@@ -386,6 +383,17 @@ textarea {
 .restaurant-card-image {
   height: 120px;
   background: #eee center/cover no-repeat;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.restaurant-card-image.no-image {
+  background: linear-gradient(135deg, var(--brand-green) 0%, var(--brand-green-dark) 100%);
+}
+.restaurant-card-image.no-image svg {
+  width: 28%;
+  height: 28%;
+  color: rgba(255, 255, 255, 0.28);
 }
 .restaurant-card-body {
   padding: 0.9rem;
@@ -462,10 +470,10 @@ textarea {
   max-width: 640px;
 }
 .restaurant-header h1 {
-  font-size: 2.6rem;
+  font-size: clamp(2.5rem, 6vw, 3.75rem);
   color: white;
   margin: 0 0 0.6rem;
-  line-height: 1.05;
+  line-height: 1.02;
 }
 .restaurant-header p.description {
   color: #ecebe6;
@@ -550,6 +558,10 @@ textarea {
 }
 .category-tabs {
   position: sticky;
+  /* Clears the sticky mobile navbar (76px tall) so the two don't overlap;
+     overridden to sit flush at the very top on desktop, where that navbar
+     doesn't exist (see the 900px+ block) — left at 76px there, it used to
+     leave an ugly unexplained gap above the bar. */
   top: 76px;
   z-index: 15;
   display: flex;
@@ -557,8 +569,12 @@ textarea {
   overflow-x: auto;
   margin-bottom: 1.75rem;
   padding-top: 0.75rem;
-  background: var(--bg);
+  background: rgba(250, 243, 227, 0.94);
+  backdrop-filter: blur(8px);
   border-bottom: 1px solid var(--border);
+  /* A visible seam under the bar so it clearly reads as a floating layer
+     above the cards scrolling underneath it, not a clipping glitch. */
+  box-shadow: 0 14px 18px -16px rgba(11, 20, 14, 0.35);
   scrollbar-width: none;
 }
 .category-tabs::-webkit-scrollbar {
@@ -586,7 +602,7 @@ textarea {
   scroll-margin-top: 90px;
 }
 .menu-category > h2 {
-  font-size: 1.6rem;
+  font-size: clamp(1.6rem, 3vw, 2.1rem);
   margin: 0 0 1rem;
 }
 
@@ -605,12 +621,45 @@ textarea {
   border-radius: var(--radius);
   background: #e4dcc8 center/cover no-repeat;
   overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: transform 0.35s ease;
 }
 .product-card-image::after {
   content: "";
   position: absolute;
   inset: 0;
   background: linear-gradient(0deg, rgba(11, 20, 14, 0.78) 0%, transparent 45%);
+}
+/* Fallback for products without a photo yet — an on-brand gradient +
+   watermark icon instead of a flat, "broken" looking block. */
+.product-card-image.no-image {
+  background: linear-gradient(135deg, var(--brand-green) 0%, var(--brand-green-dark) 100%);
+}
+.product-card-image.no-image svg {
+  position: relative;
+  width: 34%;
+  height: 34%;
+  color: rgba(255, 255, 255, 0.28);
+}
+.product-card:hover .product-card-image {
+  transform: scale(1.045);
+}
+.product-card {
+  transition: transform 0.2s ease;
+}
+.product-card:hover {
+  transform: translateY(-3px);
+}
+@media (prefers-reduced-motion: reduce) {
+  .product-card,
+  .product-card-image,
+  .product-card:hover,
+  .product-card:hover .product-card-image {
+    transition: none;
+    transform: none;
+  }
 }
 .product-card-add {
   position: absolute;
@@ -712,6 +761,17 @@ textarea {
   height: 200px;
   margin: 0 -1.5rem 1.25rem;
   background: #e4dcc8 center/cover no-repeat;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.modal-image.no-image {
+  background: linear-gradient(135deg, var(--brand-green) 0%, var(--brand-green-dark) 100%);
+}
+.modal-image.no-image svg {
+  width: 22%;
+  height: 22%;
+  color: rgba(255, 255, 255, 0.28);
 }
 .modal h2 {
   font-size: 1.6rem;
@@ -974,18 +1034,69 @@ textarea {
   right: 1.1rem;
   bottom: 6.4rem;
   z-index: 25;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  text-decoration: none;
+  animation: whatsapp-fab-in 0.45s ease-out 1s both;
+}
+.whatsapp-fab-label {
+  background: var(--surface);
+  color: var(--text);
+  font-family: var(--font-body);
+  font-size: 0.76rem;
+  font-weight: 600;
+  padding: 0.5rem 0.9rem;
+  border-radius: 999px;
+  white-space: nowrap;
+  box-shadow: 0 8px 20px rgba(22, 22, 22, 0.16);
+}
+.whatsapp-fab-icon {
+  position: relative;
+  display: flex;
+  flex-shrink: 0;
   width: 52px;
   height: 52px;
   border-radius: 50%;
   overflow: hidden;
+  background: var(--surface);
   box-shadow: 0 10px 24px rgba(22, 22, 22, 0.28);
   border: 2px solid #25d366;
+  transition: transform 0.15s ease;
 }
-.whatsapp-fab img {
+.whatsapp-fab:hover .whatsapp-fab-icon {
+  transform: scale(1.05);
+}
+.whatsapp-fab-icon img {
   width: 100%;
   height: 100%;
   object-fit: cover;
   display: block;
+}
+@keyframes whatsapp-fab-in {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .whatsapp-fab {
+    animation: none;
+  }
+  .whatsapp-fab:hover .whatsapp-fab-icon {
+    transform: none;
+  }
+}
+/* Keeps the label from crowding the floating bottom-nav pill directly
+   beneath it on the narrowest phones — icon stays, label steps aside. */
+@media (max-width: 360px) {
+  .whatsapp-fab-label {
+    display: none;
+  }
 }
 
 /* ---------- Desktop: sidebar replaces the top navbar + floating bottom nav ----------
@@ -1086,6 +1197,63 @@ textarea {
     background: var(--brand);
   }
 
+  .sidebar-info {
+    margin-top: auto;
+    padding-top: 1.25rem;
+    border-top: 1px solid rgba(255, 255, 255, 0.14);
+    display: flex;
+    flex-direction: column;
+    gap: 0.55rem;
+  }
+  .sidebar-info-status {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    width: fit-content;
+    font-size: 0.68rem;
+    font-weight: 700;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--brand-yellow);
+  }
+  .sidebar-info-status::before {
+    content: "";
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--brand-yellow);
+  }
+  .sidebar-info-status.closed {
+    color: #9bb5a5;
+  }
+  .sidebar-info-status.closed::before {
+    background: #9bb5a5;
+  }
+  .sidebar-info-hours {
+    margin: 0;
+    font-size: 0.8rem;
+    color: #cfe3d6;
+  }
+  .sidebar-info-row {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.55rem;
+    font-size: 0.78rem;
+    line-height: 1.4;
+    color: #9bb5a5;
+    text-decoration: none;
+  }
+  .sidebar-info-row svg {
+    width: 15px;
+    height: 15px;
+    flex-shrink: 0;
+    margin-top: 0.15rem;
+    color: var(--brand-yellow);
+  }
+  a.sidebar-info-row:hover {
+    color: #cfe3d6;
+  }
+
   .customer-content {
     flex: 1;
     min-width: 0;
@@ -1093,5 +1261,10 @@ textarea {
   .navbar,
   .bottom-nav {
     display: none;
+  }
+  /* No sticky navbar above it here (unlike mobile), so it docks flush at
+     the top instead of leaving a 76px gap of page background. */
+  .category-tabs {
+    top: 0;
   }
 }

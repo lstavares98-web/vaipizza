@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 import { api } from "../lib/api";
 import { useAuth } from "../context/AuthContext";
 import { useCart } from "../context/CartContext";
+import { PizzaIcon } from "./NavIcons";
 
 interface ModifierOption {
   id: string;
@@ -136,7 +137,12 @@ export default function ProductModal({ restaurantSlug, product, onClose, onAdded
         <button className="modal-close" onClick={onClose} aria-label="Fechar">
           ✕
         </button>
-        {product.imageUrl && <div className="modal-image" style={{ backgroundImage: `url(${product.imageUrl})` }} />}
+        <div
+          className={`modal-image${product.imageUrl ? "" : " no-image"}`}
+          style={product.imageUrl ? { backgroundImage: `url(${product.imageUrl})` } : undefined}
+        >
+          {!product.imageUrl && <PizzaIcon />}
+        </div>
         <h2>{product.name}</h2>
         {product.description && <p className="muted">{product.description}</p>}
         <p className="price">{product.basePrice.toFixed(2)} €</p>

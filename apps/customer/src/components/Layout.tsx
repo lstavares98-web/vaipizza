@@ -3,18 +3,38 @@ import { NavLink, Outlet } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import { useCart } from "../context/CartContext";
 import { api } from "../lib/api";
-import { BagIcon, HomeIcon, LogoutIcon, ReceiptIcon, UserIcon } from "./NavIcons";
+import { BagIcon, HomeIcon, LogoutIcon, PhoneIcon, PinIcon, ReceiptIcon, UserIcon } from "./NavIcons";
+
+interface SidebarInfo {
+  phone: string | null;
+  address: string | null;
+  isOpen: boolean;
+  todayHours: string | null;
+}
 
 export default function Layout() {
   const { user, logout } = useAuth();
   const { items } = useCart();
   const cartCount = items.reduce((sum, i) => sum + i.quantity, 0);
   const [whatsapp, setWhatsapp] = useState<string | null>(null);
+  const [info, setInfo] = useState<SidebarInfo | null>(null);
 
   useEffect(() => {
+    // Only one restaurant runs on the platform for now (see Home.tsx), so
+    // the sidebar's contact/hours block just reads restaurants[0] rather
+    // than needing to know which restaurant is currently being browsed.
     api.get("/restaurants").then(({ data }) => {
-      const phone = data.restaurants[0]?.phone as string | undefined;
-      if (phone) setWhatsapp(phone.replace(/[^\d+]/g, ""));
+      const r = data.restaurants[0] as
+        | { phone?: string; address?: string; isOpen?: boolean; todayHours?: string | null }
+        | undefined;
+      if (!r) return;
+      if (r.phone) setWhatsapp(r.phone.replace(/[^\d+]/g, ""));
+      setInfo({
+        phone: r.phone ?? null,
+        address: r.address ?? null,
+        isOpen: r.isOpen ?? true,
+        todayHours: r.todayHours ?? null,
+      });
     });
   }, []);
 
@@ -67,6 +87,30 @@ export default function Layout() {
           </span>
         </NavLink>
         <nav className="sidebar-nav">{navItems}</nav>
+
+        {/* Fills the empty space below the nav with real info instead of
+            leaving a bare panel of colour — same spot the reference design
+            uses, but with data we actually have (no invented content). */}
+        {info && (
+          <div className="sidebar-info">
+            <span className={`sidebar-info-status${info.isOpen ? "" : " closed"}`}>
+              {info.isOpen ? "Aberto agora" : "Fechado agora"}
+            </span>
+            {info.todayHours && <p className="sidebar-info-hours">Hoje: {info.todayHours}</p>}
+            {info.address && (
+              <p className="sidebar-info-row">
+                <PinIcon />
+                <span>{info.address}</span>
+              </p>
+            )}
+            {info.phone && (
+              <a className="sidebar-info-row" href={`tel:${info.phone}`}>
+                <PhoneIcon />
+                <span>{info.phone}</span>
+              </a>
+            )}
+          </div>
+        )}
       </aside>
 
       <div className="customer-content">
@@ -99,7 +143,10 @@ export default function Layout() {
           rel="noopener noreferrer"
           aria-label="Fale connosco no WhatsApp"
         >
-          <img src="/logo.png" alt="" />
+          <span className="whatsapp-fab-label">Fale connosco</span>
+          <span className="whatsapp-fab-icon">
+            <img src="/logo.png" alt="" />
+          </span>
         </a>
       )}
       <div className="bottom-nav">{navItems}</div>

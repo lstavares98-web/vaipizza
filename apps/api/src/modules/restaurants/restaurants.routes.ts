@@ -21,6 +21,16 @@ function computeIsOpen(hours: { dayOfWeek: number; opensAt: string; closesAt: st
   return todayHours ? !todayHours.isClosed && hhmm >= todayHours.opensAt && hhmm <= todayHours.closesAt : true;
 }
 
+// "18:00 – 23:00" for today, or null when today has no hours row (or is
+// marked closed) — lets the client show a real schedule line without
+// having to ship the whole week's hours or duplicate this day-of-week
+// lookup on the frontend.
+function todayHoursLabel(hours: { dayOfWeek: number; opensAt: string; closesAt: string; isClosed: boolean }[]) {
+  const todayHours = hours.find((h) => h.dayOfWeek === new Date().getDay());
+  if (!todayHours || todayHours.isClosed) return null;
+  return `${todayHours.opensAt} – ${todayHours.closesAt}`;
+}
+
 // Public: restaurant discovery. Mirrors the legacy Yummix's 10km-radius
 // browse, generalized to each restaurant's own configurable radius, plus
 // live open/closed + estimated delivery fee when the customer's location
@@ -53,7 +63,9 @@ restaurantsRouter.get(
           description: r.description,
           logoUrl: r.logoUrl,
           bannerUrl: r.bannerUrl,
+          address: r.address,
           phone: r.phone,
+          todayHours: todayHoursLabel(r.hours),
           avgRating: r.avgRating,
           ratingCount: r.ratingCount,
           acceptsPickup: r.acceptsPickup,

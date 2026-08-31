@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { api } from "../lib/api";
 import { useGeolocation } from "../hooks/useGeolocation";
+import { PizzaIcon } from "../components/NavIcons";
 
 interface RestaurantListItem {
   id: string;
@@ -9,6 +10,8 @@ interface RestaurantListItem {
   name: string;
   description: string | null;
   logoUrl: string | null;
+  address: string | null;
+  todayHours: string | null;
   avgRating: number;
   ratingCount: number;
   distanceKm: number | null;
@@ -70,7 +73,12 @@ export default function Restaurants() {
         <div className="restaurant-grid">
           {visible.map((r) => (
             <Link to={`/restaurants/${r.slug}`} key={r.id} className={`restaurant-card ${r.isOpen ? "" : "closed"}`}>
-              <div className="restaurant-card-image" style={{ backgroundImage: r.logoUrl ? `url(${r.logoUrl})` : undefined }} />
+              <div
+                className={`restaurant-card-image${r.logoUrl ? "" : " no-image"}`}
+                style={{ backgroundImage: r.logoUrl ? `url(${r.logoUrl})` : undefined }}
+              >
+                {!r.logoUrl && <PizzaIcon />}
+              </div>
               <div className="restaurant-card-body">
                 <h3>{r.name}</h3>
                 <p className="muted">{r.description}</p>

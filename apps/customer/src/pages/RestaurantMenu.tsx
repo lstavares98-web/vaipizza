@@ -1,8 +1,8 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { api } from "../lib/api";
 import ProductModal, { type ProductForModal } from "../components/ProductModal";
-import { BikeIcon, CheckIcon, PinIcon, StarIcon } from "../components/NavIcons";
+import { BikeIcon, CheckIcon, PinIcon, PizzaIcon, StarIcon } from "../components/NavIcons";
 
 interface Category {
   id: string;
@@ -34,6 +34,12 @@ export default function RestaurantMenu() {
   const [activeProduct, setActiveProduct] = useState<ProductForModal | null>(null);
   const [toast, setToast] = useState<string | null>(null);
   const [justAddedId, setJustAddedId] = useState<string | null>(null);
+  const sectionRefs = useRef<Record<string, HTMLElement | null>>({});
+  // Manual tab clicks scroll the section into view (which would itself
+  // re-trigger the observer below); this suppresses that one observer
+  // update so the click's own target wins instead of being overridden by
+  // whatever briefly crosses the threshold mid-scroll.
+  const suppressObserver = useRef(false);
 
   useEffect(() => {
     if (!justAddedId) return;
@@ -60,12 +66,40 @@ export default function RestaurantMenu() {
     () => restaurant?.categories.filter((c) => c.products.length > 0) ?? [],
     [restaurant],
   );
-  const current = categoriesWithProducts.find((c) => c.id === activeCategory) ?? categoriesWithProducts[0];
+
+  // Scrollspy: every category renders at once (see the .map below) so the
+  // sticky tab bar can highlight whichever one is currently under it as the
+  // page scrolls, instead of only ever showing a single category at a time.
+  // rootMargin carves a thin activation band just under the sticky navbar +
+  // category-tabs bar (~140px) down to the vertical middle of the viewport —
+  // the topmost section still inside that band is treated as "current".
+  useEffect(() => {
+    if (categoriesWithProducts.length < 2) return;
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (suppressObserver.current) return;
+        const visible = entries.filter((e) => e.isIntersecting);
+        if (visible.length === 0) return;
+        const topMost = visible.reduce((a, b) => (a.boundingClientRect.top < b.boundingClientRect.top ? a : b));
+        setActiveCategory(topMost.target.id);
+      },
+      { rootMargin: "-140px 0px -50% 0px", threshold: 0 },
+    );
+    categoriesWithProducts.forEach((cat) => {
+      const el = sectionRefs.current[cat.id];
+      if (el) observer.observe(el);
+    });
+    return () => observer.disconnect();
+  }, [categoriesWithProducts]);
 
   if (!restaurant) return <p className="page">A carregar menu...</p>;
 
   return (
-    <div className="page">
+    <>
+      {/* Rendered outside .page (which caps out at 1000px and centers) so the
+          hero can bleed to the true edges of the content column — otherwise
+          it leaves cream gaps on both sides on any screen wider than
+          ~1240px (1000px page + 240px sidebar). */}
       <header className="restaurant-header">
         <div
           className="restaurant-header-bg"
@@ -109,13 +143,23 @@ export default function RestaurantMenu() {
         </div>
       </header>
 
+      <div className="page">
       {categoriesWithProducts.length > 1 && (
         <nav className="category-tabs" id="menu">
           {categoriesWithProducts.map((cat) => (
             <button
               key={cat.id}
               className={`category-tab ${activeCategory === cat.id ? "active" : ""}`}
-              onClick={() => setActiveCategory(cat.id)}
+              onClick={() => {
+                setActiveCategory(cat.id);
+                suppressObserver.current = true;
+                sectionRefs.current[cat.id]?.scrollIntoView({ behavior: "smooth", block: "start" });
+                // Smooth-scroll takes a moment to settle — re-enable the
+                // observer once it has, so scrolling by hand works again.
+                window.setTimeout(() => {
+                  suppressObserver.current = false;
+                }, 700);
+              }}
             >
               {cat.name}
             </button>
@@ -123,16 +167,24 @@ export default function RestaurantMenu() {
         </nav>
       )}
 
-      {current && (
-        <section key={current.id} className="menu-category anim-fade-up">
-          <h2>{current.name}</h2>
+      {categoriesWithProducts.map((cat) => (
+        <section
+          key={cat.id}
+          id={cat.id}
+          ref={(el) => {
+            sectionRefs.current[cat.id] = el;
+          }}
+          className="menu-category anim-fade-up"
+        >
+          <h2>{cat.name}</h2>
           <div className="product-grid">
-            {current.products.map((p) => (
+            {cat.products.map((p) => (
               <button className="product-card" key={p.id} onClick={() => setActiveProduct(p)}>
                 <div
-                  className="product-card-image"
+                  className={`product-card-image${p.imageUrl ? "" : " no-image"}`}
                   style={{ backgroundImage: p.imageUrl ? `url(${p.imageUrl})` : undefined }}
                 >
+                  {!p.imageUrl && <PizzaIcon />}
                   {justAddedId === p.id && (
                     <span className="product-card-added">
                       <CheckIcon />
@@ -149,7 +201,7 @@ export default function RestaurantMenu() {
             ))}
           </div>
         </section>
-      )}
+      ))}
 
       <footer className="site-footer">
         <div className="site-footer-block">
@@ -176,6 +228,7 @@ export default function RestaurantMenu() {
         />
       )}
       {toast && <div className="toast">{toast}</div>}
-    </div>
+      </div>
+    </>
   );
 }

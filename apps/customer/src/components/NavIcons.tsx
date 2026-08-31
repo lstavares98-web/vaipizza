@@ -95,3 +95,24 @@ export function PinIcon(_: IconProps) {
     </svg>
   );
 }
+
+export function PhoneIcon(_: IconProps) {
+  return (
+    <svg {...common}>
+      <path d="M5.5 4h3l1.3 4.2-2 1.6a11 11 0 0 0 5.4 5.4l1.6-2 4.2 1.3v3a1.5 1.5 0 0 1-1.6 1.5A15.5 15.5 0 0 1 4 6.6 1.5 1.5 0 0 1 5.5 4Z" />
+    </svg>
+  );
+}
+
+// Watermark used inside product/restaurant cards that have no photo yet —
+// keeps the empty state on-brand instead of a dead flat-colour box.
+export function PizzaIcon(_: IconProps) {
+  return (
+    <svg {...common} viewBox="0 0 24 24" strokeWidth={1.4}>
+      <path d="M12 3.5 3.8 19.5h16.4L12 3.5Z" />
+      <circle cx="10.3" cy="13.2" r="0.9" fill="currentColor" stroke="none" />
+      <circle cx="14.1" cy="14.6" r="0.9" fill="currentColor" stroke="none" />
+      <circle cx="11.6" cy="17" r="0.9" fill="currentColor" stroke="none" />
+    </svg>
+  );
+}
