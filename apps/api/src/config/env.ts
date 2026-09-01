@@ -19,6 +19,7 @@ const envSchema = z.object({
   SMTP_PASS: z.string().optional().default(""),
   SMTP_FROM: z.string().optional().default(""),
   FRANCHISE_NOTIFY_EMAIL: z.string().email().default("vaipizzapt@gmail.com"),
+  PRIMARY_RESTAURANT_SLUG: z.string().min(1).default("vaipizza"),
   STRIPE_SECRET_KEY: z.string().optional().default(""),
   STRIPE_WEBHOOK_SECRET: z.string().optional().default(""),
   MAX_ASSIGNMENT_RETRIES: z.coerce.number().int().positive().default(5),

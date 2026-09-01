@@ -1,6 +1,7 @@
 import { Role } from "@yummix/types";
 import type { OrderStatus, RestaurantStatus, VerificationStatus } from "@prisma/client";
 import { prisma } from "../../config/prisma.js";
+import { env } from "../../config/env.js";
 import { badRequest, notFound } from "../../utils/AppError.js";
 import { attemptRefund } from "../../services/refund.service.js";
 import { getIO, rooms } from "../../sockets/io.js";
@@ -191,8 +192,11 @@ export async function getDashboard() {
 // ---- Single-installation feature flags ----------------------------------
 
 async function getPrimaryInstallation() {
-  const approved = await prisma.restaurant.findFirst({ where: { status: "APPROVED" }, orderBy: { createdAt: "asc" } });
-  const restaurant = approved ?? (await prisma.restaurant.findFirst({ orderBy: { createdAt: "asc" } }));
+  const configured = await prisma.restaurant.findUnique({ where: { slug: env.PRIMARY_RESTAURANT_SLUG } });
+  if (configured) return configured;
+
+  const approved = await prisma.restaurant.findFirst({ where: { status: "APPROVED" }, orderBy: [{ createdAt: "asc" }, { id: "asc" }] });
+  const restaurant = approved ?? (await prisma.restaurant.findFirst({ orderBy: [{ createdAt: "asc" }, { id: "asc" }] }));
   if (!restaurant) throw notFound("Instalação VAIPIZZA não encontrada");
   return restaurant;
 }
