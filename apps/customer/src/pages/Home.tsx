@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { BikeIcon, PinIcon } from "../components/NavIcons";
+import FranchiseModal from "../components/FranchiseModal";
 import { resolvePrimaryRestaurant, VAIPIZZA } from "../config/vaipizza";
 import { useAuth } from "../context/AuthContext";
 import { api } from "../lib/api";
@@ -26,6 +27,7 @@ export default function Home() {
   const [restaurant, setRestaurant] = useState<HomeRestaurant | null>(null);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(false);
+  const [franchiseOpen, setFranchiseOpen] = useState(false);
 
   useEffect(() => {
     api
@@ -169,14 +171,20 @@ export default function Home() {
         </div>
       </section>
 
+      <section className="cinema-franchise-cta">
+        <div><span>Expansão VAIPIZZA</span><h2>Quer levar a VAIPIZZA para a sua cidade?</h2></div>
+        <button type="button" onClick={() => setFranchiseOpen(true)}>Seja um franqueado <b aria-hidden="true">→</b></button>
+      </section>
+
       <footer className="cinema-footer">
         <div>
           <img src={VAIPIZZA.logoPath} alt="" />
           <span>{VAIPIZZA.name}</span>
         </div>
         <p>{VAIPIZZA.serviceLabel} · {VAIPIZZA.tagline}</p>
-        <Link to="/privacidade">Privacidade</Link>
+        <div className="cinema-footer-links"><button type="button" onClick={() => setFranchiseOpen(true)}>Seja um franqueado</button><Link to="/privacidade">Privacidade</Link></div>
       </footer>
+      {franchiseOpen && <FranchiseModal onClose={() => setFranchiseOpen(false)} />}
     </div>
   );
 }

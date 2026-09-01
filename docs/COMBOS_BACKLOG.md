@@ -1,18 +1,20 @@
-# VAIPIZZA — Combos (future feature)
+# VAIPIZZA — Combos
 
-Combos belong to the restaurant management/catalog, not hard-coded in the customer site.
+## Escopo implementado na V5
 
-Before implementation, define:
-- fixed bundle vs. customer-selectable bundle;
-- allowed pizza sizes/flavours;
-- drink/side choices and min/max selections;
-- whether modifiers/extras keep their normal price;
-- combo availability by day/hour;
-- promotional/fixed price and stock behavior;
-- product image, title, description, ordering priority.
+- Feature flag global no Admin técnico.
+- CRUD completo na Gestão da pizzaria.
+- Foto própria, preço atual/anterior, destaque, dias/horários e validade.
+- Itens fixos + grupos de escolha com mínimo/máximo e acréscimos.
+- Disponibilidade respeita produto/stock e janela configurada.
+- Cliente configura o combo em modal e o servidor recalcula o preço.
+- Carrinho/pedido guardam composição; pedido cria snapshot imutável.
+- Gestão e KDS exibem os componentes escolhidos.
 
-Expected UX later:
-1. Admin creates/edits a Combo in Cardápio.
-2. Combo can contain fixed items and/or selection groups.
-3. Customer sees a Combos category/card and configures allowed choices.
-4. Checkout stores a snapshot of the selected combo items/prices so old orders remain auditable.
+## Futuro, fora da V5
+
+- Regras de cupão específicas por combo.
+- Limites de stock agregados por combo além do stock dos produtos.
+- Analytics dedicado de conversão por combo.
+- Duplicar/clonar combo com um clique.
+- Ordenação visual drag-and-drop.

@@ -11,7 +11,9 @@ export interface CartItemModifierView {
 
 export interface CartItemView {
   id: string;
-  productId: string;
+  kind: "PRODUCT" | "COMBO";
+  productId: string | null;
+  comboId: string | null;
   productName: string;
   productImageUrl: string | null;
   secondaryProductId: string | null;
@@ -21,6 +23,10 @@ export interface CartItemView {
   unitPrice: number;
   lineTotal: number;
   modifiers: CartItemModifierView[];
+  comboSelections: {
+    fixedItems: { productId: string; productName: string; quantity: number }[];
+    selectedOptions: { groupId: string; groupName: string; optionId: string; productId: string; productName: string; priceDelta: number }[];
+  } | null;
 }
 
 interface CartView {
@@ -37,6 +43,12 @@ interface CartContextValue extends CartView {
     secondaryProductId?: string;
     quantity: number;
     modifierOptionIds: string[];
+    notes?: string;
+  }) => Promise<{ restaurantSwitched: boolean }>;
+  addComboItem: (input: {
+    comboId: string;
+    quantity: number;
+    selections: { groupId: string; optionIds: string[] }[];
     notes?: string;
   }) => Promise<{ restaurantSwitched: boolean }>;
   updateItem: (itemId: string, input: { quantity?: number; notes?: string }) => Promise<void>;
@@ -82,6 +94,17 @@ export function CartProvider({ children }: { children: ReactNode }) {
     return { restaurantSwitched: Boolean(data.restaurantSwitched) };
   }
 
+  async function addComboItem(input: {
+    comboId: string;
+    quantity: number;
+    selections: { groupId: string; optionIds: string[] }[];
+    notes?: string;
+  }) {
+    const { data } = await api.post("/cart/combo-items", input);
+    await refresh();
+    return { restaurantSwitched: Boolean(data.restaurantSwitched) };
+  }
+
   async function updateItem(itemId: string, input: { quantity?: number; notes?: string }) {
     await api.patch(`/cart/items/${itemId}`, input);
     await refresh();
@@ -98,7 +121,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
   }
 
   return (
-    <CartContext.Provider value={{ ...view, loading, refresh, addItem, updateItem, removeItem, clear }}>
+    <CartContext.Provider value={{ ...view, loading, refresh, addItem, addComboItem, updateItem, removeItem, clear }}>
       {children}
     </CartContext.Provider>
   );

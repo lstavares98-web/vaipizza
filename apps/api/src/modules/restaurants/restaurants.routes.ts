@@ -4,6 +4,7 @@ import { prisma } from "../../config/prisma.js";
 import { asyncHandler } from "../../middleware/errorHandler.js";
 import { notFound } from "../../utils/AppError.js";
 import { calcDeliveryFee, haversineKm } from "../../utils/geo.js";
+import { listPublicCombosBySlug } from "../combos/combos.service.js";
 
 export const restaurantsRouter = Router();
 
@@ -82,6 +83,14 @@ restaurantsRouter.get(
       .filter((r) => r.inRange);
 
     res.json({ success: true, restaurants: withDerived });
+  }),
+);
+
+restaurantsRouter.get(
+  "/:slug/combos",
+  asyncHandler(async (req, res) => {
+    const combos = await listPublicCombosBySlug(req.params.slug!);
+    res.json({ success: true, combos });
   }),
 );
 

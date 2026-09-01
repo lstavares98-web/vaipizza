@@ -3,7 +3,8 @@ import { useAuth } from "../context/AuthContext";
 
 const NAV = [
   { to: "/", label: "Dashboard", end: true },
-  { to: "/restaurants", label: "Restaurantes" },
+  { to: "/features", label: "Funcionalidades" },
+  { to: "/franchises", label: "Franquias" },
   { to: "/couriers", label: "Estafetas" },
   { to: "/customers", label: "Clientes" },
   { to: "/orders", label: "Pedidos" },
@@ -18,7 +19,7 @@ export default function Layout() {
       <aside className="sidebar">
         <div className="brand">
           <img src="/logo.png" alt="" />
-          VaiPizza
+          <span><strong>VAIPIZZA</strong><small>Admin técnico</small></span>
         </div>
         <nav>
           {NAV.map((item) => (

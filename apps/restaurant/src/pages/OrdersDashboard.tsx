@@ -9,6 +9,10 @@ interface OrderItem {
   productNameSnapshot: string;
   quantity: number;
   lineTotal: number;
+  comboSelectionsSnapshot: {
+    fixedItems?: { productName: string; quantity: number }[];
+    selectedOptions?: { groupName: string; productName: string }[];
+  } | null;
 }
 interface OrderRow {
   id: string;
@@ -208,6 +212,14 @@ function OrderCard({ order, children }: { order: OrderRow; children?: React.Reac
         {order.items.map((item) => (
           <li key={item.id}>
             {item.quantity}x {item.productNameSnapshot}
+            {item.comboSelectionsSnapshot && (
+              <small className="combo-order-lines">
+                {[
+                  ...(item.comboSelectionsSnapshot.fixedItems ?? []).map((fixed) => `${fixed.quantity}x ${fixed.productName}`),
+                  ...(item.comboSelectionsSnapshot.selectedOptions ?? []).map((selected) => `${selected.groupName}: ${selected.productName}`),
+                ].join(" · ")}
+              </small>
+            )}
           </li>
         ))}
       </ul>

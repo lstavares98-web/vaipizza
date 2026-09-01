@@ -149,6 +149,7 @@ model Restaurant {
 
   acceptsPickup   Boolean @default(true)
   acceptsDelivery Boolean @default(true)
+  combosEnabled   Boolean @default(false)
 
   // Fallback used when a product on the order doesn't set its own
   // defaultPrepTimeMinutes — lets "Aceitar" be a single click instead of
@@ -162,6 +163,7 @@ model Restaurant {
   hours      RestaurantHours[]
   categories Category[]
   products   Product[]
+  combos     Combo[]
   orders     Order[]
   coupons    Coupon[]
   carts      Cart[]
@@ -239,6 +241,8 @@ model Product {
   splitOrderItems OrderItem[] @relation("SecondaryProduct")
   cartItems      CartItem[] @relation("CartPrimaryProduct")
   splitCartItems CartItem[] @relation("CartSecondaryProduct")
+  comboFixedItems ComboFixedItem[] @relation("ComboFixedProduct")
+  comboGroupOptions ComboGroupOption[] @relation("ComboOptionProduct")
 
   @@index([restaurantId])
   @@index([categoryId])
@@ -312,6 +316,80 @@ model CourierRating {
   @@index([courierId])
 }
 
+
+// ---------------------------------------------------------------------------
+// Combos
+// ---------------------------------------------------------------------------
+
+model Combo {
+  id           String     @id @default(cuid())
+  restaurantId String
+  restaurant   Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+
+  name           String
+  description    String?
+  basePrice      Float
+  compareAtPrice Float?
+  imageUrl       String?
+  imagePublicId  String?
+  isActive       Boolean @default(true)
+  isFeatured     Boolean @default(false)
+  startsAt       DateTime?
+  endsAt         DateTime?
+  availableDays  Int[] @default([])
+  availableFrom  String?
+  availableTo    String?
+  sortOrder      Int @default(0)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  fixedItems ComboFixedItem[]
+  groups     ComboGroup[]
+  cartItems  CartItem[]
+  orderItems OrderItem[]
+
+  @@index([restaurantId, isActive])
+}
+
+model ComboFixedItem {
+  id        String @id @default(cuid())
+  comboId   String
+  combo     Combo  @relation(fields: [comboId], references: [id], onDelete: Cascade)
+  productId String
+  product   Product @relation("ComboFixedProduct", fields: [productId], references: [id])
+  quantity  Int @default(1)
+  sortOrder Int @default(0)
+
+  @@index([comboId])
+  @@index([productId])
+}
+
+model ComboGroup {
+  id        String @id @default(cuid())
+  comboId   String
+  combo     Combo  @relation(fields: [comboId], references: [id], onDelete: Cascade)
+  name      String
+  minSelect Int @default(1)
+  maxSelect Int @default(1)
+  sortOrder Int @default(0)
+  options   ComboGroupOption[]
+
+  @@index([comboId])
+}
+
+model ComboGroupOption {
+  id         String @id @default(cuid())
+  groupId    String
+  group      ComboGroup @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  productId  String
+  product    Product @relation("ComboOptionProduct", fields: [productId], references: [id])
+  priceDelta Float @default(0)
+  sortOrder  Int @default(0)
+
+  @@index([groupId])
+  @@index([productId])
+}
+
 // ---------------------------------------------------------------------------
 // Cart (one active cart per customer, single-restaurant enforced in service layer)
 // ---------------------------------------------------------------------------
@@ -331,8 +409,11 @@ model CartItem {
   id        String  @id @default(cuid())
   cartId    String
   cart      Cart    @relation(fields: [cartId], references: [id], onDelete: Cascade)
-  productId String
-  product   Product @relation("CartPrimaryProduct", fields: [productId], references: [id])
+  productId String?
+  product   Product? @relation("CartPrimaryProduct", fields: [productId], references: [id])
+  comboId   String?
+  combo     Combo?   @relation(fields: [comboId], references: [id], onDelete: Cascade)
+  comboSelections Json?
   secondaryProductId String? // set when the customer splits the product (half & half)
   secondaryProduct   Product? @relation("CartSecondaryProduct", fields: [secondaryProductId], references: [id])
   quantity  Int    @default(1)
@@ -510,8 +591,11 @@ model OrderItem {
   orderId   String
   order     Order  @relation(fields: [orderId], references: [id], onDelete: Cascade)
 
-  productId String
-  product   Product @relation("PrimaryProduct", fields: [productId], references: [id])
+  productId String?
+  product   Product? @relation("PrimaryProduct", fields: [productId], references: [id], onDelete: SetNull)
+  comboId   String?
+  combo     Combo?   @relation(fields: [comboId], references: [id], onDelete: SetNull)
+  comboSelectionsSnapshot Json?
   productNameSnapshot String
   secondaryProductId  String?
   secondaryProduct    Product? @relation("SecondaryProduct", fields: [secondaryProductId], references: [id])
@@ -658,6 +742,26 @@ model AdminAlert {
   createdAt DateTime @default(now())
 
   @@index([resolved])
+}
+
+enum FranchiseLeadStatus {
+  NEW
+  CONTACTED
+  ARCHIVED
+}
+
+model FranchiseLead {
+  id        String @id @default(cuid())
+  name      String
+  phone     String
+  email     String
+  cityRegion String
+  message   String
+  status    FranchiseLeadStatus @default(NEW)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([status, createdAt])
 }
 
 model FeedbackSubmission {

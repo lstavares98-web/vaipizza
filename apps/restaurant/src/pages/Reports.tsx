@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { api } from "../lib/api";
+import { buildReportCsv } from "../lib/reportCsv";
 
 interface ReportData {
   ordersTotal: number;
@@ -34,6 +35,20 @@ export default function Reports() {
     }
   }
 
+  function exportCsv() {
+    if (!report) return;
+    const csv = buildReportCsv(report, { from, to });
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement("a");
+    anchor.href = url;
+    anchor.download = `vaipizza-relatorio-${from}-a-${to}.csv`;
+    document.body.appendChild(anchor);
+    anchor.click();
+    anchor.remove();
+    URL.revokeObjectURL(url);
+  }
+
   return (
     <div className="page-content">
       <h1>Relatórios</h1>
@@ -49,6 +64,7 @@ export default function Reports() {
         <button onClick={runReport} disabled={loading}>
           {loading ? "A calcular..." : "Gerar relatório"}
         </button>
+        <button className="secondary" onClick={exportCsv} disabled={!report}>Exportar CSV</button>
       </div>
 
       {report && (

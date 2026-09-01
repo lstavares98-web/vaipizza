@@ -73,3 +73,9 @@ export function MenuBarsIcon() {
     </svg>
   );
 }
+
+export function ComboIcon() {
+  return (
+    <svg {...common}><path d="M4 7.5h16M6 4h12l1 3.5v12H5v-12L6 4Z"/><path d="M8 11h3m2 0h3M8 15h8"/></svg>
+  );
+}

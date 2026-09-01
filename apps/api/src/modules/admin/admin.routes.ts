@@ -34,6 +34,26 @@ adminRouter.get(
   }),
 );
 
+
+// ---- Single-installation features --------------------------------------
+
+adminRouter.get(
+  "/features",
+  asyncHandler(async (_req, res) => {
+    const features = await adminService.getInstallationFeatures();
+    res.json({ success: true, features });
+  }),
+);
+
+adminRouter.patch(
+  "/features",
+  asyncHandler(async (req, res) => {
+    const input = z.object({ combosEnabled: z.boolean().optional() }).strict().parse(req.body);
+    const features = await adminService.updateInstallationFeatures(input);
+    res.json({ success: true, features });
+  }),
+);
+
 // ---- Restaurants --------------------------------------------------------
 
 adminRouter.get(
@@ -181,5 +201,24 @@ adminRouter.get(
   asyncHandler(async (_req, res) => {
     const feedback = await adminService.listFeedback();
     res.json({ success: true, feedback });
+  }),
+);
+
+// ---- Franchise leads ----------------------------------------------------
+
+adminRouter.get(
+  "/franchises",
+  asyncHandler(async (_req, res) => {
+    const leads = await adminService.listFranchiseLeads();
+    res.json({ success: true, leads });
+  }),
+);
+
+adminRouter.patch(
+  "/franchises/:id",
+  asyncHandler(async (req, res) => {
+    const { status } = z.object({ status: z.enum(["NEW", "CONTACTED", "ARCHIVED"]) }).parse(req.body);
+    const lead = await adminService.updateFranchiseLeadStatus(req.params.id!, status);
+    res.json({ success: true, lead });
   }),
 );

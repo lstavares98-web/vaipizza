@@ -1,10 +1,11 @@
 import { NavLink, Outlet } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
-import { CashIcon, LogoutIcon, MenuBookIcon, OrdersIcon, ReportsIcon, SettingsIcon } from "./NavIcons";
+import { CashIcon, ComboIcon, LogoutIcon, MenuBookIcon, OrdersIcon, ReportsIcon, SettingsIcon } from "./NavIcons";
 
 const NAV = [
   { to: "/", label: "Pedidos", end: true, Icon: OrdersIcon },
   { to: "/menu", label: "Menu", Icon: MenuBookIcon },
+  { to: "/combos", label: "Combos", Icon: ComboIcon },
   { to: "/cash", label: "Caixa", Icon: CashIcon },
   { to: "/reports", label: "Relatórios", Icon: ReportsIcon },
   { to: "/settings", label: "Definições", Icon: SettingsIcon },

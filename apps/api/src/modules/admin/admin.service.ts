@@ -157,6 +157,11 @@ export async function getDashboard() {
     ]);
 
   const financials = computeFinancials(orders);
+  const installation = await prisma.restaurant.findFirst({
+    where: { status: "APPROVED" },
+    orderBy: { createdAt: "asc" },
+    select: { id: true, name: true, email: true, status: true, combosEnabled: true },
+  });
 
   const byDay = new Map<string, number>();
   for (const o of orders) {
@@ -177,6 +182,49 @@ export async function getDashboard() {
     pendingRestaurants,
     pendingCouriers,
     unresolvedAlerts,
+    installation,
     revenueByDay,
   };
+}
+
+
+// ---- Single-installation feature flags ----------------------------------
+
+async function getPrimaryInstallation() {
+  const approved = await prisma.restaurant.findFirst({ where: { status: "APPROVED" }, orderBy: { createdAt: "asc" } });
+  const restaurant = approved ?? (await prisma.restaurant.findFirst({ orderBy: { createdAt: "asc" } }));
+  if (!restaurant) throw notFound("Instalação VAIPIZZA não encontrada");
+  return restaurant;
+}
+
+export async function getInstallationFeatures() {
+  const restaurant = await getPrimaryInstallation();
+  return {
+    restaurantId: restaurant.id,
+    restaurantName: restaurant.name,
+    combosEnabled: restaurant.combosEnabled,
+  };
+}
+
+export async function updateInstallationFeatures(input: { combosEnabled?: boolean }) {
+  const restaurant = await getPrimaryInstallation();
+  const updated = await prisma.restaurant.update({ where: { id: restaurant.id }, data: input });
+  return {
+    restaurantId: updated.id,
+    restaurantName: updated.name,
+    combosEnabled: updated.combosEnabled,
+  };
+}
+
+
+// ---- Franchise leads ------------------------------------------------------
+
+export async function listFranchiseLeads() {
+  return prisma.franchiseLead.findMany({ orderBy: { createdAt: "desc" }, take: 300 });
+}
+
+export async function updateFranchiseLeadStatus(id: string, status: "NEW" | "CONTACTED" | "ARCHIVED") {
+  const existing = await prisma.franchiseLead.findUnique({ where: { id } });
+  if (!existing) throw notFound("Contacto de franquia não encontrado");
+  return prisma.franchiseLead.update({ where: { id }, data: { status } });
 }

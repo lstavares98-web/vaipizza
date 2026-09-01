@@ -21,6 +21,8 @@ import { catalogRouter } from "./modules/catalog/catalog.routes.js";
 import { restaurantSettingsRouter } from "./modules/restaurants/settings.routes.js";
 import { cashSettlementRouter } from "./modules/restaurants/cashSettlement.routes.js";
 import { reportsRouter } from "./modules/restaurants/reports.routes.js";
+import { combosRouter } from "./modules/combos/combos.routes.js";
+import { franchiseRouter } from "./modules/franchise/franchise.routes.js";
 
 export function createApp() {
   const app = express();
@@ -59,10 +61,12 @@ export function createApp() {
   app.use("/api/uploads", uploadsRouter);
   app.use("/api/admin", adminRouter);
   app.use("/api/feedback", feedbackRouter);
+  app.use("/api/franchise", franchiseRouter);
   app.use("/api/restaurant/catalog", catalogRouter);
   app.use("/api/restaurant/settings", restaurantSettingsRouter);
   app.use("/api/restaurant", cashSettlementRouter);
   app.use("/api/restaurant/reports", reportsRouter);
+  app.use("/api/restaurant/combos", combosRouter);
 
   app.use(notFoundHandler);
   app.use(errorHandler);

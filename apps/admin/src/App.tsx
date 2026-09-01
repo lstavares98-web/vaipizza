@@ -4,12 +4,13 @@ import Layout from "./components/Layout";
 import RequireAuth from "./components/RequireAuth";
 import Login from "./pages/Login";
 import Dashboard from "./pages/Dashboard";
-import Restaurants from "./pages/Restaurants";
 import Couriers from "./pages/Couriers";
 import Customers from "./pages/Customers";
 import Orders from "./pages/Orders";
 import RefundAlerts from "./pages/RefundAlerts";
 import Feedback from "./pages/Feedback";
+import Features from "./pages/Features";
+import Franchises from "./pages/Franchises";
 
 function Protected({ children }: { children: React.ReactNode }) {
   return <RequireAuth>{children}</RequireAuth>;
@@ -31,10 +32,18 @@ export default function App() {
               }
             />
             <Route
-              path="/restaurants"
+              path="/features"
               element={
                 <Protected>
-                  <Restaurants />
+                  <Features />
+                </Protected>
+              }
+            />
+            <Route
+              path="/franchises"
+              element={
+                <Protected>
+                  <Franchises />
                 </Protected>
               }
             />

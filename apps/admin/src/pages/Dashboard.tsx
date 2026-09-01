@@ -8,12 +8,11 @@ interface DashboardData {
   platformCommission: number;
   restaurantPayout: number;
   deliveryFees: number;
-  restaurantCount: number;
   customerCount: number;
   courierCount: number;
-  pendingRestaurants: number;
   pendingCouriers: number;
   unresolvedAlerts: number;
+  installation: { id: string; name: string; email: string; status: string; combosEnabled: boolean } | null;
   revenueByDay: { date: string; revenue: number }[];
 }
 
@@ -30,13 +29,14 @@ export default function Dashboard() {
     <div>
       <h1>Dashboard</h1>
 
-      {(data.pendingRestaurants > 0 || data.pendingCouriers > 0 || data.unresolvedAlerts > 0) && (
+      {(data.pendingCouriers > 0 || data.unresolvedAlerts > 0) && (
         <div className="alert-banner">
-          {data.pendingRestaurants > 0 && <span>{data.pendingRestaurants} restaurante(s) pendentes</span>}
           {data.pendingCouriers > 0 && <span>{data.pendingCouriers} estafeta(s) pendentes</span>}
           {data.unresolvedAlerts > 0 && <span>{data.unresolvedAlerts} alerta(s) de reembolso</span>}
         </div>
       )}
+
+      {data.installation && <div className="installation-card"><div><span className="admin-kicker">Instalação ativa</span><strong>{data.installation.name}</strong><small>{data.installation.email}</small></div><div><span>Combos</span><b className={data.installation.combosEnabled ? "on" : "off"}>{data.installation.combosEnabled ? "Ativados" : "Desativados"}</b></div></div>}
 
       <div className="stat-grid">
         <StatCard label="GMV" value={`${data.gmv.toFixed(2)} €`} />
@@ -44,7 +44,6 @@ export default function Dashboard() {
         <StatCard label="Repasse aos restaurantes" value={`${data.restaurantPayout.toFixed(2)} €`} />
         <StatCard label="Taxas de entrega" value={`${data.deliveryFees.toFixed(2)} €`} />
         <StatCard label="Pedidos" value={data.orderCount} />
-        <StatCard label="Restaurantes ativos" value={data.restaurantCount} />
         <StatCard label="Clientes" value={data.customerCount} />
         <StatCard label="Estafetas ativos" value={data.courierCount} />
       </div>

@@ -8,6 +8,7 @@ import Menu from "./pages/Menu";
 import Settings from "./pages/Settings";
 import CashSettlement from "./pages/CashSettlement";
 import Reports from "./pages/Reports";
+import Combos from "./pages/Combos";
 
 function Protected({ children }: { children: React.ReactNode }) {
   return <RequireAuth>{children}</RequireAuth>;
@@ -33,6 +34,14 @@ export default function App() {
               element={
                 <Protected>
                   <Menu />
+                </Protected>
+              }
+            />
+            <Route
+              path="/combos"
+              element={
+                <Protected>
+                  <Combos />
                 </Protected>
               }
             />

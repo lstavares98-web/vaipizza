@@ -19,7 +19,16 @@ interface OrderDetailView {
   changeDue: number | null;
   restaurant: { name: string };
   courier: { user: { name: string; phone: string | null } } | null;
-  items: { id: string; productNameSnapshot: string; quantity: number; lineTotal: number }[];
+  items: {
+    id: string;
+    productNameSnapshot: string;
+    quantity: number;
+    lineTotal: number;
+    comboSelectionsSnapshot: {
+      fixedItems?: { productId: string; productName: string; quantity: number }[];
+      selectedOptions?: { groupName: string; optionId: string; productName: string; priceDelta: number }[];
+    } | null;
+  }[];
   statusHistory: { status: string; createdAt: string }[];
 }
 
@@ -78,6 +87,14 @@ export default function OrderDetail() {
             <li key={item.id} className="cart-item">
               <span>
                 {item.quantity}x {item.productNameSnapshot}
+                {item.comboSelectionsSnapshot && (
+                  <small className="combo-order-details">
+                    {[
+                      ...(item.comboSelectionsSnapshot.fixedItems ?? []).map((fixed) => `${fixed.quantity}x ${fixed.productName}`),
+                      ...(item.comboSelectionsSnapshot.selectedOptions ?? []).map((selected) => `${selected.groupName}: ${selected.productName}`),
+                    ].join(" · ")}
+                  </small>
+                )}
               </span>
               <span className="price">{item.lineTotal.toFixed(2)} €</span>
             </li>

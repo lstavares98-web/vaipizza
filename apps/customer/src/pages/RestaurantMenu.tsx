@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import ProductModal, { type ProductForModal } from "../components/ProductModal";
+import ComboModal, { type ComboForModal } from "../components/ComboModal";
 import { BikeIcon, CheckIcon, PinIcon, PizzaIcon, StarIcon } from "../components/NavIcons";
 import { useCart } from "../context/CartContext";
 import { api } from "../lib/api";
@@ -41,9 +42,11 @@ export default function RestaurantMenu({ restaurantSlug, embedded = false }: Res
   const { items, subtotal } = useCart();
   const cartCount = items.reduce((sum, item) => sum + item.quantity, 0);
   const [restaurant, setRestaurant] = useState<RestaurantDetail | null>(null);
+  const [combos, setCombos] = useState<ComboForModal[]>([]);
   const [loadError, setLoadError] = useState(false);
   const [activeCategory, setActiveCategory] = useState<string | null>(null);
   const [activeProduct, setActiveProduct] = useState<ProductForModal | null>(null);
+  const [activeCombo, setActiveCombo] = useState<ComboForModal | null>(null);
   const [toast, setToast] = useState<string | null>(null);
   const [justAddedId, setJustAddedId] = useState<string | null>(null);
   const sectionRefs = useRef<Record<string, HTMLElement | null>>({});
@@ -58,11 +61,13 @@ export default function RestaurantMenu({ restaurantSlug, embedded = false }: Res
   useEffect(() => {
     if (!slug) return;
     setLoadError(false);
-    api
-      .get(`/restaurants/${slug}`)
-      .then(({ data }) => {
-        setRestaurant(data.restaurant);
-        setActiveCategory(data.restaurant.categories.find((category: Category) => category.products.length > 0)?.id ?? null);
+    Promise.all([api.get(`/restaurants/${slug}`), api.get(`/restaurants/${slug}/combos`)])
+      .then(([restaurantResponse, combosResponse]) => {
+        const nextRestaurant = restaurantResponse.data.restaurant;
+        const nextCombos = combosResponse.data.combos ?? [];
+        setRestaurant(nextRestaurant);
+        setCombos(nextCombos);
+        setActiveCategory(nextCombos.length > 0 ? "combos" : nextRestaurant.categories.find((category: Category) => category.products.length > 0)?.id ?? null);
       })
       .catch(() => setLoadError(true));
   }, [slug]);
@@ -77,9 +82,13 @@ export default function RestaurantMenu({ restaurantSlug, embedded = false }: Res
     () => restaurant?.categories.filter((category) => category.products.length > 0) ?? [],
     [restaurant],
   );
+  const menuSections = useMemo(
+    () => [...(combos.length > 0 ? [{ id: "combos", name: "Combos" }] : []), ...categoriesWithProducts.map((category) => ({ id: category.id, name: category.name }))],
+    [combos.length, categoriesWithProducts],
+  );
 
   useEffect(() => {
-    if (categoriesWithProducts.length < 2) return;
+    if (menuSections.length < 2) return;
     const observer = new IntersectionObserver(
       (entries) => {
         if (suppressObserver.current) return;
@@ -90,12 +99,12 @@ export default function RestaurantMenu({ restaurantSlug, embedded = false }: Res
       },
       { rootMargin: embedded ? "-90px 0px -55% 0px" : "-150px 0px -50% 0px", threshold: 0 },
     );
-    categoriesWithProducts.forEach((category) => {
-      const element = sectionRefs.current[category.id];
+    menuSections.forEach((section) => {
+      const element = sectionRefs.current[section.id];
       if (element) observer.observe(element);
     });
     return () => observer.disconnect();
-  }, [categoriesWithProducts, embedded]);
+  }, [menuSections, embedded]);
 
   if (!restaurant) {
     return (
@@ -163,22 +172,20 @@ export default function RestaurantMenu({ restaurantSlug, embedded = false }: Res
           </div>
         </div>
 
-        {categoriesWithProducts.length > 1 && (
+        {menuSections.length > 1 && (
           <nav className="category-tabs editorial-category-tabs" aria-label="Categorias do menu">
-            {categoriesWithProducts.map((category) => (
+            {menuSections.map((section) => (
               <button
-                key={category.id}
-                className={`category-tab ${activeCategory === category.id ? "active" : ""}`}
+                key={section.id}
+                className={`category-tab ${activeCategory === section.id ? "active" : ""}`}
                 onClick={() => {
-                  setActiveCategory(category.id);
+                  setActiveCategory(section.id);
                   suppressObserver.current = true;
-                  sectionRefs.current[category.id]?.scrollIntoView({ behavior: "smooth", block: "start" });
-                  window.setTimeout(() => {
-                    suppressObserver.current = false;
-                  }, 700);
+                  sectionRefs.current[section.id]?.scrollIntoView({ behavior: "smooth", block: "start" });
+                  window.setTimeout(() => { suppressObserver.current = false; }, 700);
                 }}
               >
-                {category.name}
+                {section.name}
               </button>
             ))}
           </nav>
@@ -186,6 +193,27 @@ export default function RestaurantMenu({ restaurantSlug, embedded = false }: Res
 
         <div className={`menu-and-cart${cartCount > 0 ? " has-cart" : ""}`}>
           <div className="menu-catalog">
+            {combos.length > 0 && (
+              <section id="combos" ref={(element) => { sectionRefs.current.combos = element; }} className="menu-category combo-menu-category">
+                <div className="menu-category-heading"><h2>Combos</h2><span>{combos.length} {combos.length === 1 ? "oferta" : "ofertas"}</span></div>
+                <div className="product-grid editorial-product-grid combo-product-grid">
+                  {combos.map((combo) => (
+                    <button className="product-card editorial-product-card combo-product-card" key={combo.id} onClick={() => setActiveCombo(combo)}>
+                      <div className={`product-card-image${combo.imageUrl ? "" : " no-image"}`} style={{ backgroundImage: combo.imageUrl ? `url(${combo.imageUrl})` : undefined }}>
+                        {!combo.imageUrl && <PizzaIcon />}
+                        {combo.isFeatured && <span className="combo-featured-badge">Destaque</span>}
+                        <span className="product-card-action" aria-hidden="true">+</span>
+                      </div>
+                      <div className="product-card-copy">
+                        <div className="product-card-title-row"><h3>{combo.name}</h3><span className="combo-card-price">{combo.compareAtPrice != null && <del>{combo.compareAtPrice.toFixed(2)} €</del>}<span className="price">{combo.basePrice.toFixed(2)} €</span></span></div>
+                        {combo.description && <p>{combo.description}</p>}
+                        <span className="product-card-choose">Montar o combo <b aria-hidden="true">↗</b></span>
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              </section>
+            )}
             {categoriesWithProducts.map((category) => (
               <section
                 key={category.id}
@@ -294,6 +322,13 @@ export default function RestaurantMenu({ restaurantSlug, embedded = false }: Res
         </Link>
       )}
 
+      {activeCombo && (
+        <ComboModal
+          combo={activeCombo}
+          onClose={() => setActiveCombo(null)}
+          onAdded={(message) => { setToast(message); setJustAddedId(activeCombo.id); }}
+        />
+      )}
       {activeProduct && slug && (
         <ProductModal
           restaurantSlug={slug}

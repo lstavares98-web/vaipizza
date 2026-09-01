@@ -12,17 +12,55 @@ import { attemptRefund } from "../../services/refund.service.js";
 import { getIO, rooms } from "../../sockets/io.js";
 import { tryAssignOrder } from "../dispatch/dispatch.service.js";
 import { computeChangeDue } from "../couriers/cash.js";
+import { comboInclude } from "../combos/combos.service.js";
+import { buildComboSelectionSnapshot, isComboScheduleAvailable, priceCombo, validateComboSelection, type ComboSelectionInput } from "../combos/combo.rules.js";
 
 const stripe = env.STRIPE_SECRET_KEY ? new Stripe(env.STRIPE_SECRET_KEY) : null;
 
 const cartItemInclude = {
   product: { include: { modifierGroups: { include: { options: true } } } },
+  combo: { include: comboInclude },
   secondaryProduct: true,
   modifiers: { include: { option: { include: { group: true } } } },
 } as const;
 
-function priceCartItems(items: Array<any>) {
+function validateComboOrBadRequest(combo: Parameters<typeof validateComboSelection>[0], selections: ComboSelectionInput[]) {
+  try { return validateComboSelection(combo, selections); }
+  catch (error) { throw badRequest(error instanceof Error ? error.message : "Seleção de combo inválida", "INVALID_COMBO_SELECTION"); }
+}
+function priceComboOrBadRequest(combo: Parameters<typeof priceCombo>[0], selections: ComboSelectionInput[]) {
+  try { return priceCombo(combo, selections); }
+  catch (error) { throw badRequest(error instanceof Error ? error.message : "Seleção de combo inválida", "INVALID_COMBO_SELECTION"); }
+}
+
+function priceCartItems(items: Array<any>, combosEnabled: boolean, now = new Date()) {
   return items.map((item) => {
+    if (item.combo) {
+      if (!combosEnabled || !item.combo.isActive) throw badRequest("Um combo do carrinho deixou de estar disponível", "COMBO_NOT_AVAILABLE");
+      if ((item.combo.startsAt && now < item.combo.startsAt) || (item.combo.endsAt && now > item.combo.endsAt) || !isComboScheduleAvailable(item.combo, now)) {
+        throw badRequest("Um combo do carrinho não está disponível neste horário", "COMBO_NOT_AVAILABLE");
+      }
+      const selections = (item.comboSelections ?? []) as ComboSelectionInput[];
+      validateComboOrBadRequest(item.combo, selections);
+      const unitPrice = priceComboOrBadRequest(item.combo, selections);
+      const lineTotal = round2(unitPrice * item.quantity);
+      return {
+        productId: null,
+        comboId: item.combo.id,
+        productNameSnapshot: item.combo.name,
+        secondaryProductId: null,
+        secondaryProductNameSnapshot: null,
+        splitPricingRule: null,
+        comboSelectionsSnapshot: buildComboSelectionSnapshot(item.combo, selections),
+        quantity: item.quantity,
+        unitPrice,
+        lineTotal,
+        notes: item.notes,
+        modifiers: [],
+      };
+    }
+
+    if (!item.product) throw badRequest("Item de carrinho inválido", "INVALID_CART_ITEM");
     const options = item.modifiers.map((m: any) => m.option);
     const base = item.secondaryProduct
       ? computeSplitBasePrice(item.product.basePrice, item.secondaryProduct.basePrice, item.product.splitPricingRule)
@@ -31,10 +69,12 @@ function priceCartItems(items: Array<any>) {
     const lineTotal = round2(unitPrice * item.quantity);
     return {
       productId: item.productId,
+      comboId: null,
       productNameSnapshot: item.product.name,
       secondaryProductId: item.secondaryProductId,
       secondaryProductNameSnapshot: item.secondaryProduct?.name ?? null,
       splitPricingRule: item.secondaryProduct ? item.product.splitPricingRule : null,
+      comboSelectionsSnapshot: null,
       quantity: item.quantity,
       unitPrice,
       lineTotal,
@@ -63,7 +103,7 @@ export async function checkout(userId: string, input: CheckoutInput) {
     throw badRequest("Este restaurante não aceita recolha no local");
   }
 
-  const pricedItems = priceCartItems(cart.items);
+  const pricedItems = priceCartItems(cart.items, restaurant.combosEnabled);
   const subtotal = round2(pricedItems.reduce((sum, i) => sum + i.lineTotal, 0));
 
   let address = null;
@@ -125,10 +165,12 @@ export async function checkout(userId: string, input: CheckoutInput) {
         items: {
           create: pricedItems.map((i) => ({
             productId: i.productId,
+            comboId: i.comboId,
             productNameSnapshot: i.productNameSnapshot,
             secondaryProductId: i.secondaryProductId,
             secondaryProductNameSnapshot: i.secondaryProductNameSnapshot,
             splitPricingRule: i.splitPricingRule,
+            comboSelectionsSnapshot: i.comboSelectionsSnapshot ?? undefined,
             quantity: i.quantity,
             unitPrice: i.unitPrice,
             lineTotal: i.lineTotal,
@@ -244,7 +286,7 @@ async function computeAutoPrepTime(orderId: string, restaurantId: string): Promi
     }),
     prisma.restaurant.findUniqueOrThrow({ where: { id: restaurantId }, select: { defaultPrepTimeMinutes: true } }),
   ]);
-  const productTimes = items.map((i) => i.product.defaultPrepTimeMinutes).filter((t): t is number => t != null);
+  const productTimes = items.map((i) => i.product?.defaultPrepTimeMinutes).filter((t): t is number => t != null);
   return productTimes.length > 0 ? Math.max(...productTimes) : restaurant.defaultPrepTimeMinutes;
 }
 

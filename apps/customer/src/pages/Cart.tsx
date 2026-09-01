@@ -41,6 +41,19 @@ export default function Cart() {
                   </strong>
                   <span className="price">{item.lineTotal.toFixed(2)} €</span>
                 </div>
+                {item.comboSelections && (
+                  <ul className="cart-item-modifiers combo-cart-details">
+                    {item.comboSelections.fixedItems.map((fixed) => (
+                      <li key={`fixed-${fixed.productId}`}>{fixed.quantity}x {fixed.productName}</li>
+                    ))}
+                    {item.comboSelections.selectedOptions.map((selected) => (
+                      <li key={selected.optionId}>
+                        {selected.groupName}: {selected.productName}
+                        {selected.priceDelta !== 0 ? ` (+${selected.priceDelta.toFixed(2)} €)` : ""}
+                      </li>
+                    ))}
+                  </ul>
+                )}
                 {item.modifiers.length > 0 && (
                   <ul className="cart-item-modifiers">
                     {item.modifiers.map((m) => (

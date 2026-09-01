@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { z } from "zod";
-import { addToCartSchema } from "@yummix/validation";
+import { addComboToCartSchema, addToCartSchema } from "@yummix/validation";
 import { Role } from "@yummix/types";
 import { asyncHandler } from "../../middleware/errorHandler.js";
 import { requireAuth, requireRole } from "../../middleware/auth.js";
@@ -22,6 +22,16 @@ cartRouter.post(
   asyncHandler(async (req, res) => {
     const input = addToCartSchema.parse(req.body);
     const result = await cartService.addToCart(req.auth!.sub, input);
+    res.status(201).json({ success: true, ...result });
+  }),
+);
+
+
+cartRouter.post(
+  "/combo-items",
+  asyncHandler(async (req, res) => {
+    const input = addComboToCartSchema.parse(req.body);
+    const result = await cartService.addComboToCart(req.auth!.sub, input);
     res.status(201).json({ success: true, ...result });
   }),
 );

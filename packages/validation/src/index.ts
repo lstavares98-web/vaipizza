@@ -120,3 +120,86 @@ export const updateOrderStatusSchema = z.object({
   prepTimeMinutes: z.number().int().positive().optional(),
   rejectionReason: z.string().max(300).optional(),
 });
+
+const hhmmSchema = z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, "Use HH:MM");
+
+export const comboFixedItemSchema = z.object({
+  productId: z.string().min(1),
+  quantity: z.number().int().min(1).max(50),
+  sortOrder: z.number().int().optional(),
+});
+
+export const comboGroupOptionInputSchema = z.object({
+  productId: z.string().min(1),
+  priceDelta: z.number().default(0),
+  sortOrder: z.number().int().optional(),
+});
+
+export const comboGroupInputSchema = z
+  .object({
+    name: z.string().min(1).max(120),
+    minSelect: z.number().int().min(0).max(20),
+    maxSelect: z.number().int().min(1).max(20),
+    sortOrder: z.number().int().optional(),
+    options: z.array(comboGroupOptionInputSchema).min(1),
+  })
+  .refine((group) => group.minSelect <= group.maxSelect, {
+    message: "minSelect não pode ser superior a maxSelect",
+    path: ["minSelect"],
+  });
+
+export const comboInputSchema = z
+  .object({
+    name: z.string().min(1).max(120),
+    description: z.string().max(2000).optional(),
+    basePrice: z.number().nonnegative(),
+    compareAtPrice: z.number().nonnegative().nullable().optional(),
+    imageUrl: z.string().url().nullable().optional(),
+    imagePublicId: z.string().nullable().optional(),
+    isActive: z.boolean().optional(),
+    isFeatured: z.boolean().optional(),
+    startsAt: z.string().datetime().nullable().optional(),
+    endsAt: z.string().datetime().nullable().optional(),
+    availableDays: z.array(z.number().int().min(0).max(6)).max(7).default([]),
+    availableFrom: hhmmSchema.nullable().optional(),
+    availableTo: hhmmSchema.nullable().optional(),
+    sortOrder: z.number().int().optional(),
+    fixedItems: z.array(comboFixedItemSchema).default([]),
+    groups: z.array(comboGroupInputSchema).default([]),
+  })
+  .superRefine((combo, ctx) => {
+    if (combo.fixedItems.length === 0 && combo.groups.length === 0) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["fixedItems"], message: "O combo precisa de pelo menos um item ou grupo" });
+    }
+    if (combo.startsAt && combo.endsAt && new Date(combo.startsAt) > new Date(combo.endsAt)) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["startsAt"], message: "Início posterior ao fim" });
+    }
+    if (combo.compareAtPrice != null && combo.compareAtPrice < combo.basePrice) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["compareAtPrice"], message: "Preço anterior deve ser igual ou superior ao preço do combo" });
+    }
+  });
+export type ComboInput = z.infer<typeof comboInputSchema>;
+
+export const addComboToCartSchema = z.object({
+  comboId: z.string().min(1),
+  quantity: z.number().int().min(1).max(50),
+  selections: z
+    .array(
+      z.object({
+        groupId: z.string().min(1),
+        optionIds: z.array(z.string().min(1)).max(20),
+      }),
+    )
+    .max(30),
+  notes: z.string().max(300).optional(),
+});
+export type AddComboToCartInput = z.infer<typeof addComboToCartSchema>;
+
+export const franchiseLeadSchema = z.object({
+  name: z.string().trim().min(2).max(120),
+  phone: z.string().trim().min(6).max(30),
+  email: z.string().trim().email().max(200),
+  cityRegion: z.string().trim().min(2).max(160),
+  message: z.string().trim().min(5).max(2000),
+});
+export type FranchiseLeadInput = z.infer<typeof franchiseLeadSchema>;

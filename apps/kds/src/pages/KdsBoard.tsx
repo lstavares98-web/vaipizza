@@ -15,6 +15,10 @@ interface OrderItem {
   quantity: number;
   notes: string | null;
   modifiers: OrderItemModifier[];
+  comboSelectionsSnapshot: {
+    fixedItems?: { productName: string; quantity: number }[];
+    selectedOptions?: { groupName: string; productName: string }[];
+  } | null;
 }
 interface OrderRow {
   id: string;
@@ -119,6 +123,16 @@ export default function KdsBoard() {
                         {item.secondaryProductNameSnapshot ? ` / ${item.secondaryProductNameSnapshot}` : ""}
                       </strong>
                     </div>
+                    {item.comboSelectionsSnapshot && (
+                      <ul className="ticket-modifiers combo-ticket-lines">
+                        {(item.comboSelectionsSnapshot.fixedItems ?? []).map((fixed, index) => (
+                          <li key={`fixed-${index}`}>{fixed.quantity}x {fixed.productName}</li>
+                        ))}
+                        {(item.comboSelectionsSnapshot.selectedOptions ?? []).map((selected, index) => (
+                          <li key={`selected-${index}`}><strong>{selected.groupName}:</strong> {selected.productName}</li>
+                        ))}
+                      </ul>
+                    )}
                     {item.modifiers.length > 0 && (
                       <ul className="ticket-modifiers">
                         {item.modifiers.map((modifier) => (

@@ -133,3 +133,5 @@ input {
 @media (min-width: 1200px) {
   .ticket-board { grid-template-columns: repeat(3, minmax(330px, 1fr)); }
 }
+.combo-ticket-lines { margin-top: .35rem !important; padding-left: 2.15rem !important; border-left: 3px solid rgba(255,255,255,.18); }
+.combo-ticket-lines li { font-size: .86rem; }

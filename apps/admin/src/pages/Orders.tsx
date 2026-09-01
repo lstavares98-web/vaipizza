@@ -8,7 +8,6 @@ interface OrderRow {
   total: number;
   paymentStatus: string;
   createdAt: string;
-  restaurant: { name: string };
   user: { name: string };
   courier: { user: { name: string } } | null;
 }
@@ -50,7 +49,6 @@ export default function Orders() {
         <thead>
           <tr>
             <th>#</th>
-            <th>Restaurante</th>
             <th>Cliente</th>
             <th>Estafeta</th>
             <th>Estado</th>
@@ -63,7 +61,6 @@ export default function Orders() {
           {orders.map((o) => (
             <tr key={o.id}>
               <td>#{o.orderNumber}</td>
-              <td>{o.restaurant.name}</td>
               <td>{o.user.name}</td>
               <td>{o.courier?.user.name ?? "—"}</td>
               <td>
