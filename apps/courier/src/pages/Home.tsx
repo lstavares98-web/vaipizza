@@ -22,7 +22,6 @@ interface Assignment {
     restaurant: { name: string; address: string };
   };
 }
-
 interface TodaySummary {
   today: { deliveries: number; total: number };
   pendingCashTotal: number;
@@ -37,10 +36,6 @@ export default function Home() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // ASSIGNED means "has a pending offer, not yet accepted" here — once
-  // accepted, current.order below is set and we navigate away before this
-  // matters. Treat it as online so the status bar and offer-polling stay
-  // consistent instead of flashing back to "Offline" while an offer is live.
   const online = courier?.status === "AVAILABLE" || courier?.status === "ASSIGNED";
   useLocationReporting(online);
 
@@ -69,8 +64,6 @@ export default function Home() {
   }, [load]);
 
   useEffect(() => {
-    // Defensive against an older API deploy that doesn't return these
-    // fields yet — never crash the whole screen over an optional summary.
     api.get("/courier/earnings").then(({ data }) => {
       if (!data.today) return;
       setToday({ today: data.today, pendingCashTotal: data.pendingCashTotal ?? 0 });
@@ -87,9 +80,7 @@ export default function Home() {
     if (!socket) return;
     const handler = () => load();
     socket.on("assignment:offered", handler);
-    return () => {
-      socket.off("assignment:offered", handler);
-    };
+    return () => socket.off("assignment:offered", handler);
   }, [load]);
 
   async function toggleOnline() {
@@ -129,13 +120,15 @@ export default function Home() {
     }
   }
 
-  if (!courier) return <p className="page">A carregar...</p>;
+  if (!courier) return <p className="page loading-copy">A carregar...</p>;
 
   if (courier.verificationStatus !== "APPROVED") {
     return (
       <div className="page empty-state">
-        <h1>Conta pendente de aprovação</h1>
-        <p>A sua conta ainda está a ser validada pela plataforma. Volte a tentar mais tarde.</p>
+        <span className="empty-icon">⌛</span>
+        <p className="page-eyebrow">Conta de estafeta</p>
+        <h1>Pendente de aprovação</h1>
+        <p>A sua conta ainda está a ser validada. Quando estiver aprovada, poderá ficar online e receber entregas.</p>
       </div>
     );
   }
@@ -143,54 +136,56 @@ export default function Home() {
   const secondsLeft = assignment ? Math.max(0, Math.round((new Date(assignment.expiresAt).getTime() - now) / 1000)) : 0;
 
   return (
-    <div className="page">
-      <div className="status-card">
+    <div className="page courier-home">
+      <section className={`availability-hero ${online ? "is-online" : ""}`}>
         <div>
-          <strong>{online ? "Online" : "Offline"}</strong>
-          <p className="hint">
-            {courier.lifetimeDeliveries} entregas · {courier.totalEarnings.toFixed(2)} € ganhos
-          </p>
+          <p className="page-eyebrow">Estado de trabalho</p>
+          <div className="availability-title">
+            <span className="status-dot" />
+            <h1>{online ? "Online" : "Offline"}</h1>
+          </div>
+          <p>{online ? "Está disponível para novas entregas." : "Fique online quando estiver pronto para começar."}</p>
         </div>
-        <button className={online ? "toggle-btn on" : "toggle-btn"} onClick={toggleOnline} disabled={busy}>
-          {online ? "Ficar offline" : "Ficar online"}
+        <button className={`availability-toggle ${online ? "on" : ""}`} onClick={toggleOnline} disabled={busy}>
+          {busy ? "A atualizar..." : online ? "Ficar offline" : "Ficar online"}
         </button>
-      </div>
+      </section>
 
-      {today && (
-        <div className="today-bar">
-          <span>
-            Hoje: <strong>{today.today.deliveries}</strong> entregas · <strong>{today.today.total.toFixed(2)} €</strong>
-          </span>
-          {today.pendingCashTotal > 0 && (
-            <span>
-              💵 Por acertar: <strong>{today.pendingCashTotal.toFixed(2)} €</strong>
-            </span>
-          )}
-        </div>
+      <section className="courier-stats-grid" aria-label="Resumo do estafeta">
+        <div><span>Hoje</span><strong>{today?.today.deliveries ?? 0}</strong><small>entregas</small></div>
+        <div><span>Hoje</span><strong>{(today?.today.total ?? 0).toFixed(2)} €</strong><small>ganhos</small></div>
+        <div><span>Total</span><strong>{courier.lifetimeDeliveries}</strong><small>entregas</small></div>
+      </section>
+
+      {today && today.pendingCashTotal > 0 && (
+        <div className="cash-alert"><span>Dinheiro por acertar</span><strong>{today.pendingCashTotal.toFixed(2)} €</strong></div>
       )}
-
-      {error && <p className="form-error">{error}</p>}
+      {error && <p className="form-error notice-error">{error}</p>}
 
       {assignment ? (
-        <div className="offer-card">
-          <h2>Nova entrega — #{assignment.order.orderNumber}</h2>
-          <p>{assignment.order.restaurant.name}</p>
-          <p className="hint">{assignment.order.restaurant.address}</p>
-          <p className="price">{assignment.order.total.toFixed(2)} €</p>
-          <p className="countdown">{secondsLeft}s para responder</p>
-          <div className="offer-actions">
-            <button className="accept-btn" onClick={acceptOffer} disabled={busy || secondsLeft === 0}>
-              Aceitar
-            </button>
-            <button className="reject-btn" onClick={rejectOffer} disabled={busy}>
-              Rejeitar
-            </button>
+        <section className="offer-card" aria-live="assertive">
+          <div className="offer-topline">
+            <span className="offer-live">Nova entrega</span>
+            <span className="countdown">{secondsLeft}s</span>
           </div>
-        </div>
-      ) : online ? (
-        <p className="empty-hint">À espera de novas entregas...</p>
+          <h2>Pedido #{assignment.order.orderNumber}</h2>
+          <div className="offer-route">
+            <span className="route-dot restaurant-dot" />
+            <div><small>Recolha</small><strong>{assignment.order.restaurant.name}</strong><p>{assignment.order.restaurant.address}</p></div>
+          </div>
+          <div className="offer-total"><span>Valor do pedido</span><strong>{assignment.order.total.toFixed(2)} €</strong></div>
+          <div className="offer-actions">
+            <button className="reject-btn" onClick={rejectOffer} disabled={busy}>Recusar</button>
+            <button className="accept-btn" onClick={acceptOffer} disabled={busy || secondsLeft === 0}>Aceitar entrega</button>
+          </div>
+        </section>
       ) : (
-        <p className="empty-hint">Fique online para receber entregas.</p>
+        <section className="waiting-card">
+          <span className="waiting-pulse" />
+          <p className="page-eyebrow">{online ? "À procura" : "Pausado"}</p>
+          <h2>{online ? "À espera da próxima entrega" : "Está offline"}</h2>
+          <p>{online ? "Pode manter esta aplicação aberta. A nova entrega aparece automaticamente." : "Quando quiser receber entregas, toque em Ficar online."}</p>
+        </section>
       )}
     </div>
   );

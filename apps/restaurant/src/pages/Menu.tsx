@@ -97,9 +97,13 @@ export default function Menu() {
   return (
     <div className="page-content">
       <div className="menu-toolbar">
-        <h1>Cardápio</h1>
+        <div>
+          <p className="page-eyebrow">Catálogo da loja</p>
+          <h1>Menu</h1>
+          <p className="page-subtitle">Produtos, preços, disponibilidade e personalizações que aparecem ao cliente.</p>
+        </div>
         <button onClick={() => setEditingProduct("new")} disabled={!activeCategory}>
-          + Novo produto
+          + Adicionar produto
         </button>
       </div>
 
@@ -110,37 +114,39 @@ export default function Menu() {
             className={c.id === activeCategory ? "active" : ""}
             onClick={() => setActiveCategory(c.id)}
           >
-            {c.name}
-            {" "}
-            <span className="link-danger" onClick={(e) => { e.stopPropagation(); removeCategory(c.id); }}>
-              ×
-            </span>
+            <span>{c.name}</span>
+            <span className="category-remove" aria-label={`Remover categoria ${c.name}`} onClick={(e) => { e.stopPropagation(); removeCategory(c.id); }}>×</span>
           </button>
         ))}
+      </div>
+
+      <div className="category-create">
         <input
-          placeholder="Nova categoria..."
+          placeholder="Nome da nova categoria"
           value={newCategoryName}
           onChange={(e) => setNewCategoryName(e.target.value)}
           onKeyDown={(e) => e.key === "Enter" && addCategory()}
-          style={{ maxWidth: 160 }}
         />
-        <button onClick={addCategory}>Adicionar</button>
+        <button onClick={addCategory}>Adicionar categoria</button>
       </div>
 
       <ul className="product-list">
         {visibleProducts.map((p) => (
-          <li key={p.id}>
+          <li key={p.id} className={!p.isAvailable ? "product-is-off" : ""}>
             <div className="product-thumb" style={{ backgroundImage: p.imageUrl ? `url(${p.imageUrl})` : undefined }} />
             <div className="product-info">
-              <strong>{p.name}</strong> — {p.basePrice.toFixed(2)} €
-              {!p.isAvailable && <span className="badge badge-rejected">Indisponível</span>}
-              <p className="hint">{p.modifierGroups.length} grupo(s) de modificadores</p>
+              <div className="product-title-row"><strong>{p.name}</strong><span className="product-price">{p.basePrice.toFixed(2)} €</span></div>
+              <p className="product-description">{p.description || "Sem descrição"}</p>
+              <div className="product-meta">
+                <span>{p.modifierGroups.length} {p.modifierGroups.length === 1 ? "grupo de opções" : "grupos de opções"}</span>
+                <span className={`availability-badge ${p.isAvailable ? "on" : "off"}`}>{p.isAvailable ? "Disponível" : "Indisponível"}</span>
+              </div>
             </div>
-            <button onClick={() => setEditingProduct(p)}>Editar</button>
-            <button onClick={() => toggleAvailable(p)}>{p.isAvailable ? "Desativar" : "Ativar"}</button>
-            <button className="danger" onClick={() => removeProduct(p.id)}>
-              Remover
-            </button>
+            <div className="product-actions">
+              <button className="secondary" onClick={() => setEditingProduct(p)}>Editar</button>
+              <button className="secondary" onClick={() => toggleAvailable(p)}>{p.isAvailable ? "Pausar" : "Ativar"}</button>
+              <button className="danger" onClick={() => removeProduct(p.id)}>Remover</button>
+            </div>
           </li>
         ))}
         {visibleProducts.length === 0 && <p className="hint">Sem produtos nesta categoria ainda.</p>}

@@ -3,7 +3,6 @@ import { AuthProvider } from "./context/AuthContext";
 import Layout from "./components/Layout";
 import RequireAuth from "./components/RequireAuth";
 import Login from "./pages/Login";
-import Register from "./pages/Register";
 import Home from "./pages/Home";
 import ActiveDelivery from "./pages/ActiveDelivery";
 import Earnings from "./pages/Earnings";
@@ -16,7 +15,6 @@ export default function App() {
         <Routes>
           <Route element={<Layout />}>
             <Route path="/login" element={<Login />} />
-            <Route path="/register" element={<Register />} />
             <Route
               index
               element={

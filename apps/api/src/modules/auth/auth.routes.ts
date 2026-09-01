@@ -9,6 +9,7 @@ import {
 } from "@yummix/validation";
 import { asyncHandler } from "../../middleware/errorHandler.js";
 import { badRequest } from "../../utils/AppError.js";
+import { env } from "../../config/env.js";
 import * as authService from "./auth.service.js";
 
 export const authRouter = Router();
@@ -30,14 +31,16 @@ authRouter.post(
   }),
 );
 
-authRouter.post(
-  "/courier/register",
-  asyncHandler(async (req, res) => {
-    const input = registerCourierSchema.parse(req.body);
-    const { user, accessToken, refreshToken } = await authService.registerCourier(input);
-    res.status(201).json({ success: true, user: sanitizeUser(user), accessToken, refreshToken });
-  }),
-);
+if (env.ALLOW_PUBLIC_COURIER_REGISTRATION) {
+  authRouter.post(
+    "/courier/register",
+    asyncHandler(async (req, res) => {
+      const input = registerCourierSchema.parse(req.body);
+      const { user, accessToken, refreshToken } = await authService.registerCourier(input);
+      res.status(201).json({ success: true, user: sanitizeUser(user), accessToken, refreshToken });
+    }),
+  );
+}
 
 // Every app logs in through the same endpoint but declares which roles it
 // accepts — a customer JWT can never authenticate the restaurant app, etc.
@@ -78,11 +81,10 @@ authRouter.post(
   asyncHandler(async (req, res) => {
     const { email } = forgotPasswordSchema.parse(req.body);
     const result = await authService.requestPasswordReset(email);
-    // TODO(Fase 6): plug a real transactional email provider. For now the
-    // reset link is logged server-side so the flow is testable end-to-end
-    // without inventing an email dependency mid-Fase-1.
-    if (result) {
-      console.log(`[password-reset] ${result.user.email} -> token=${result.rawToken}`);
+    // Never write reset tokens to logs by default. Staging can opt in
+    // explicitly while the transactional-email provider is being wired.
+    if (result && env.PASSWORD_RESET_DEBUG_LOG) {
+      console.warn(`[password-reset:debug] ${result.user.email} -> token=${result.rawToken}`);
     }
     res.json({ success: true, message: "If that email exists, a reset link has been sent." });
   }),

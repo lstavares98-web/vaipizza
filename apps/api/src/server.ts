@@ -46,7 +46,7 @@ io.on("connection", (socket) => {
 });
 
 httpServer.listen(env.PORT, () => {
-  console.log(`Yummix API listening on http://localhost:${env.PORT} (${env.NODE_ENV})`);
+  console.log(`VAIPIZZA API listening on port ${env.PORT} (${env.NODE_ENV})`);
 });
 
 // Long-lived Node process, not Vercel Functions — a plain interval is the

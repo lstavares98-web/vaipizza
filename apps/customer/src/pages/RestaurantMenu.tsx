@@ -1,8 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useParams } from "react-router-dom";
-import { api } from "../lib/api";
 import ProductModal, { type ProductForModal } from "../components/ProductModal";
 import { BikeIcon, CheckIcon, PinIcon, PizzaIcon, StarIcon } from "../components/NavIcons";
+import { useCart } from "../context/CartContext";
+import { api } from "../lib/api";
+import { formatWeeklyHours, type StoreHour } from "../lib/storeHours";
 
 interface Category {
   id: string;
@@ -21,214 +23,289 @@ interface RestaurantDetail {
   isOpen: boolean;
   acceptsDelivery: boolean;
   acceptsPickup: boolean;
+  hours: StoreHour[];
   categories: Category[];
 }
 
-const FALLBACK_BANNER =
-  "https://images.unsplash.com/photo-1513104890138-7c749659a591?q=80&w=1600&auto=format&fit=crop";
+interface RestaurantMenuProps {
+  restaurantSlug?: string;
+  embedded?: boolean;
+}
 
-export default function RestaurantMenu() {
-  const { slug } = useParams();
+const FALLBACK_BANNER =
+  "https://images.unsplash.com/photo-1513104890138-7c749659a591?q=86&w=1800&auto=format&fit=crop";
+
+export default function RestaurantMenu({ restaurantSlug, embedded = false }: RestaurantMenuProps = {}) {
+  const { slug: routeSlug } = useParams();
+  const slug = restaurantSlug ?? routeSlug;
+  const { items, subtotal } = useCart();
+  const cartCount = items.reduce((sum, item) => sum + item.quantity, 0);
   const [restaurant, setRestaurant] = useState<RestaurantDetail | null>(null);
+  const [loadError, setLoadError] = useState(false);
   const [activeCategory, setActiveCategory] = useState<string | null>(null);
   const [activeProduct, setActiveProduct] = useState<ProductForModal | null>(null);
   const [toast, setToast] = useState<string | null>(null);
   const [justAddedId, setJustAddedId] = useState<string | null>(null);
   const sectionRefs = useRef<Record<string, HTMLElement | null>>({});
-  // Manual tab clicks scroll the section into view (which would itself
-  // re-trigger the observer below); this suppresses that one observer
-  // update so the click's own target wins instead of being overridden by
-  // whatever briefly crosses the threshold mid-scroll.
   const suppressObserver = useRef(false);
 
   useEffect(() => {
     if (!justAddedId) return;
-    const t = setTimeout(() => setJustAddedId(null), 1800);
-    return () => clearTimeout(t);
+    const timer = setTimeout(() => setJustAddedId(null), 1800);
+    return () => clearTimeout(timer);
   }, [justAddedId]);
 
   useEffect(() => {
-    api.get(`/restaurants/${slug}`).then(({ data }) => {
-      setRestaurant(data.restaurant);
-      setActiveCategory(data.restaurant.categories.find((c: Category) => c.products.length > 0)?.id ?? null);
-    });
+    if (!slug) return;
+    setLoadError(false);
+    api
+      .get(`/restaurants/${slug}`)
+      .then(({ data }) => {
+        setRestaurant(data.restaurant);
+        setActiveCategory(data.restaurant.categories.find((category: Category) => category.products.length > 0)?.id ?? null);
+      })
+      .catch(() => setLoadError(true));
   }, [slug]);
 
   useEffect(() => {
     if (!toast) return;
-    const t = setTimeout(() => setToast(null), 3000);
-    return () => clearTimeout(t);
+    const timer = setTimeout(() => setToast(null), 3000);
+    return () => clearTimeout(timer);
   }, [toast]);
 
-  // Categories arrive already alphabetized from the API — this just drops
-  // the empty ones (nothing to show yet) rather than re-sorting.
   const categoriesWithProducts = useMemo(
-    () => restaurant?.categories.filter((c) => c.products.length > 0) ?? [],
+    () => restaurant?.categories.filter((category) => category.products.length > 0) ?? [],
     [restaurant],
   );
 
-  // Scrollspy: every category renders at once (see the .map below) so the
-  // sticky tab bar can highlight whichever one is currently under it as the
-  // page scrolls, instead of only ever showing a single category at a time.
-  // rootMargin carves a thin activation band just under the sticky navbar +
-  // category-tabs bar (~140px) down to the vertical middle of the viewport —
-  // the topmost section still inside that band is treated as "current".
   useEffect(() => {
     if (categoriesWithProducts.length < 2) return;
     const observer = new IntersectionObserver(
       (entries) => {
         if (suppressObserver.current) return;
-        const visible = entries.filter((e) => e.isIntersecting);
+        const visible = entries.filter((entry) => entry.isIntersecting);
         if (visible.length === 0) return;
         const topMost = visible.reduce((a, b) => (a.boundingClientRect.top < b.boundingClientRect.top ? a : b));
         setActiveCategory(topMost.target.id);
       },
-      { rootMargin: "-140px 0px -50% 0px", threshold: 0 },
+      { rootMargin: embedded ? "-90px 0px -55% 0px" : "-150px 0px -50% 0px", threshold: 0 },
     );
-    categoriesWithProducts.forEach((cat) => {
-      const el = sectionRefs.current[cat.id];
-      if (el) observer.observe(el);
+    categoriesWithProducts.forEach((category) => {
+      const element = sectionRefs.current[category.id];
+      if (element) observer.observe(element);
     });
     return () => observer.disconnect();
-  }, [categoriesWithProducts]);
+  }, [categoriesWithProducts, embedded]);
 
-  if (!restaurant) return <p className="page">A carregar menu...</p>;
+  if (!restaurant) {
+    return (
+      <div className={`menu-loading${loadError ? " is-error" : ""}${embedded ? " embedded" : ""}`} aria-live="polite">
+        <img src="/apple-touch-icon.png" alt="" />
+        <strong>{loadError ? "Não foi possível abrir o menu" : "A preparar o menu..."}</strong>
+        {loadError && (
+          <>
+            <span>Confirma a ligação e tenta novamente.</span>
+            <button type="button" onClick={() => window.location.reload()}>Tentar novamente</button>
+          </>
+        )}
+      </div>
+    );
+  }
+
+  const weeklyHours = formatWeeklyHours(restaurant.hours ?? []);
+  const today = new Date().getDay();
+  const whatsapp = restaurant.phone?.replace(/\D/g, "") ?? "";
 
   return (
-    <>
-      {/* Rendered outside .page (which caps out at 1000px and centers) so the
-          hero can bleed to the true edges of the content column — otherwise
-          it leaves cream gaps on both sides on any screen wider than
-          ~1240px (1000px page + 240px sidebar). */}
-      <header className="restaurant-header">
-        <div
-          className="restaurant-header-bg"
-          style={{ backgroundImage: `url(${restaurant.bannerUrl ?? FALLBACK_BANNER})` }}
-        />
-        <div className="restaurant-header-inner">
-          <p className="eyebrow anim-fade-up" style={{ animationDelay: "0.05s" }}>
-            {restaurant.isOpen === false ? "Fechado de momento" : "Aberto agora"}
-          </p>
-          <h1 className="anim-fade-up" style={{ animationDelay: "0.15s" }}>
-            {restaurant.name}
-          </h1>
-          {restaurant.description && (
-            <p className="description anim-fade-up" style={{ animationDelay: "0.25s" }}>
-              {restaurant.description}
-            </p>
-          )}
-          <div className="restaurant-header-meta anim-fade-up" style={{ animationDelay: "0.35s" }}>
-            <span>
-              <StarIcon /> {restaurant.avgRating.toFixed(1)} ({restaurant.ratingCount})
-            </span>
-            {restaurant.acceptsDelivery && (
-              <span>
-                <BikeIcon /> Entrega
+    <div className={`order-page editorial-order${embedded ? " order-page-embedded" : ""}`} id={embedded ? "menu-home" : undefined}>
+      {!embedded && (
+        <header className="order-hero">
+          <div
+            className="order-hero-bg"
+            style={{ backgroundImage: `url(${restaurant.bannerUrl ?? FALLBACK_BANNER})` }}
+          />
+          <div className="order-hero-overlay" />
+          <div className="order-hero-content">
+            <div className="order-status-row">
+              <span className={`order-status${restaurant.isOpen ? "" : " closed"}`}>
+                <i /> {restaurant.isOpen ? "Aberto agora" : "Fechado agora"}
               </span>
-            )}
-            {restaurant.acceptsPickup && (
-              <span>
-                <PinIcon /> Recolha no local
-              </span>
-            )}
+              <span className="order-service-label">Delivery & Takeaway</span>
+            </div>
+            <h1>{restaurant.name}</h1>
+            {restaurant.description && <p>{restaurant.description}</p>}
+            <div className="order-meta-chips">
+              {restaurant.ratingCount > 0 && (
+                <span>
+                  <StarIcon /> {restaurant.avgRating.toFixed(1)} <small>({restaurant.ratingCount})</small>
+                </span>
+              )}
+              {restaurant.acceptsDelivery && <span><BikeIcon /> Delivery</span>}
+              {restaurant.acceptsPickup && <span><PinIcon /> Takeaway</span>}
+            </div>
           </div>
-          <div className="hero-actions anim-fade-up" style={{ animationDelay: "0.45s" }}>
-            <a className="btn-gold" href="#menu">
-              Ver o menu
-            </a>
-            <Link className="btn-outline-light" to="/orders">
-              Os meus pedidos
-            </Link>
-          </div>
-        </div>
-      </header>
-
-      <div className="page">
-      {categoriesWithProducts.length > 1 && (
-        <nav className="category-tabs" id="menu">
-          {categoriesWithProducts.map((cat) => (
-            <button
-              key={cat.id}
-              className={`category-tab ${activeCategory === cat.id ? "active" : ""}`}
-              onClick={() => {
-                setActiveCategory(cat.id);
-                suppressObserver.current = true;
-                sectionRefs.current[cat.id]?.scrollIntoView({ behavior: "smooth", block: "start" });
-                // Smooth-scroll takes a moment to settle — re-enable the
-                // observer once it has, so scrolling by hand works again.
-                window.setTimeout(() => {
-                  suppressObserver.current = false;
-                }, 700);
-              }}
-            >
-              {cat.name}
-            </button>
-          ))}
-        </nav>
+        </header>
       )}
 
-      {categoriesWithProducts.map((cat) => (
-        <section
-          key={cat.id}
-          id={cat.id}
-          ref={(el) => {
-            sectionRefs.current[cat.id] = el;
-          }}
-          className="menu-category anim-fade-up"
-        >
-          <h2>{cat.name}</h2>
-          <div className="product-grid">
-            {cat.products.map((p) => (
-              <button className="product-card" key={p.id} onClick={() => setActiveProduct(p)}>
-                <div
-                  className={`product-card-image${p.imageUrl ? "" : " no-image"}`}
-                  style={{ backgroundImage: p.imageUrl ? `url(${p.imageUrl})` : undefined }}
-                >
-                  {!p.imageUrl && <PizzaIcon />}
-                  {justAddedId === p.id && (
-                    <span className="product-card-added">
-                      <CheckIcon />
-                    </span>
-                  )}
-                  <span className="product-card-add">+ Adicionar ao Pedido</span>
-                </div>
-                <div className="product-card-body">
-                  <h3>{p.name}</h3>
-                  <span className="price">{p.basePrice.toFixed(2)} €</span>
-                </div>
-                {p.description && <p className="product-card-desc">{p.description}</p>}
+      <div className="order-content" id={embedded ? "menu-home-content" : "menu"}>
+        <div className="menu-heading-row editorial-menu-heading">
+          <div>
+            <span className="menu-kicker">Pediu? Vai.</span>
+            <h2>{embedded ? "O Menu" : "Escolhe o que vai hoje"}</h2>
+          </div>
+          <div className="menu-heading-side">
+            <p>Pizza bonita de ver. Pedido simples de fazer.</p>
+            <div className="menu-service-inline" aria-label="Serviço da loja">
+              <span className={restaurant.isOpen ? "is-open" : "is-closed"}>{restaurant.isOpen ? "Aberto agora" : "Fechado agora"}</span>
+              {restaurant.acceptsDelivery && <span>Delivery</span>}
+              {restaurant.acceptsPickup && <span>Takeaway</span>}
+            </div>
+          </div>
+        </div>
+
+        {categoriesWithProducts.length > 1 && (
+          <nav className="category-tabs editorial-category-tabs" aria-label="Categorias do menu">
+            {categoriesWithProducts.map((category) => (
+              <button
+                key={category.id}
+                className={`category-tab ${activeCategory === category.id ? "active" : ""}`}
+                onClick={() => {
+                  setActiveCategory(category.id);
+                  suppressObserver.current = true;
+                  sectionRefs.current[category.id]?.scrollIntoView({ behavior: "smooth", block: "start" });
+                  window.setTimeout(() => {
+                    suppressObserver.current = false;
+                  }, 700);
+                }}
+              >
+                {category.name}
               </button>
             ))}
+          </nav>
+        )}
+
+        <div className={`menu-and-cart${cartCount > 0 ? " has-cart" : ""}`}>
+          <div className="menu-catalog">
+            {categoriesWithProducts.map((category) => (
+              <section
+                key={category.id}
+                id={category.id}
+                ref={(element) => {
+                  sectionRefs.current[category.id] = element;
+                }}
+                className="menu-category"
+              >
+                <div className="menu-category-heading">
+                  <h2>{category.name}</h2>
+                  <span>{category.products.length} {category.products.length === 1 ? "opção" : "opções"}</span>
+                </div>
+                <div className="product-grid editorial-product-grid">
+                  {category.products.map((product) => (
+                    <button
+                      className="product-card editorial-product-card"
+                      key={product.id}
+                      onClick={() => setActiveProduct(product)}
+                      aria-label={`${product.name}, ${product.basePrice.toFixed(2)} euros`}
+                    >
+                      <div
+                        className={`product-card-image${product.imageUrl ? "" : " no-image"}`}
+                        style={{ backgroundImage: product.imageUrl ? `url(${product.imageUrl})` : undefined }}
+                      >
+                        {!product.imageUrl && <PizzaIcon />}
+                        {justAddedId === product.id && (
+                          <span className="product-card-added" aria-label="Adicionado"><CheckIcon /></span>
+                        )}
+                        <span className="product-card-action" aria-hidden="true">+</span>
+                      </div>
+                      <div className="product-card-copy">
+                        <div className="product-card-title-row">
+                          <h3>{product.name}</h3>
+                          <span className="price">{product.basePrice.toFixed(2)} €</span>
+                        </div>
+                        {product.description && <p>{product.description}</p>}
+                        <span className="product-card-choose">Ver e personalizar <b aria-hidden="true">↗</b></span>
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              </section>
+            ))}
+          </div>
+
+          {cartCount > 0 && (
+            <aside className="desktop-order-cart" aria-label="Resumo do pedido">
+              <span className="desktop-cart-kicker">Encomenda atual</span>
+              <h3>O teu pedido</h3>
+              <div className="desktop-cart-items">
+                {items.slice(0, 4).map((item) => (
+                  <div className="desktop-cart-item" key={item.id}>
+                    <span>{item.quantity}×</span>
+                    <div><strong>{item.productName}</strong>{item.secondaryProductName && <small> / {item.secondaryProductName}</small>}</div>
+                    <b>{item.lineTotal.toFixed(2)} €</b>
+                  </div>
+                ))}
+                {items.length > 4 && <small className="desktop-cart-more">+ {items.length - 4} itens no carrinho</small>}
+              </div>
+              <div className="desktop-cart-total"><span>Total</span><strong>{subtotal.toFixed(2)} €</strong></div>
+              <Link to="/cart">Ver pedido <span>→</span></Link>
+            </aside>
+          )}
+        </div>
+
+        <section className="store-trust-section" aria-label="Informações da VAIPIZZA">
+          <div className="store-contact-card">
+            <span className="store-info-kicker">Fale connosco</span>
+            <h2>Precisa de ajuda com o pedido?</h2>
+            <p>{restaurant.address}</p>
+            <div className="store-contact-actions">
+              <a href={`tel:${restaurant.phone}`}>Ligar · {restaurant.phone}</a>
+              {whatsapp && <a href={`https://wa.me/${whatsapp}`} target="_blank" rel="noopener noreferrer">WhatsApp ↗</a>}
+            </div>
+          </div>
+
+          <div className="store-hours-card">
+            <span className="store-info-kicker">Horário</span>
+            <h2>Quando estamos por cá</h2>
+            <div className="store-hours-list">
+              {weeklyHours.map((row) => (
+                <div key={row.dayOfWeek} className={`${row.dayOfWeek === today ? "today " : ""}${row.isClosed ? "closed" : ""}`}>
+                  <span>{row.day}{row.dayOfWeek === today && <small>Hoje</small>}</span>
+                  <strong>{row.label}</strong>
+                </div>
+              ))}
+            </div>
           </div>
         </section>
-      ))}
 
-      <footer className="site-footer">
-        <div className="site-footer-block">
-          <h3>{restaurant.name}</h3>
-          <p className="hint">{restaurant.address}</p>
-          <a className="hint" href={`tel:${restaurant.phone}`}>
-            {restaurant.phone}
-          </a>
-        </div>
-        <div className="site-footer-block">
-          <Link to="/privacidade">Política de privacidade</Link>
-        </div>
-      </footer>
+        <footer className="site-footer order-footer editorial-footer">
+          <div className="site-footer-block">
+            <img className="order-footer-logo" src="/apple-touch-icon.png" alt="" />
+            <div><h3>{restaurant.name}</h3><p className="hint">Delivery & Takeaway</p></div>
+          </div>
+          <div className="site-footer-block"><Link to="/privacidade">Política de privacidade</Link></div>
+        </footer>
+      </div>
 
-      {activeProduct && (
+      {cartCount > 0 && (
+        <Link className="menu-cart-bar" to="/cart" aria-label={`Abrir carrinho com ${cartCount} itens`}>
+          <span className="menu-cart-count">{cartCount}</span>
+          <span>Ver pedido</span>
+          <strong>{subtotal.toFixed(2)} €</strong>
+        </Link>
+      )}
+
+      {activeProduct && slug && (
         <ProductModal
-          restaurantSlug={slug!}
+          restaurantSlug={slug}
           product={activeProduct}
           onClose={() => setActiveProduct(null)}
-          onAdded={(msg) => {
-            setToast(msg);
+          onAdded={(message) => {
+            setToast(message);
             setJustAddedId(activeProduct.id);
           }}
         />
       )}
       {toast && <div className="toast">{toast}</div>}
-      </div>
-    </>
+    </div>
   );
 }

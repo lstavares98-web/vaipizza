@@ -17,6 +17,21 @@ const envSchema = z.object({
   STRIPE_WEBHOOK_SECRET: z.string().optional().default(""),
   MAX_ASSIGNMENT_RETRIES: z.coerce.number().int().positive().default(5),
   ASSIGNMENT_OFFER_TTL_SECONDS: z.coerce.number().int().positive().default(60),
+  COURIER_LOCATION_MAX_AGE_SECONDS: z.coerce.number().int().positive().default(120),
+  DISPATCH_FAIRNESS_WINDOW_MINUTES: z.coerce.number().int().positive().default(30),
+  ALLOW_PUBLIC_COURIER_REGISTRATION: z.enum(["true", "false"]).default("false").transform((value) => value === "true"),
+  PASSWORD_RESET_DEBUG_LOG: z.enum(["true", "false"]).default("false").transform((value) => value === "true"),
+}).superRefine((value, ctx) => {
+  if (value.NODE_ENV !== "production") return;
+  if (value.JWT_ACCESS_SECRET.length < 32) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["JWT_ACCESS_SECRET"], message: "Use at least 32 characters in production" });
+  }
+  if (value.JWT_REFRESH_SECRET.length < 32) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["JWT_REFRESH_SECRET"], message: "Use at least 32 characters in production" });
+  }
+  if (value.CORS_ORIGINS.split(",").some((origin) => origin.trim() === "*")) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["CORS_ORIGINS"], message: "Wildcard CORS is forbidden in production" });
+  }
 });
 
 const parsed = envSchema.safeParse(process.env);

@@ -13,14 +13,6 @@ interface AuthContextValue {
   user: AuthUser | null;
   loading: boolean;
   login: (email: string, password: string) => Promise<void>;
-  register: (input: {
-    name: string;
-    email: string;
-    password: string;
-    phone: string;
-    vehicleType: string;
-    vehicleNumber?: string;
-  }) => Promise<void>;
   logout: () => Promise<void>;
 }
 
@@ -48,19 +40,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUser(data.user);
   }
 
-  async function register(input: {
-    name: string;
-    email: string;
-    password: string;
-    phone: string;
-    vehicleType: string;
-    vehicleNumber?: string;
-  }) {
-    const { data } = await api.post("/auth/courier/register", input);
-    tokenStore.set(data.accessToken, data.refreshToken);
-    setUser(data.user);
-  }
-
   async function logout() {
     const refreshToken = tokenStore.refresh;
     tokenStore.clear();
@@ -69,7 +48,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (refreshToken) await api.post("/auth/logout", { refreshToken }).catch(() => {});
   }
 
-  return <AuthContext.Provider value={{ user, loading, login, register, logout }}>{children}</AuthContext.Provider>;
+  return <AuthContext.Provider value={{ user, loading, login, logout }}>{children}</AuthContext.Provider>;
 }
 
 export function useAuth() {

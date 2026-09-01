@@ -97,6 +97,15 @@ export default function OrdersDashboard() {
 
   return (
     <div className="dashboard">
+      <header className="page-heading dashboard-heading">
+        <div>
+          <p className="page-eyebrow">Operação em tempo real</p>
+          <h1>Pedidos</h1>
+          <p>Acompanhe a entrada, preparação e saída dos pedidos num só ecrã.</p>
+        </div>
+        <div className="live-indicator"><span />Ao vivo</div>
+      </header>
+
       <div className="stats-bar">
         <div className="stat">
           <span className="stat-value">{todayStats.count}</span>
@@ -186,12 +195,15 @@ function Column({ title, children }: { title: string; children: React.ReactNode 
 function OrderCard({ order, children }: { order: OrderRow; children?: React.ReactNode }) {
   const elapsedMin = Math.round((Date.now() - new Date(order.createdAt).getTime()) / 60000);
   return (
-    <div className="order-card">
+    <div className={`order-card order-${order.status.toLowerCase().replaceAll("_", "-")}`}>
       <div className="order-card-header">
         <strong>#{order.orderNumber}</strong>
         <span className="hint">{elapsedMin} min</span>
       </div>
-      <span className="badge">{order.fulfillmentType === "DELIVERY" ? "Entrega" : "Recolha"}</span>
+      <div className="order-chip-row">
+        <span className={`badge fulfillment-${order.fulfillmentType.toLowerCase()}`}>{order.fulfillmentType === "DELIVERY" ? "Delivery" : "Takeaway"}</span>
+        <span className="payment-badge">{order.paymentMethod === "CASH" ? "Dinheiro" : order.paymentMethod === "TERMINAL" ? "Terminal" : order.paymentMethod}</span>
+      </div>
       <ul>
         {order.items.map((item) => (
           <li key={item.id}>
@@ -200,7 +212,7 @@ function OrderCard({ order, children }: { order: OrderRow; children?: React.Reac
         ))}
       </ul>
       {order.notes && <p className="hint">Obs: {order.notes}</p>}
-      <p className="price">{order.total.toFixed(2)} €</p>
+      <div className="order-total"><span>Total</span><strong>{order.total.toFixed(2)} €</strong></div>
       {order.paymentMethod === "CASH" && order.changeDue != null && (
         <p className="cash-warning">
           💶 Dinheiro · cliente paga com {order.amountTendered?.toFixed(2)} € → preparar{" "}

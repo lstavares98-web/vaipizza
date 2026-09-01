@@ -4,8 +4,8 @@ const API_URL = import.meta.env.VITE_API_URL ?? "http://localhost:4000";
 
 export const api = axios.create({ baseURL: `${API_URL}/api` });
 
-const ACCESS_KEY = "yummix_admin_access_token";
-const REFRESH_KEY = "yummix_admin_refresh_token";
+const ACCESS_KEY = "vaipizza_admin_access_token";
+const REFRESH_KEY = "vaipizza_admin_refresh_token";
 
 export const tokenStore = {
   get access() {

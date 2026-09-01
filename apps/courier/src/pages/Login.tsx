@@ -1,11 +1,11 @@
 import { useState, type FormEvent } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 
 export default function Login() {
   const { login } = useAuth();
   const navigate = useNavigate();
-  const [email, setEmail] = useState("estafeta@demo.local");
+  const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
@@ -41,10 +41,7 @@ export default function Login() {
           {submitting ? "A entrar..." : "Entrar"}
         </button>
       </form>
-      <p>
-        Ainda não é estafeta? <Link to="/register">Criar conta</Link>
-      </p>
-      <p className="hint">Conta demo: estafeta@demo.local / Demo1234!</p>
+      <p className="hint">O acesso é exclusivo a estafetas autorizados pela VAIPIZZA.</p>
     </div>
   );
 }

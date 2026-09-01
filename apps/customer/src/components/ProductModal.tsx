@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
-import { api } from "../lib/api";
 import { useAuth } from "../context/AuthContext";
 import { useCart } from "../context/CartContext";
+import { api } from "../lib/api";
 import { PizzaIcon } from "./NavIcons";
 
 interface ModifierOption {
@@ -43,7 +43,7 @@ export default function ProductModal({ restaurantSlug, product, onClose, onAdded
   const [selections, setSelections] = useState<Record<string, Set<string>>>(() => {
     const initial: Record<string, Set<string>> = {};
     for (const group of product.modifierGroups) {
-      const defaults = group.options.filter((o) => o.isDefault).map((o) => o.id);
+      const defaults = group.options.filter((option) => option.isDefault).map((option) => option.id);
       initial[group.id] = new Set(defaults.slice(0, group.maxSelect));
     }
     return initial;
@@ -64,8 +64,8 @@ export default function ProductModal({ restaurantSlug, product, onClose, onAdded
   }, [restaurantSlug, product.id, product.allowsSplit]);
 
   function toggleOption(group: ModifierGroup, optionId: string) {
-    setSelections((prev) => {
-      const next = { ...prev };
+    setSelections((previous) => {
+      const next = { ...previous };
       const current = new Set(next[group.id]);
       if (group.maxSelect === 1) {
         next[group.id] = current.has(optionId) && !group.required ? new Set() : new Set([optionId]);
@@ -81,14 +81,14 @@ export default function ProductModal({ restaurantSlug, product, onClose, onAdded
     });
   }
 
-  const secondaryProduct = splitCandidates.find((p) => p.id === secondaryProductId) ?? null;
+  const secondaryProduct = splitCandidates.find((candidate) => candidate.id === secondaryProductId) ?? null;
 
   const modifiersTotal = useMemo(() => {
     let total = 0;
     for (const group of product.modifierGroups) {
       for (const optionId of selections[group.id] ?? []) {
-        const opt = group.options.find((o) => o.id === optionId);
-        if (opt) total += opt.priceDelta;
+        const option = group.options.find((candidate) => candidate.id === optionId);
+        if (option) total += option.priceDelta;
       }
     }
     return total;
@@ -108,7 +108,7 @@ export default function ProductModal({ restaurantSlug, product, onClose, onAdded
 
   async function handleAdd() {
     setError(null);
-    const modifierOptionIds = product.modifierGroups.flatMap((g) => Array.from(selections[g.id] ?? []));
+    const modifierOptionIds = product.modifierGroups.flatMap((group) => Array.from(selections[group.id] ?? []));
     setSubmitting(true);
     try {
       const result = await addItem({
@@ -132,115 +132,113 @@ export default function ProductModal({ restaurantSlug, product, onClose, onAdded
   }
 
   return (
-    <div className="modal-backdrop" onClick={onClose}>
-      <div className="modal" onClick={(e) => e.stopPropagation()}>
-        <button className="modal-close" onClick={onClose} aria-label="Fechar">
-          ✕
-        </button>
+    <div className="modal-backdrop" onClick={onClose} role="presentation">
+      <div className="modal product-sheet editorial-product-sheet" onClick={(event) => event.stopPropagation()} role="dialog" aria-modal="true" aria-label={product.name}>
+        <button className="modal-close" onClick={onClose} aria-label="Fechar">✕</button>
+
         <div
-          className={`modal-image${product.imageUrl ? "" : " no-image"}`}
+          className={`product-sheet-media${product.imageUrl ? "" : " no-image"}`}
           style={product.imageUrl ? { backgroundImage: `url(${product.imageUrl})` } : undefined}
         >
           {!product.imageUrl && <PizzaIcon />}
-        </div>
-        <h2>{product.name}</h2>
-        {product.description && <p className="muted">{product.description}</p>}
-        <p className="price">{product.basePrice.toFixed(2)} €</p>
-
-        {product.allowsSplit && splitCandidates.length > 0 && (
-          <section className="modifier-group">
-            <h3>Meio a meio</h3>
-            <label className="checkbox">
-              <input type="checkbox" checked={splitMode} onChange={(e) => { setSplitMode(e.target.checked); setSecondaryProductId(null); }} />
-              Dividir este produto com outro sabor
-            </label>
-            {splitMode && (
-              <select value={secondaryProductId ?? ""} onChange={(e) => setSecondaryProductId(e.target.value || null)}>
-                <option value="">Escolher o segundo sabor...</option>
-                {splitCandidates.map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {c.name} ({c.basePrice.toFixed(2)} €)
-                  </option>
-                ))}
-              </select>
-            )}
-            {splitMode && secondaryProduct && (
-              <p className="hint">
-                Preço: {product.splitPricingRule === "MOST_EXPENSIVE" ? "sabor mais caro" : "média dos dois sabores"}
-              </p>
-            )}
-          </section>
-        )}
-
-        {product.modifierGroups.map((group) => (
-          <section className="modifier-group" key={group.id}>
-            <h3>
-              {group.name} {group.required && <span className="required">obrigatório</span>}
-            </h3>
-            {group.maxSelect > 1 && (
-              <p className="hint">
-                Escolha até {group.maxSelect}
-                {group.minSelect > 0 ? `, no mínimo ${group.minSelect}` : ""}
-              </p>
-            )}
-            <ul className="option-list">
-              {group.options.map((option) => {
-                const checked = selections[group.id]?.has(option.id) ?? false;
-                return (
-                  <li key={option.id}>
-                    <label className={group.maxSelect === 1 ? "radio" : "checkbox"}>
-                      <input
-                        type={group.maxSelect === 1 ? "radio" : "checkbox"}
-                        name={group.id}
-                        checked={checked}
-                        onChange={() => toggleOption(group, option.id)}
-                      />
-                      {option.name}
-                      {option.priceDelta !== 0 && (
-                        <span className="option-price">
-                          {option.priceDelta > 0 ? "+" : ""}
-                          {option.priceDelta.toFixed(2)} €
-                        </span>
-                      )}
-                    </label>
-                  </li>
-                );
-              })}
-            </ul>
-          </section>
-        ))}
-
-        <section className="modifier-group">
-          <h3>Observações</h3>
-          <textarea
-            placeholder="Ex.: pizza bem passada, sem cebola..."
-            value={notes}
-            onChange={(e) => setNotes(e.target.value)}
-            maxLength={300}
-          />
-        </section>
-
-        <div className="quantity-row">
-          <button type="button" onClick={() => setQuantity((q) => Math.max(1, q - 1))}>
-            −
-          </button>
-          <span>{quantity}</span>
-          <button type="button" onClick={() => setQuantity((q) => q + 1)}>
-            +
-          </button>
+          <span className="product-sheet-image-shade" />
+          <div className="product-sheet-media-caption">
+            <span>VAIPIZZA · Pediu? Vai.</span>
+            <strong>{product.name}</strong>
+          </div>
         </div>
 
-        {error && <p className="form-error">{error}</p>}
+        <div className="product-sheet-panel">
+          <div className="product-sheet-scroll">
+            <div className="product-sheet-intro">
+              <div>
+                <span className="product-sheet-kicker">Personaliza a tua escolha</span>
+                <h2>{product.name}</h2>
+              </div>
+              <strong className="product-sheet-base-price">{product.basePrice.toFixed(2)} €</strong>
+            </div>
+            {product.description && <p className="product-sheet-description">{product.description}</p>}
 
-        {user ? (
-          <button className="add-to-cart-btn" onClick={handleAdd} disabled={submitting}>
-            {submitting ? "A adicionar..." : `Adicionar — ${total.toFixed(2)} €`}
-          </button>
-        ) : (
-          <Link to="/login" className="add-to-cart-btn" style={{ textAlign: "center" }}>
-            Inicia sessão para adicionar — {total.toFixed(2)} €
-          </Link>
-        )}
+            {product.allowsSplit && splitCandidates.length > 0 && (
+              <section className="modifier-group">
+                <div className="modifier-heading">
+                  <div><h3>Meio a meio</h3><p>Combina este sabor com outra pizza disponível.</p></div>
+                </div>
+                <label className={`modifier-option-card${splitMode ? " selected" : ""}`}>
+                  <input
+                    type="checkbox"
+                    checked={splitMode}
+                    onChange={(event) => {
+                      setSplitMode(event.target.checked);
+                      setSecondaryProductId(null);
+                    }}
+                  />
+                  <span className="modifier-control" />
+                  <span className="modifier-option-copy"><strong>Dividir com outro sabor</strong><small>Escolher metade de outra pizza</small></span>
+                </label>
+                {splitMode && (
+                  <select className="product-sheet-select" value={secondaryProductId ?? ""} onChange={(event) => setSecondaryProductId(event.target.value || null)}>
+                    <option value="">Escolher o segundo sabor...</option>
+                    {splitCandidates.map((candidate) => (
+                      <option key={candidate.id} value={candidate.id}>{candidate.name} ({candidate.basePrice.toFixed(2)} €)</option>
+                    ))}
+                  </select>
+                )}
+                {splitMode && secondaryProduct && (
+                  <p className="hint">Preço calculado pela regra: {product.splitPricingRule === "MOST_EXPENSIVE" ? "sabor mais caro" : "média dos dois sabores"}.</p>
+                )}
+              </section>
+            )}
+
+            {product.modifierGroups.map((group) => (
+              <section className="modifier-group" key={group.id}>
+                <div className="modifier-heading">
+                  <div>
+                    <h3>{group.name}</h3>
+                    <p>{group.maxSelect > 1 ? `Escolhe até ${group.maxSelect}${group.minSelect > 0 ? ` · mínimo ${group.minSelect}` : ""}` : group.required ? "Escolhe uma opção" : "Opcional"}</p>
+                  </div>
+                  {group.required && <span className="required">Obrigatório</span>}
+                </div>
+                <div className="modifier-option-list">
+                  {group.options.map((option) => {
+                    const checked = selections[group.id]?.has(option.id) ?? false;
+                    return (
+                      <label key={option.id} className={`modifier-option-card${checked ? " selected" : ""}`}>
+                        <input type={group.maxSelect === 1 ? "radio" : "checkbox"} name={group.id} checked={checked} onChange={() => toggleOption(group, option.id)} />
+                        <span className="modifier-control" />
+                        <span className="modifier-option-copy"><strong>{option.name}</strong>{option.priceDelta === 0 && <small>Sem acréscimo</small>}</span>
+                        {option.priceDelta !== 0 && <span className="option-price">{option.priceDelta > 0 ? "+" : ""}{option.priceDelta.toFixed(2)} €</span>}
+                      </label>
+                    );
+                  })}
+                </div>
+              </section>
+            ))}
+
+            <section className="modifier-group">
+              <div className="modifier-heading"><div><h3>Observações</h3><p>Algum detalhe para a cozinha?</p></div></div>
+              <textarea className="product-sheet-notes" placeholder="Ex.: pizza bem passada, sem cebola..." value={notes} onChange={(event) => setNotes(event.target.value)} maxLength={300} />
+            </section>
+
+            {error && <p className="form-error product-sheet-error">{error}</p>}
+          </div>
+
+          <div className="product-sheet-footer">
+            <div className="quantity-row" aria-label="Quantidade">
+              <button type="button" onClick={() => setQuantity((value) => Math.max(1, value - 1))} aria-label="Diminuir quantidade">−</button>
+              <span>{quantity}</span>
+              <button type="button" onClick={() => setQuantity((value) => value + 1)} aria-label="Aumentar quantidade">+</button>
+            </div>
+
+            {user ? (
+              <button className="add-to-cart-btn" onClick={handleAdd} disabled={submitting}>
+                <span>{submitting ? "A adicionar..." : "Adicionar ao pedido"}</span><strong>{total.toFixed(2)} €</strong>
+              </button>
+            ) : (
+              <Link to="/login" className="add-to-cart-btn"><span>Entrar para adicionar</span><strong>{total.toFixed(2)} €</strong></Link>
+            )}
+          </div>
+        </div>
       </div>
     </div>
   );

@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { api } from "../lib/api";
 import { getSocket } from "../lib/socket";
 import { playReadyBell } from "../lib/sound";
+import { getFulfillmentLabel, getPreparationElapsedMinutes, getTicketUrgency, type StatusHistoryEntry } from "../lib/kdsPresentation";
 
 interface OrderItemModifier {
   id: string;
@@ -19,15 +20,13 @@ interface OrderRow {
   id: string;
   orderNumber: number;
   status: string;
+  fulfillmentType?: "DELIVERY" | "PICKUP";
   createdAt: string;
   notes: string | null;
   items: OrderItem[];
+  statusHistory?: StatusHistoryEntry[];
 }
 
-// The counter's single "Aceitar" click now moves an order straight to
-// PREPARING (see orders.service.ts) — there is no separate "iniciar
-// preparação" step anymore, so the kitchen only ever has one thing to do:
-// ring the bell once a ticket is ready.
 export default function KdsBoard() {
   const [orders, setOrders] = useState<OrderRow[]>([]);
   const [now, setNow] = useState(Date.now());
@@ -55,11 +54,11 @@ export default function KdsBoard() {
     };
   }, [load]);
 
-  async function ringBellAndMarkReady(order: OrderRow) {
-    playReadyBell();
+  async function markReady(order: OrderRow) {
     setBusyId(order.id);
     try {
       await api.patch(`/restaurant/orders/${order.id}/status`, { status: "READY_FOR_PICKUP" });
+      playReadyBell();
       load();
     } finally {
       setBusyId(null);
@@ -69,41 +68,79 @@ export default function KdsBoard() {
   const sorted = [...orders].sort((a, b) => a.createdAt.localeCompare(b.createdAt));
 
   return (
-    <div className="ticket-board">
-      {sorted.length === 0 && <p className="ticket-empty">Sem pedidos em preparação.</p>}
-      {sorted.map((order) => {
-        const elapsedMin = Math.round((now - new Date(order.createdAt).getTime()) / 60000);
-        const urgent = elapsedMin >= 15;
-        return (
-          <div className={`ticket ${urgent ? "ticket-urgent" : ""}`} key={order.id}>
-            <div className="ticket-header">
-              <span className="ticket-number">#{order.orderNumber}</span>
-              <span className="ticket-elapsed">{elapsedMin} min</span>
-            </div>
-            <ul className="ticket-items">
-              {order.items.map((item) => (
-                <li key={item.id}>
-                  <strong>
-                    {item.quantity}x {item.productNameSnapshot}
-                    {item.secondaryProductNameSnapshot ? ` / ${item.secondaryProductNameSnapshot}` : ""}
-                  </strong>
-                  {item.modifiers.length > 0 && (
-                    <span className="ticket-modifiers">
-                      {" — "}
-                      {item.modifiers.map((m) => m.nameSnapshot).join(", ")}
-                    </span>
-                  )}
-                  {item.notes && <p className="ticket-note">Obs: {item.notes}</p>}
-                </li>
-              ))}
-            </ul>
-            {order.notes && <p className="ticket-note">OBS geral: "{order.notes}"</p>}
-            <button className="bell-btn" disabled={busyId === order.id} onClick={() => ringBellAndMarkReady(order)}>
-              🔔 Tocar campainha — Pronto para recolha
-            </button>
+    <main className="kds-main">
+      <section className="kds-summary" aria-label="Resumo da cozinha">
+        <div>
+          <p className="kds-eyebrow">Produção em tempo real</p>
+          <h1>Cozinha</h1>
+        </div>
+        <div className="kds-count" aria-live="polite">
+          <strong>{sorted.length}</strong>
+          <span>{sorted.length === 1 ? "pedido em preparação" : "pedidos em preparação"}</span>
+        </div>
+      </section>
+
+      <div className="ticket-board">
+        {sorted.length === 0 && (
+          <div className="ticket-empty">
+            <span className="ticket-empty-icon">✓</span>
+            <h2>Cozinha em dia</h2>
+            <p>Os novos pedidos aparecem aqui automaticamente.</p>
           </div>
-        );
-      })}
-    </div>
+        )}
+
+        {sorted.map((order) => {
+          const elapsedMin = getPreparationElapsedMinutes(order, now);
+          const urgency = getTicketUrgency(elapsedMin);
+          const itemCount = order.items.reduce((total, item) => total + item.quantity, 0);
+
+          return (
+            <article className={`ticket ticket-${urgency.level}`} key={order.id}>
+              <header className="ticket-header">
+                <div>
+                  <span className="ticket-number">#{order.orderNumber}</span>
+                  <span className="ticket-type">{getFulfillmentLabel(order.fulfillmentType)}</span>
+                </div>
+                <div className="ticket-time">
+                  <span className={`urgency-pill urgency-${urgency.level}`}>{urgency.label}</span>
+                  <strong>{elapsedMin} min</strong>
+                </div>
+              </header>
+
+              <div className="ticket-meta">{itemCount} {itemCount === 1 ? "item" : "itens"}</div>
+
+              <ul className="ticket-items">
+                {order.items.map((item) => (
+                  <li key={item.id}>
+                    <div className="ticket-product-line">
+                      <span className="ticket-quantity">{item.quantity}×</span>
+                      <strong>
+                        {item.productNameSnapshot}
+                        {item.secondaryProductNameSnapshot ? ` / ${item.secondaryProductNameSnapshot}` : ""}
+                      </strong>
+                    </div>
+                    {item.modifiers.length > 0 && (
+                      <ul className="ticket-modifiers">
+                        {item.modifiers.map((modifier) => (
+                          <li key={modifier.id}>{modifier.nameSnapshot}</li>
+                        ))}
+                      </ul>
+                    )}
+                    {item.notes && <p className="ticket-note"><span>Item</span>{item.notes}</p>}
+                  </li>
+                ))}
+              </ul>
+
+              {order.notes && <p className="ticket-note ticket-note-general"><span>Pedido</span>{order.notes}</p>}
+
+              <button className="bell-btn" disabled={busyId === order.id} onClick={() => markReady(order)}>
+                <span className="ready-check">✓</span>
+                <span>{busyId === order.id ? "A confirmar..." : "PRONTO"}</span>
+              </button>
+            </article>
+          );
+        })}
+      </div>
+    </main>
   );
 }

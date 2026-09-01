@@ -12,9 +12,8 @@ test("customer can browse, add a modified product to cart, and place an order", 
   await page.getByLabel("Palavra-passe").fill("Demo1234!");
   await page.getByRole("button", { name: "Entrar" }).click();
 
-  // Login redirects straight into the single restaurant's menu — no
-  // restaurant-picker step to click through.
-  await expect(page).toHaveURL(/\/restaurants\//);
+  // Login redirects straight into the permanent single-store ordering route.
+  await expect(page).toHaveURL(/\/pedir$/);
   await expect(page.getByRole("heading", { name: "VaiPizza" })).toBeVisible();
   await page.getByRole("button", { name: /Pizza Margherita/ }).click();
 

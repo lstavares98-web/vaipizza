@@ -57,7 +57,8 @@ courierRouter.post(
   "/assignments/:id/reject",
   asyncHandler(async (req, res) => {
     const courier = await courierService.getCourierByUserId(req.auth!.sub);
-    await rejectAssignment(courier.id, req.params.id!);
+    const rejected = await rejectAssignment(courier.id, req.params.id!);
+    if (!rejected) return res.status(409).json({ success: false, message: "Esta oferta já não está disponível" });
     res.json({ success: true });
   }),
 );

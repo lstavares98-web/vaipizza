@@ -1,4 +1,5 @@
 import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
+import { VAIPIZZA } from "./config/vaipizza";
 import { AuthProvider } from "./context/AuthContext";
 import { CartProvider } from "./context/CartContext";
 import Layout from "./components/Layout";
@@ -24,11 +25,11 @@ export default function App() {
           <Routes>
             <Route element={<Layout />}>
               <Route index element={<Home />} />
+              <Route path={VAIPIZZA.orderPath} element={<RestaurantMenu restaurantSlug={VAIPIZZA.slug} />} />
               <Route path="/login" element={<Login />} />
               <Route path="/register" element={<Register />} />
               <Route path="/forgot-password" element={<ForgotPassword />} />
               <Route path="/privacidade" element={<PrivacyPolicy />} />
-              {/* Kept reachable for when a second restaurant is added — not linked from the nav for now. */}
               <Route path="/restaurants" element={<Restaurants />} />
               <Route path="/restaurants/:slug" element={<RestaurantMenu />} />
               <Route

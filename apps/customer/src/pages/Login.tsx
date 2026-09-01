@@ -5,7 +5,7 @@ import { useAuth } from "../context/AuthContext";
 export default function Login() {
   const { login } = useAuth();
   const navigate = useNavigate();
-  const [email, setEmail] = useState("cliente@demo.local");
+  const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
@@ -16,7 +16,7 @@ export default function Login() {
     setSubmitting(true);
     try {
       await login(email, password);
-      navigate("/");
+      navigate("/pedir");
     } catch (err: any) {
       setError(err.response?.data?.message ?? "Não foi possível entrar");
     } finally {
@@ -49,7 +49,6 @@ export default function Login() {
           <span>
             Ainda não tem conta? <Link to="/register">Criar conta</Link>
           </span>
-          <span className="hint">Conta demo: cliente@demo.local / Demo1234!</span>
         </div>
       </div>
     </div>

@@ -6,13 +6,17 @@ export default function Layout() {
   return (
     <div className="kds-shell">
       <header className="kds-header">
-        <span className="kds-brand">VAIPIZZA COZINHA</span>
+        <div className="kds-brand-wrap">
+          <img src="/logo.png" alt="VAIPIZZA" className="kds-logo" />
+          <div>
+            <span className="kds-brand">VAIPIZZA</span>
+            <small>Cozinha</small>
+          </div>
+        </div>
         {user && (
           <div className="kds-header-right">
-            <span>{user.name}</span>
-            <button className="kds-logout" onClick={logout}>
-              Sair
-            </button>
+            <span className="kds-user">{user.name}</span>
+            <button className="kds-logout" onClick={logout}>Sair</button>
           </div>
         )}
       </header>

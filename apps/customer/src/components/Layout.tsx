@@ -1,141 +1,120 @@
 import { useEffect, useState } from "react";
-import { NavLink, Outlet } from "react-router-dom";
+import { Link, NavLink, Outlet, useLocation } from "react-router-dom";
+import { resolvePrimaryRestaurant, VAIPIZZA } from "../config/vaipizza";
 import { useAuth } from "../context/AuthContext";
 import { useCart } from "../context/CartContext";
 import { api } from "../lib/api";
-import { BagIcon, HomeIcon, LogoutIcon, PhoneIcon, PinIcon, ReceiptIcon, UserIcon } from "./NavIcons";
+import { BagIcon, HomeIcon, LogoutIcon, PizzaIcon, ReceiptIcon, UserIcon } from "./NavIcons";
 
-interface SidebarInfo {
-  phone: string | null;
-  address: string | null;
-  isOpen: boolean;
-  todayHours: string | null;
+interface StoreContact {
+  slug: string;
+  phone?: string | null;
 }
 
 export default function Layout() {
+  const location = useLocation();
   const { user, logout } = useAuth();
   const { items } = useCart();
-  const cartCount = items.reduce((sum, i) => sum + i.quantity, 0);
+  const cartCount = items.reduce((sum, item) => sum + item.quantity, 0);
   const [whatsapp, setWhatsapp] = useState<string | null>(null);
-  const [info, setInfo] = useState<SidebarInfo | null>(null);
+  const isLanding = location.pathname === "/";
 
   useEffect(() => {
-    // Only one restaurant runs on the platform for now (see Home.tsx), so
-    // the sidebar's contact/hours block just reads restaurants[0] rather
-    // than needing to know which restaurant is currently being browsed.
     api.get("/restaurants").then(({ data }) => {
-      const r = data.restaurants[0] as
-        | { phone?: string; address?: string; isOpen?: boolean; todayHours?: string | null }
-        | undefined;
-      if (!r) return;
-      if (r.phone) setWhatsapp(r.phone.replace(/[^\d+]/g, ""));
-      setInfo({
-        phone: r.phone ?? null,
-        address: r.address ?? null,
-        isOpen: r.isOpen ?? true,
-        todayHours: r.todayHours ?? null,
-      });
-    });
+      const store = resolvePrimaryRestaurant(data.restaurants as StoreContact[]);
+      if (store?.phone) setWhatsapp(store.phone.replace(/[^\d+]/g, ""));
+    }).catch(() => setWhatsapp(null));
   }, []);
 
-  // Shared between the desktop sidebar and the mobile floating nav so the
-  // two never drift apart.
-  const navItems = (
-    <>
-      <NavLink to="/" end className={({ isActive }) => (isActive ? "active" : "")}>
-        <HomeIcon />
-        Início
-      </NavLink>
-      <NavLink to="/cart" className={({ isActive }) => (isActive ? "active" : "")}>
-        <BagIcon />
-        Carrinho
-        {cartCount > 0 && <span className="nav-dot" />}
-      </NavLink>
-      {user ? (
-        <>
-          <NavLink to="/orders" className={({ isActive }) => (isActive ? "active" : "")}>
-            <ReceiptIcon />
-            Pedidos
-          </NavLink>
-          <NavLink to="/profile" className={({ isActive }) => (isActive ? "active" : "")}>
-            <UserIcon />
-            Perfil
-          </NavLink>
-          <button onClick={logout}>
-            <LogoutIcon />
-            Sair
-          </button>
-        </>
-      ) : (
-        <NavLink to="/login" className={({ isActive }) => (isActive ? "active" : "")}>
-          <UserIcon />
-          Entrar
-        </NavLink>
-      )}
-    </>
-  );
-
   return (
-    <div className="app-shell">
-      {/* Desktop only — hidden under 900px in favour of the top navbar + floating bottom nav. */}
-      <aside className="customer-sidebar">
-        <NavLink to="/" className="sidebar-brand">
-          <img src="/logo.png" alt="" className="sidebar-logo" />
-          <span>
-            <strong>VaiPizza</strong>
-            <em>Pediu? Vai.</em>
-          </span>
-        </NavLink>
-        <nav className="sidebar-nav">{navItems}</nav>
-
-        {/* Fills the empty space below the nav with real info instead of
-            leaving a bare panel of colour — same spot the reference design
-            uses, but with data we actually have (no invented content). */}
-        {info && (
-          <div className="sidebar-info">
-            <span className={`sidebar-info-status${info.isOpen ? "" : " closed"}`}>
-              {info.isOpen ? "Aberto agora" : "Fechado agora"}
+    <div className={`app-shell${isLanding ? " landing-shell" : ""}`}>
+      {!isLanding && (
+        <header className="customer-topbar">
+          <Link className="topbar-brand" to="/" aria-label="VAIPIZZA — início">
+            <img src={VAIPIZZA.logoPath} alt="" />
+            <span>
+              <strong>{VAIPIZZA.name}</strong>
+              <small>{VAIPIZZA.tagline}</small>
             </span>
-            {info.todayHours && <p className="sidebar-info-hours">Hoje: {info.todayHours}</p>}
-            {info.address && (
-              <p className="sidebar-info-row">
-                <PinIcon />
-                <span>{info.address}</span>
-              </p>
+          </Link>
+
+          <nav className="topbar-links" aria-label="Navegação do cliente">
+            <NavLink to={VAIPIZZA.orderPath} className={({ isActive }) => (isActive ? "active" : "")}>
+              Pedir
+            </NavLink>
+            {user && (
+              <NavLink to="/orders" className={({ isActive }) => (isActive ? "active" : "")}>
+                Pedidos
+              </NavLink>
             )}
-            {info.phone && (
-              <a className="sidebar-info-row" href={`tel:${info.phone}`}>
-                <PhoneIcon />
-                <span>{info.phone}</span>
-              </a>
+          </nav>
+
+          <div className="topbar-actions">
+            {user ? (
+              <>
+                <NavLink className="topbar-icon-btn" to="/cart" aria-label={`Carrinho${cartCount ? `, ${cartCount} itens` : ""}`}>
+                  <BagIcon />
+                  {cartCount > 0 && <span className="cart-badge">{cartCount}</span>}
+                </NavLink>
+                <NavLink className="topbar-user" to="/profile">
+                  <UserIcon />
+                  <span>{user.name.split(" ")[0]}</span>
+                </NavLink>
+                <button className="topbar-icon-btn topbar-logout" onClick={logout} aria-label="Sair">
+                  <LogoutIcon />
+                </button>
+              </>
+            ) : (
+              <Link className="topbar-login" to="/login">
+                Entrar
+              </Link>
             )}
           </div>
-        )}
-      </aside>
+        </header>
+      )}
 
       <div className="customer-content">
-        <nav className="navbar">
-          <span />
-          <NavLink to="/" className="brand">
-            <img src="/logo.png" alt="VaiPizza" className="brand-logo" />
-          </NavLink>
-          <div className="nav-links">
-            {user ? (
-              <NavLink to="/cart" className="cart-btn">
-                <BagIcon />
-                {cartCount > 0 && <span className="cart-badge">{cartCount}</span>}
-              </NavLink>
-            ) : (
-              <NavLink to="/login">Entrar</NavLink>
-            )}
-          </div>
-        </nav>
         <main>
           <Outlet />
         </main>
       </div>
 
-      {whatsapp && (
+      {!isLanding && (
+        <nav className="bottom-nav" aria-label="Navegação móvel">
+          <NavLink to="/" end className={({ isActive }) => (isActive ? "active" : "")}>
+            <HomeIcon />
+            Início
+          </NavLink>
+          <NavLink to={VAIPIZZA.orderPath} className={({ isActive }) => (isActive ? "active" : "")}>
+            <PizzaIcon />
+            Pedir
+          </NavLink>
+          {user ? (
+            <>
+              <NavLink to="/cart" className={({ isActive }) => (isActive ? "active" : "")}>
+                <BagIcon />
+                Carrinho
+                {cartCount > 0 && <span className="nav-dot" />}
+              </NavLink>
+              <NavLink to="/orders" className={({ isActive }) => (isActive ? "active" : "")}>
+                <ReceiptIcon />
+                Pedidos
+              </NavLink>
+              <NavLink to="/profile" className={({ isActive }) => (isActive ? "active" : "")}>
+                <UserIcon />
+                Perfil
+              </NavLink>
+            </>
+          ) : (
+            <NavLink to="/login" className={({ isActive }) => (isActive ? "active" : "")}>
+              <UserIcon />
+              Entrar
+            </NavLink>
+          )}
+        </nav>
+      )}
+
+      {whatsapp && !isLanding && (
         <a
           className="whatsapp-fab"
           href={`https://wa.me/${whatsapp.replace("+", "")}`}
@@ -145,11 +124,10 @@ export default function Layout() {
         >
           <span className="whatsapp-fab-label">Fale connosco</span>
           <span className="whatsapp-fab-icon">
-            <img src="/logo.png" alt="" />
+            <img src={VAIPIZZA.logoPath} alt="" />
           </span>
         </a>
       )}
-      <div className="bottom-nav">{navItems}</div>
     </div>
   );
 }

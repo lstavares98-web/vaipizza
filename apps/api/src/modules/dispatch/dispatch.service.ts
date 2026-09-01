@@ -1,9 +1,9 @@
 import { prisma } from "../../config/prisma.js";
 import { env } from "../../config/env.js";
 import { haversineKm } from "../../utils/geo.js";
-import { attemptRefund } from "../../services/refund.service.js";
 import { getIO, rooms } from "../../sockets/io.js";
 import { Role } from "@yummix/types";
+import { chooseCourierCandidate, shouldEscalateDispatch } from "./dispatch.policy.js";
 import { badRequest, notFound } from "../../utils/AppError.js";
 
 /**
@@ -17,27 +17,50 @@ export async function findNearestAvailableCourier(restaurantId: string, excludeC
   const restaurant = await prisma.restaurant.findUnique({ where: { id: restaurantId } });
   if (!restaurant) return null;
 
+  const now = new Date();
+  const locationCutoff = new Date(now.getTime() - env.COURIER_LOCATION_MAX_AGE_SECONDS * 1000);
   const candidates = await prisma.courier.findMany({
     where: {
       status: "AVAILABLE",
       verificationStatus: "APPROVED",
       lat: { not: null },
       lng: { not: null },
+      locationUpdatedAt: { gte: locationCutoff },
       id: { notIn: excludeCourierIds },
     },
   });
   if (candidates.length === 0) return null;
 
-  let nearest = candidates[0]!;
-  let nearestDistance = haversineKm(restaurant.lat, restaurant.lng, nearest.lat!, nearest.lng!);
-  for (const c of candidates.slice(1)) {
-    const d = haversineKm(restaurant.lat, restaurant.lng, c.lat!, c.lng!);
-    if (d < nearestDistance) {
-      nearest = c;
-      nearestDistance = d;
-    }
+  const fairnessCutoff = new Date(now.getTime() - env.DISPATCH_FAIRNESS_WINDOW_MINUTES * 60_000);
+  const recentOffers = await prisma.courierAssignment.findMany({
+    where: { courierId: { in: candidates.map((candidate) => candidate.id) }, offeredAt: { gte: fairnessCutoff } },
+    select: { courierId: true, offeredAt: true },
+    orderBy: { offeredAt: "desc" },
+  });
+
+  const offerStats = new Map<string, { count: number; lastOfferedAt: Date | null }>();
+  for (const offer of recentOffers) {
+    const current = offerStats.get(offer.courierId) ?? { count: 0, lastOfferedAt: null };
+    current.count += 1;
+    if (!current.lastOfferedAt || offer.offeredAt > current.lastOfferedAt) current.lastOfferedAt = offer.offeredAt;
+    offerStats.set(offer.courierId, current);
   }
-  return nearest;
+
+  const selected = chooseCourierCandidate(
+    { lat: restaurant.lat, lng: restaurant.lng },
+    candidates.map((candidate) => ({
+      id: candidate.id,
+      lat: candidate.lat,
+      lng: candidate.lng,
+      locationUpdatedAt: candidate.locationUpdatedAt,
+      recentOfferCount: offerStats.get(candidate.id)?.count ?? 0,
+      lastOfferedAt: offerStats.get(candidate.id)?.lastOfferedAt ?? null,
+    })),
+    now,
+    env.COURIER_LOCATION_MAX_AGE_SECONDS,
+  );
+
+  return selected ? candidates.find((candidate) => candidate.id === selected.id) ?? null : null;
 }
 
 /**
@@ -48,41 +71,65 @@ export async function findNearestAvailableCourier(restaurantId: string, excludeC
  * Vercel-style cron workaround needed since this API runs as a normal
  * long-lived Node process, unlike the legacy serverless deployment.
  */
+const dispatchingOrders = new Set<string>();
+
 export async function tryAssignOrder(orderId: string) {
-  const order = await prisma.order.findUnique({ where: { id: orderId } });
-  if (!order || order.status !== "WAITING_FOR_COURIER") return;
+  // Prevent two sweep ticks / a rejection callback from dispatching the same
+  // order concurrently inside the initial single API process. If the API is
+  // horizontally scaled later, replace this with a PostgreSQL advisory lock.
+  if (dispatchingOrders.has(orderId)) return;
+  dispatchingOrders.add(orderId);
 
-  const existingOffer = await prisma.courierAssignment.findFirst({
-    where: { orderId, status: "OFFERED" },
-  });
-  if (existingOffer) return; // already has a live offer out
+  try {
+    const order = await prisma.order.findUnique({ where: { id: orderId } });
+    if (!order || order.status !== "WAITING_FOR_COURIER") return;
+    if (shouldEscalateDispatch(order.assignmentRetryCount, env.MAX_ASSIGNMENT_RETRIES)) return;
 
-  const triedAssignments = await prisma.courierAssignment.findMany({ where: { orderId } });
-  const excludeCourierIds = triedAssignments.map((a) => a.courierId);
+    const existingOffer = await prisma.courierAssignment.findFirst({
+      where: { orderId, status: "OFFERED", expiresAt: { gt: new Date() } },
+    });
+    if (existingOffer) return;
 
-  const courier = await findNearestAvailableCourier(order.restaurantId, excludeCourierIds);
-  if (!courier) return; // no one available right now — sweep will retry
+    const triedAssignments = await prisma.courierAssignment.findMany({ where: { orderId } });
+    const excludeCourierIds = triedAssignments.map((assignment) => assignment.courierId);
 
-  await prisma.$transaction([
-    prisma.courier.update({ where: { id: courier.id }, data: { status: "ASSIGNED" } }),
-    prisma.courierAssignment.create({
-      data: {
-        orderId,
-        courierId: courier.id,
-        status: "OFFERED",
-        expiresAt: new Date(Date.now() + env.ASSIGNMENT_OFFER_TTL_SECONDS * 1000),
-      },
-    }),
-  ]);
+    const courier = await findNearestAvailableCourier(order.restaurantId, excludeCourierIds);
+    if (!courier) return;
 
-  getIO()?.to(rooms.courier(courier.userId)).emit("assignment:offered", { orderId });
+    const expiresAt = new Date(Date.now() + env.ASSIGNMENT_OFFER_TTL_SECONDS * 1000);
+    const created = await prisma.$transaction(async (tx) => {
+      const courierClaim = await tx.courier.updateMany({
+        where: { id: courier.id, status: "AVAILABLE", verificationStatus: "APPROVED" },
+        data: { status: "ASSIGNED" },
+      });
+      if (courierClaim.count !== 1) return false;
+
+      const stillWaiting = await tx.order.count({ where: { id: orderId, status: "WAITING_FOR_COURIER" } });
+      const liveOffer = await tx.courierAssignment.count({
+        where: { orderId, status: "OFFERED", expiresAt: { gt: new Date() } },
+      });
+      if (stillWaiting !== 1 || liveOffer > 0) {
+        await tx.courier.updateMany({ where: { id: courier.id, status: "ASSIGNED" }, data: { status: "AVAILABLE" } });
+        return false;
+      }
+
+      await tx.courierAssignment.create({
+        data: { orderId, courierId: courier.id, status: "OFFERED", expiresAt },
+      });
+      return true;
+    });
+
+    if (created) getIO()?.to(rooms.courier(courier.userId)).emit("assignment:offered", { orderId });
+  } finally {
+    dispatchingOrders.delete(orderId);
+  }
 }
 
 /**
- * Periodic sweep: frees couriers whose offer expired unanswered, retries
- * assignment for still-waiting orders, and auto-cancels (with refund) any
- * order that has exhausted MAX_ASSIGNMENT_RETRIES — mirrors the legacy
- * system's cap so a customer is never left waiting indefinitely.
+ * Periodic sweep: frees couriers whose offer expired unanswered and retries
+ * assignment for still-waiting orders. Once the configured retry cap is
+ * exhausted, the order stays WAITING_FOR_COURIER and Gestão receives an
+ * escalation instead of the system cancelling prepared food automatically.
  */
 export async function runDispatchSweep() {
   const now = new Date();
@@ -91,59 +138,92 @@ export async function runDispatchSweep() {
     where: { status: "OFFERED", expiresAt: { lt: now } },
   });
   for (const assignment of expired) {
-    await prisma.$transaction([
-      prisma.courierAssignment.update({ where: { id: assignment.id }, data: { status: "EXPIRED", respondedAt: now } }),
-      prisma.courier.update({ where: { id: assignment.courierId }, data: { status: "AVAILABLE" } }),
-      prisma.order.update({ where: { id: assignment.orderId }, data: { assignmentRetryCount: { increment: 1 } } }),
-    ]);
+    await prisma.$transaction(async (tx) => {
+      const claimed = await tx.courierAssignment.updateMany({
+        where: { id: assignment.id, status: "OFFERED", expiresAt: { lt: now } },
+        data: { status: "EXPIRED", respondedAt: now },
+      });
+      if (claimed.count !== 1) return;
+
+      await tx.courier.updateMany({
+        where: { id: assignment.courierId, status: "ASSIGNED" },
+        data: { status: "AVAILABLE" },
+      });
+      await tx.order.updateMany({
+        where: { id: assignment.orderId, status: "WAITING_FOR_COURIER" },
+        data: { assignmentRetryCount: { increment: 1 } },
+      });
+    });
   }
 
   const waiting = await prisma.order.findMany({ where: { status: "WAITING_FOR_COURIER" } });
   for (const order of waiting) {
-    if (order.assignmentRetryCount >= env.MAX_ASSIGNMENT_RETRIES) {
-      const cancelled = await prisma.order.update({
-        where: { id: order.id },
-        data: {
-          status: "CANCELLED",
-          // No human actor — cancelledBy stays null; statusHistory + the
-          // AdminAlert below are what record this was a system decision.
-          cancelledAt: now,
-          statusHistory: { create: { status: "CANCELLED", actor: null } },
-        },
+    if (shouldEscalateDispatch(order.assignmentRetryCount, env.MAX_ASSIGNMENT_RETRIES)) {
+      const existingAlert = await prisma.adminAlert.findFirst({
+        where: { orderId: order.id, type: "ASSIGNMENT_EXHAUSTED", resolved: false },
       });
-      await attemptRefund(cancelled, Role.SUPER_ADMIN);
-      await prisma.adminAlert.create({
-        data: { orderId: order.id, type: "ASSIGNMENT_EXHAUSTED", message: "No courier found after max retries" },
-      });
-      getIO()?.to(rooms.customer(order.userId)).emit("order:status", { orderId: order.id, status: "CANCELLED" });
-      getIO()?.to(rooms.restaurant(order.restaurantId)).emit("order:status", { orderId: order.id, status: "CANCELLED" });
+      if (!existingAlert) {
+        await prisma.adminAlert.create({
+          data: {
+            orderId: order.id,
+            type: "ASSIGNMENT_EXHAUSTED",
+            message: "Nenhum estafeta aceitou após o limite de tentativas. É necessária atribuição manual.",
+          },
+        });
+        getIO()?.to(rooms.restaurant(order.restaurantId)).emit("dispatch:attention", {
+          orderId: order.id,
+          reason: "ASSIGNMENT_EXHAUSTED",
+        });
+      }
+      // Never auto-cancel a prepared order just because dispatch exhausted.
+      // Keep it waiting so Gestão can assign a courier manually.
       continue;
     }
     await tryAssignOrder(order.id);
   }
 }
 
+class DispatchClaimConflict extends Error {}
+
 export async function acceptAssignment(courierId: string, assignmentId: string) {
-  const assignment = await prisma.courierAssignment.findFirst({
-    where: { id: assignmentId, courierId, status: "OFFERED" },
-  });
-  if (!assignment || assignment.expiresAt < new Date()) return null;
+  const assignment = await prisma.courierAssignment.findFirst({ where: { id: assignmentId, courierId } });
+  if (!assignment) return null;
 
-  const [, order] = await prisma.$transaction([
-    prisma.courierAssignment.update({ where: { id: assignment.id }, data: { status: "ACCEPTED", respondedAt: new Date() } }),
-    prisma.order.update({
-      where: { id: assignment.orderId },
-      data: {
-        status: "COURIER_ASSIGNED",
-        courierId,
-        statusHistory: { create: { status: "COURIER_ASSIGNED", actor: Role.COURIER } },
-      },
-    }),
-  ]);
+  try {
+    const order = await prisma.$transaction(async (tx) => {
+      const now = new Date();
+      const assignmentClaim = await tx.courierAssignment.updateMany({
+        where: { id: assignmentId, courierId, status: "OFFERED", expiresAt: { gt: now } },
+        data: { status: "ACCEPTED", respondedAt: now },
+      });
+      if (assignmentClaim.count !== 1) throw new DispatchClaimConflict();
 
-  getIO()?.to(rooms.restaurant(order.restaurantId)).emit("order:status", { orderId: order.id, status: "COURIER_ASSIGNED" });
-  getIO()?.to(rooms.customer(order.userId)).emit("order:status", { orderId: order.id, status: "COURIER_ASSIGNED" });
-  return order;
+      const courierClaim = await tx.courier.updateMany({
+        where: { id: courierId, status: "ASSIGNED" },
+        data: { status: "ASSIGNED" },
+      });
+      if (courierClaim.count !== 1) throw new DispatchClaimConflict();
+
+      const orderClaim = await tx.order.updateMany({
+        where: { id: assignment.orderId, status: "WAITING_FOR_COURIER", courierId: null },
+        data: { status: "COURIER_ASSIGNED", courierId },
+      });
+      if (orderClaim.count !== 1) throw new DispatchClaimConflict();
+
+      await tx.orderStatusEvent.create({
+        data: { orderId: assignment.orderId, status: "COURIER_ASSIGNED", actor: Role.COURIER },
+      });
+      return tx.order.findUnique({ where: { id: assignment.orderId } });
+    });
+
+    if (!order) return null;
+    getIO()?.to(rooms.restaurant(order.restaurantId)).emit("order:status", { orderId: order.id, status: "COURIER_ASSIGNED" });
+    getIO()?.to(rooms.customer(order.userId)).emit("order:status", { orderId: order.id, status: "COURIER_ASSIGNED" });
+    return order;
+  } catch (error) {
+    if (error instanceof DispatchClaimConflict) return null;
+    throw error;
+  }
 }
 
 // Every currently-online courier with a distance from the restaurant, for
@@ -154,8 +234,15 @@ export async function listNearbyCouriers(restaurantId: string) {
   const restaurant = await prisma.restaurant.findUnique({ where: { id: restaurantId } });
   if (!restaurant) throw notFound("Restaurant not found");
 
+  const locationCutoff = new Date(Date.now() - env.COURIER_LOCATION_MAX_AGE_SECONDS * 1000);
   const couriers = await prisma.courier.findMany({
-    where: { status: "AVAILABLE", verificationStatus: "APPROVED", lat: { not: null }, lng: { not: null } },
+    where: {
+      status: "AVAILABLE",
+      verificationStatus: "APPROVED",
+      lat: { not: null },
+      lng: { not: null },
+      locationUpdatedAt: { gte: locationCutoff },
+    },
     include: { user: true },
   });
 
@@ -222,15 +309,25 @@ export async function forceReassignCourier(restaurantId: string, orderId: string
 }
 
 export async function rejectAssignment(courierId: string, assignmentId: string) {
-  const assignment = await prisma.courierAssignment.findFirst({
-    where: { id: assignmentId, courierId, status: "OFFERED" },
-  });
-  if (!assignment) return;
+  const assignment = await prisma.courierAssignment.findFirst({ where: { id: assignmentId, courierId } });
+  if (!assignment) return false;
 
-  await prisma.$transaction([
-    prisma.courierAssignment.update({ where: { id: assignment.id }, data: { status: "REJECTED", respondedAt: new Date() } }),
-    prisma.courier.update({ where: { id: courierId }, data: { status: "AVAILABLE" } }),
-  ]);
-  // Best-effort immediate retry so a rejection doesn't wait for the next sweep tick.
-  await tryAssignOrder(assignment.orderId);
+  const rejected = await prisma.$transaction(async (tx) => {
+    const now = new Date();
+    const claimed = await tx.courierAssignment.updateMany({
+      where: { id: assignmentId, courierId, status: "OFFERED", expiresAt: { gt: now } },
+      data: { status: "REJECTED", respondedAt: now },
+    });
+    if (claimed.count !== 1) return false;
+
+    await tx.courier.updateMany({ where: { id: courierId, status: "ASSIGNED" }, data: { status: "AVAILABLE" } });
+    await tx.order.updateMany({
+      where: { id: assignment.orderId, status: "WAITING_FOR_COURIER" },
+      data: { assignmentRetryCount: { increment: 1 } },
+    });
+    return true;
+  });
+
+  if (rejected) await tryAssignOrder(assignment.orderId);
+  return rejected;
 }
