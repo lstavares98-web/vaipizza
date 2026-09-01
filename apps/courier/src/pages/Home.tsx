@@ -80,7 +80,9 @@ export default function Home() {
     if (!socket) return;
     const handler = () => load();
     socket.on("assignment:offered", handler);
-    return () => socket.off("assignment:offered", handler);
+    return () => {
+      socket.off("assignment:offered", handler);
+    };
   }, [load]);
 
   async function toggleOnline() {
