@@ -2,15 +2,9 @@ import { useCallback, useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { api } from "../lib/api";
 import { getSocket } from "../lib/socket";
-import { useLocationReporting } from "../hooks/useLocationReporting";
+import { captureAndReportCurrentLocation } from "../hooks/useLocationReporting";
+import { useCourierRuntime } from "../context/CourierRuntimeContext";
 
-interface CourierProfile {
-  id: string;
-  status: string;
-  verificationStatus: string;
-  totalEarnings: number;
-  lifetimeDeliveries: number;
-}
 interface Assignment {
   id: string;
   expiresAt: string;
@@ -29,39 +23,32 @@ interface TodaySummary {
 
 export default function Home() {
   const navigate = useNavigate();
-  const [courier, setCourier] = useState<CourierProfile | null>(null);
+  const { courier, location, refreshCourier } = useCourierRuntime();
   const [assignment, setAssignment] = useState<Assignment | null>(null);
   const [today, setToday] = useState<TodaySummary | null>(null);
   const [now, setNow] = useState(Date.now());
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const online = courier?.status === "AVAILABLE" || courier?.status === "ASSIGNED";
-  useLocationReporting(online);
+  const online = Boolean(courier && courier.status !== "OFFLINE");
+  const canToggleAvailability = courier?.status === "OFFLINE" || courier?.status === "AVAILABLE";
 
   const load = useCallback(async () => {
-    const [{ data: me }, { data: current }] = await Promise.all([
-      api.get("/courier/me"),
-      api.get("/courier/orders/current"),
-    ]);
-    setCourier(me.courier);
+    const { data: current } = await api.get("/courier/orders/current");
     if (current.order) {
       navigate("/delivery");
       return;
     }
-    if (me.courier.status === "AVAILABLE" || me.courier.status === "ASSIGNED") {
-      const { data: offer } = await api.get("/courier/assignments/current");
-      setAssignment(offer.assignment);
-    } else {
-      setAssignment(null);
-    }
+    const { data: offer } = await api.get("/courier/assignments/current");
+    setAssignment(offer.assignment);
   }, [navigate]);
 
   useEffect(() => {
-    load();
-    const t = setInterval(load, 10_000);
-    return () => clearInterval(t);
-  }, [load]);
+    void refreshCourier();
+    void load();
+    const t = window.setInterval(() => void load(), 10_000);
+    return () => window.clearInterval(t);
+  }, [load, refreshCourier]);
 
   useEffect(() => {
     api.get("/courier/earnings").then(({ data }) => {
@@ -71,14 +58,14 @@ export default function Home() {
   }, []);
 
   useEffect(() => {
-    const t = setInterval(() => setNow(Date.now()), 1000);
-    return () => clearInterval(t);
+    const t = window.setInterval(() => setNow(Date.now()), 1000);
+    return () => window.clearInterval(t);
   }, []);
 
   useEffect(() => {
     const socket = getSocket();
     if (!socket) return;
-    const handler = () => load();
+    const handler = () => void load();
     socket.on("assignment:offered", handler);
     return () => {
       socket.off("assignment:offered", handler);
@@ -86,13 +73,20 @@ export default function Home() {
   }, [load]);
 
   async function toggleOnline() {
+    if (!courier || !canToggleAvailability) return;
     setBusy(true);
     setError(null);
     try {
+      if (!online) {
+        // The backend will refuse online status without a fresh/accurate point.
+        // Capture it first so there is no OFFLINE -> AVAILABLE race.
+        await captureAndReportCurrentLocation();
+      }
       await api.post("/courier/online", { online: !online });
+      await refreshCourier();
       await load();
     } catch (err: any) {
-      setError(err.response?.data?.message ?? "Não foi possível mudar de estado");
+      setError(err?.response?.data?.message ?? err?.message ?? "Não foi possível mudar de estado");
     } finally {
       setBusy(false);
     }
@@ -101,10 +95,13 @@ export default function Home() {
   async function acceptOffer() {
     if (!assignment) return;
     setBusy(true);
+    setError(null);
     try {
       await api.post(`/courier/assignments/${assignment.id}/accept`);
+      await refreshCourier();
       navigate("/delivery");
-    } catch {
+    } catch (err: any) {
+      setError(err?.response?.data?.message ?? "Esta oferta já não está disponível");
       await load();
     } finally {
       setBusy(false);
@@ -114,9 +111,13 @@ export default function Home() {
   async function rejectOffer() {
     if (!assignment) return;
     setBusy(true);
+    setError(null);
     try {
       await api.post(`/courier/assignments/${assignment.id}/reject`);
       setAssignment(null);
+      await refreshCourier();
+    } catch (err: any) {
+      setError(err?.response?.data?.message ?? "Não foi possível recusar a oferta");
     } finally {
       setBusy(false);
     }
@@ -136,6 +137,11 @@ export default function Home() {
   }
 
   const secondsLeft = assignment ? Math.max(0, Math.round((new Date(assignment.expiresAt).getTime() - now) / 1000)) : 0;
+  const gpsCopy = location.lastSentAt
+    ? `GPS atualizado · precisão ±${Math.round(location.accuracyM ?? 0)} m`
+    : online
+      ? "A obter localização GPS…"
+      : "O GPS só é partilhado enquanto estiver online.";
 
   return (
     <div className="page courier-home">
@@ -146,9 +152,14 @@ export default function Home() {
             <span className="status-dot" />
             <h1>{online ? "Online" : "Offline"}</h1>
           </div>
-          <p>{online ? "Está disponível para novas entregas." : "Fique online quando estiver pronto para começar."}</p>
+          <p>{online ? "Está ligado à operação de entregas." : "Fique online quando estiver pronto para começar."}</p>
+          <small className="gps-runtime-copy">{gpsCopy}</small>
         </div>
-        <button className={`availability-toggle ${online ? "on" : ""}`} onClick={toggleOnline} disabled={busy}>
+        <button
+          className={`availability-toggle ${online ? "on" : ""}`}
+          onClick={toggleOnline}
+          disabled={busy || !canToggleAvailability}
+        >
           {busy ? "A atualizar..." : online ? "Ficar offline" : "Ficar online"}
         </button>
       </section>
@@ -162,7 +173,7 @@ export default function Home() {
       {today && today.pendingCashTotal > 0 && (
         <div className="cash-alert"><span>Dinheiro por acertar</span><strong>{today.pendingCashTotal.toFixed(2)} €</strong></div>
       )}
-      {error && <p className="form-error notice-error">{error}</p>}
+      {(error || location.error) && <p className="form-error notice-error">{error ?? location.error}</p>}
 
       {assignment ? (
         <section className="offer-card" aria-live="assertive">
@@ -186,7 +197,7 @@ export default function Home() {
           <span className="waiting-pulse" />
           <p className="page-eyebrow">{online ? "À procura" : "Pausado"}</p>
           <h2>{online ? "À espera da próxima entrega" : "Está offline"}</h2>
-          <p>{online ? "Pode manter esta aplicação aberta. A nova entrega aparece automaticamente." : "Quando quiser receber entregas, toque em Ficar online."}</p>
+          <p>{online ? "Pode navegar dentro da aplicação; o GPS continua ativo enquanto estiver online." : "Quando quiser receber entregas, toque em Ficar online."}</p>
         </section>
       )}
     </div>

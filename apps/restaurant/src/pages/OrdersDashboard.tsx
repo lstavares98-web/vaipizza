@@ -3,6 +3,8 @@ import { api } from "../lib/api";
 import { getSocket } from "../lib/socket";
 import { playNewOrderChime } from "../lib/sound";
 import { ORDER_STATUS_LABELS } from "../lib/orderLabels";
+import CourierOperationsPanel from "../components/CourierOperationsPanel";
+import { COURIER_INELIGIBILITY_LABELS, COURIER_STATUS_LABELS, formatGpsAge } from "../lib/courierPresentation";
 
 interface OrderItem {
   id: string;
@@ -124,6 +126,8 @@ export default function OrdersDashboard() {
           <span className="stat-label">Ticket médio</span>
         </div>
       </div>
+
+      <CourierOperationsPanel />
 
       <div className="board">
         <Column title={`Novos (${newOrders.length})`}>
@@ -247,8 +251,13 @@ interface NearbyCourier {
   id: string;
   name: string;
   vehicleType: string;
-  distanceKm: number;
-  tooFar: boolean;
+  status: string;
+  distanceKm: number | null;
+  locationAgeSeconds: number | null;
+  locationAccuracyM: number | null;
+  eligibleForDispatch: boolean;
+  ineligibilityReason: string | null;
+  activeOrder: { id: string; orderNumber: number; status: string } | null;
 }
 
 function ReassignCourierModal({ order, onClose, onDone }: { order: OrderRow; onClose: () => void; onDone: () => void }) {
@@ -284,11 +293,18 @@ function ReassignCourierModal({ order, onClose, onDone }: { order: OrderRow; onC
                 <div>
                   <strong>{c.name}</strong>
                   <p className="hint">
-                    {c.vehicleType} · {c.distanceKm} km {c.tooFar && <span className="warning">⚠ muito distante</span>}
+                    {c.vehicleType} · {COURIER_STATUS_LABELS[c.status] ?? c.status}
+                    {c.distanceKm !== null ? ` · ${c.distanceKm} km` : ""}
+                    {` · GPS ${formatGpsAge(c.locationAgeSeconds)}`}
+                    {c.locationAccuracyM !== null ? ` · ±${Math.round(c.locationAccuracyM)} m` : ""}
                   </p>
+                  {!c.eligibleForDispatch && c.ineligibilityReason && (
+                    <span className="warning">⚠ {COURIER_INELIGIBILITY_LABELS[c.ineligibilityReason] ?? c.ineligibilityReason}</span>
+                  )}
+                  {c.activeOrder && <span className="hint"> · Pedido #{c.activeOrder.orderNumber}</span>}
                 </div>
-                <button disabled={busy} onClick={() => assign(c.id)}>
-                  Escolher
+                <button disabled={busy || !c.eligibleForDispatch} onClick={() => assign(c.id)}>
+                  {c.eligibleForDispatch ? "Escolher" : "Indisponível"}
                 </button>
               </li>
             ))}

@@ -1,11 +1,14 @@
 import { Role } from "@yummix/types";
 import { prisma } from "../../config/prisma.js";
+import { env } from "../../config/env.js";
 import { badRequest, notFound } from "../../utils/AppError.js";
 import { assertTransitionAllowed } from "../orders/orderStateMachine.js";
 import { getIO, rooms } from "../../sockets/io.js";
 import { computeDeliveryEarning } from "./earnings.js";
 import { cashHeldByCourier } from "./cash.js";
 import { round2 } from "../../utils/pricing.js";
+import { isAccurateCourierLocation, isFreshCourierLocation } from "../dispatch/dispatch.policy.js";
+import { dispatchWaitingOrders } from "../dispatch/dispatch.service.js";
 
 export async function getCourierByUserId(userId: string) {
   const courier = await prisma.courier.findUnique({ where: { userId } });
@@ -18,19 +21,41 @@ export async function setOnline(userId: string, online: boolean) {
   if (courier.verificationStatus !== "APPROVED") {
     throw badRequest("A sua conta ainda não foi aprovada", "COURIER_NOT_APPROVED");
   }
-  if (!online && !["OFFLINE", "AVAILABLE"].includes(courier.status)) {
-    throw badRequest("Não pode ficar offline a meio de uma entrega", "COURIER_MID_DELIVERY");
+
+  if (!online) {
+    if (!["OFFLINE", "AVAILABLE"].includes(courier.status)) {
+      throw badRequest("Não pode ficar offline a meio de uma entrega", "COURIER_MID_DELIVERY");
+    }
+    return prisma.courier.update({ where: { userId }, data: { status: "OFFLINE" } });
   }
-  return prisma.courier.update({
-    where: { userId },
-    data: { status: online ? "AVAILABLE" : "OFFLINE" },
-  });
+
+  if (courier.status !== "OFFLINE" && courier.status !== "AVAILABLE") {
+    throw badRequest("Já existe uma oferta ou entrega ativa", "COURIER_ALREADY_WORKING");
+  }
+  if (courier.lat === null || courier.lng === null) {
+    throw badRequest("Ative a localização precisa antes de ficar online", "COURIER_LOCATION_REQUIRED");
+  }
+  if (!isFreshCourierLocation(courier.locationUpdatedAt, new Date(), env.COURIER_LOCATION_MAX_AGE_SECONDS)) {
+    throw badRequest("A localização está desatualizada. Volte a permitir o GPS e tente novamente", "COURIER_LOCATION_STALE");
+  }
+  if (!isAccurateCourierLocation(courier.locationAccuracyM, env.COURIER_MAX_ACCURACY_METERS)) {
+    throw badRequest(
+      `A precisão do GPS precisa de ser melhor que ${env.COURIER_MAX_ACCURACY_METERS} m para ficar online`,
+      "COURIER_LOCATION_INACCURATE",
+    );
+  }
+
+  await prisma.courier.update({ where: { userId }, data: { status: "AVAILABLE" } });
+  // A courier becoming available should wake the oldest waiting order now,
+  // not wait for the next 15-second sweep.
+  await dispatchWaitingOrders();
+  return getCourierByUserId(userId);
 }
 
-export async function updateLocation(userId: string, lat: number, lng: number) {
-  await prisma.courier.update({
+export async function updateLocation(userId: string, lat: number, lng: number, accuracyM: number) {
+  return prisma.courier.update({
     where: { userId },
-    data: { lat, lng, locationUpdatedAt: new Date() },
+    data: { lat, lng, locationAccuracyM: accuracyM, locationUpdatedAt: new Date() },
   });
 }
 
@@ -77,7 +102,11 @@ export async function updateDeliveryStatus(
 
   const updated = await prisma.order.update({ where: { id: order.id }, data });
 
-  if (status === "DELIVERED") {
+  if (status === "PICKED_UP") {
+    await prisma.courier.update({ where: { id: courier.id }, data: { status: "PICKED_UP" } });
+  } else if (status === "OUT_FOR_DELIVERY") {
+    await prisma.courier.update({ where: { id: courier.id }, data: { status: "DELIVERING" } });
+  } else if (status === "DELIVERED") {
     const earning = computeDeliveryEarning(order.deliveryFee, courier.lifetimeDeliveries);
     await prisma.$transaction([
       prisma.courierEarning.create({
@@ -95,6 +124,8 @@ export async function updateDeliveryStatus(
         },
       }),
     ]);
+    // Finishing one delivery can immediately unlock the oldest queued order.
+    await dispatchWaitingOrders();
   }
 
   getIO()?.to(rooms.restaurant(order.restaurantId)).emit("order:status", { orderId: order.id, status });

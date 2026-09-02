@@ -135,6 +135,7 @@ model Restaurant {
   lat        Float
   lng        Float
   deliveryRadiusKm Float @default(8)
+  courierDispatchRadiusKm Float @default(12)
 
   deliveryFeeMode      DeliveryFeeMode @default(BASE_PLUS_PER_KM)
   deliveryFeeBase      Float           @default(2)
@@ -666,6 +667,7 @@ model Courier {
   lat       Float?
   lng       Float?
   locationUpdatedAt DateTime?
+  locationAccuracyM Float?
 
   totalEarnings       Float @default(0)
   lifetimeDeliveries  Int   @default(0)
@@ -681,6 +683,7 @@ model Courier {
   ratings     CourierRating[]
 
   @@index([status])
+  @@index([status, locationUpdatedAt])
 }
 
 enum CourierAssignmentStatus {

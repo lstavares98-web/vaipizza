@@ -271,3 +271,60 @@ button.secondary.compact, .mini-add { border: 1px solid var(--border); border-ra
 .toolbar button { min-height: 43px; border: 0; border-radius: 12px; background: var(--green-dark); color: white; padding: .6rem .8rem; font-weight: 800; }
 .toolbar button.secondary { background: #eee7da; color: var(--green-dark); border: 1px solid var(--border); }
 .toolbar button:disabled { opacity: .5; cursor: not-allowed; }
+
+/* Courier dispatch operations V6 */
+.courier-ops-panel { margin: 0 0 1.15rem; padding: 1rem; background: var(--surface); border: 1px solid var(--border); border-radius: 20px; box-shadow: 0 10px 30px rgba(46,50,39,.04); }
+.courier-ops-heading { display: flex; align-items: flex-end; justify-content: space-between; gap: 1rem; margin-bottom: .8rem; }
+.courier-ops-heading h2 { margin: .15rem 0 0; color: var(--green-dark); font-size: 1.45rem; }
+.courier-ops-heading p:not(.page-eyebrow) { margin: .3rem 0 0; color: var(--muted); font-size: .74rem; }
+.courier-refresh-copy { color: var(--success); font-size: .66rem; font-weight: 800; }
+.courier-refresh-copy.has-error { color: var(--danger); }
+.courier-ops-grid { display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(330px, .8fr); gap: .8rem; }
+.courier-live-map { min-height: 360px; overflow: hidden; border: 1px solid var(--border); border-radius: 16px; background: #eae6dd; }
+.courier-live-map .leaflet-container, .restaurant-location-map .leaflet-container { z-index: 1; font-family: var(--font-body); }
+.courier-ops-list { max-height: 360px; overflow-y: auto; display: flex; flex-direction: column; gap: .45rem; padding-right: .15rem; }
+.courier-ops-row { display: grid; grid-template-columns: minmax(0,1fr) auto; gap: .65rem; align-items: center; padding: .7rem .75rem; border: 1px solid var(--border); border-radius: 14px; background: #faf7f1; }
+.courier-ops-row.is-eligible { border-color: #b9d9c5; background: #f1f8f3; }
+.courier-name-line { display: flex; align-items: center; flex-wrap: wrap; gap: .4rem; }
+.courier-name-line strong { color: var(--green-dark); font-size: .82rem; }
+.courier-state-dot { width: 8px; height: 8px; flex: 0 0 8px; border-radius: 50%; background: #9b9488; }
+.state-available { background: var(--success); box-shadow: 0 0 0 3px rgba(25,135,84,.1); }
+.state-assigned, .state-going_to_restaurant, .state-picked_up, .state-delivering { background: var(--yellow); }
+.state-offline { background: #aaa49a; }
+.courier-eligibility { display: inline-flex; border-radius: 999px; padding: .2rem .42rem; font-size: .55rem; font-weight: 900; text-transform: uppercase; letter-spacing: .04em; }
+.courier-eligibility.ok { color: #0a6a37; background: #dff3e7; }
+.courier-eligibility.blocked { color: #835820; background: #f5ead8; }
+.courier-ops-main p { margin: .23rem 0 0 1.15rem; color: var(--muted); font-size: .66rem; }
+.courier-active-order { color: var(--brand) !important; font-weight: 800; }
+.courier-ops-metrics { display: flex; flex-direction: column; align-items: flex-end; gap: .15rem; color: var(--muted); font-size: .62rem; white-space: nowrap; }
+.courier-ops-metrics > span:first-child { color: var(--text); font-size: .75rem; font-weight: 900; }
+.courier-ops-metrics strong { max-width: 170px; color: var(--danger); font-size: .6rem; text-align: right; white-space: normal; }
+.courier-empty { padding: 2rem 1rem; color: var(--muted); text-align: center; }
+
+.settings-form-wide { max-width: 820px; }
+.settings-location-section { display: grid; gap: .65rem; margin: .2rem 0 .55rem; padding: .85rem; border: 1px solid var(--border); border-radius: 17px; background: #faf7f1; }
+.settings-location-heading { display: flex; justify-content: space-between; align-items: center; gap: .8rem; }
+.settings-location-heading h2 { margin: 0; color: var(--green-dark); font-size: 1rem; }
+.settings-location-heading p { margin: .25rem 0 0; max-width: 540px; }
+.settings-location-heading button { flex: 0 0 auto; min-height: 40px; border: 0; border-radius: 11px; background: var(--green-dark); color: white; padding: .55rem .7rem; font-size: .68rem; font-weight: 800; }
+.restaurant-location-map { height: 330px; overflow: hidden; border: 1px solid var(--border); border-radius: 14px; background: #eae6dd; }
+.coordinates-row { display: flex; gap: 1rem; flex-wrap: wrap; color: var(--muted); font-size: .67rem; }
+.coordinates-row strong { color: var(--text); font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+.product-form label > .hint { display: block; margin-top: .3rem; font-weight: 400; line-height: 1.35; }
+.courier-list button:disabled { opacity: .5; cursor: not-allowed; }
+
+@media (max-width: 1050px) {
+  .courier-ops-grid { grid-template-columns: 1fr; }
+  .courier-ops-list { max-height: 300px; }
+}
+@media (max-width: 680px) {
+  .courier-ops-panel { padding: .7rem; border-radius: 17px; }
+  .courier-ops-heading { align-items: flex-start; }
+  .courier-live-map { min-height: 285px; }
+  .courier-ops-row { grid-template-columns: 1fr; }
+  .courier-ops-metrics { align-items: flex-start; padding-left: 1.15rem; white-space: normal; }
+  .courier-ops-metrics strong { max-width: none; text-align: left; }
+  .settings-location-heading { align-items: flex-start; flex-direction: column; }
+  .settings-location-heading button { width: 100%; }
+  .restaurant-location-map { height: 290px; }
+}

@@ -31,8 +31,8 @@ restaurantOrdersRouter.get(
 restaurantOrdersRouter.get(
   "/couriers/nearby",
   asyncHandler(async (req, res) => {
-    const couriers = await listNearbyCouriers(req.auth!.restaurantId!);
-    res.json({ success: true, couriers });
+    const feed = await listNearbyCouriers(req.auth!.restaurantId!);
+    res.json({ success: true, ...feed });
   }),
 );
 

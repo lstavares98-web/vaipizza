@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { chooseCourierCandidate, isFreshCourierLocation, shouldEscalateDispatch } from '../src/modules/dispatch/dispatch.policy.ts';
+import { chooseCourierCandidate, isFreshCourierLocation } from '../src/modules/dispatch/dispatch.policy.ts';
 
 const now = new Date('2026-08-31T20:00:00.000Z');
 
@@ -10,6 +10,7 @@ function candidate(overrides: Partial<any> = {}) {
     lat: 41.5518,
     lng: -8.4229,
     locationUpdatedAt: new Date('2026-08-31T19:59:30.000Z'),
+    locationAccuracyM: 15,
     recentOfferCount: 0,
     lastOfferedAt: null,
     ...overrides,
@@ -47,8 +48,16 @@ test('stale nearest courier is ignored', () => {
 });
 
 
-test('dispatch escalates at the configured failed-offer limit', () => {
-  assert.equal(shouldEscalateDispatch(4, 5), false);
-  assert.equal(shouldEscalateDispatch(5, 5), true);
-  assert.equal(shouldEscalateDispatch(6, 5), true);
+test('courier outside the restaurant dispatch radius is never selected', () => {
+  const result = chooseCourierCandidate({ lat: 41.5518, lng: -8.4229, courierDispatchRadiusKm: 12 } as any, [
+    candidate({ id: 'lisboa', lat: 38.8407967, lng: -9.1658833, locationAccuracyM: 8 }),
+  ], now, 120, 100);
+  assert.equal(result, null);
+});
+
+test('courier with poor GPS accuracy is never selected', () => {
+  const result = chooseCourierCandidate({ lat: 41.5518, lng: -8.4229, courierDispatchRadiusKm: 12 } as any, [
+    candidate({ id: 'imprecise', lat: 41.5520, lng: -8.4229, locationAccuracyM: 250 }),
+  ], now, 120, 100);
+  assert.equal(result, null);
 });

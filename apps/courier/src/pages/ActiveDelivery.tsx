@@ -3,6 +3,8 @@ import { useNavigate } from "react-router-dom";
 import { MapContainer, Marker, Polyline, Popup, TileLayer } from "react-leaflet";
 import "leaflet/dist/leaflet.css";
 import { api } from "../lib/api";
+import { getSocket } from "../lib/socket";
+import { useCourierRuntime } from "../context/CourierRuntimeContext";
 import { buildDirectionsUrl, getDeliveryStep } from "../lib/deliveryPresentation";
 import { fixLeafletIcons } from "../lib/leafletIcons";
 
@@ -25,6 +27,7 @@ interface ActiveOrder {
 
 export default function ActiveDelivery() {
   const navigate = useNavigate();
+  const { refreshCourier } = useCourierRuntime();
   const [order, setOrder] = useState<ActiveOrder | null | undefined>(undefined);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -36,6 +39,15 @@ export default function ActiveDelivery() {
 
   useEffect(() => { load(); }, [load]);
   useEffect(() => { if (order === null) navigate("/"); }, [order, navigate]);
+  useEffect(() => {
+    const socket = getSocket();
+    if (!socket) return;
+    const onCancelled = () => void load();
+    socket.on("assignment:cancelled", onCancelled);
+    return () => {
+      socket.off("assignment:cancelled", onCancelled);
+    };
+  }, [load]);
 
   if (order === undefined) return <p className="page loading-copy">A carregar...</p>;
   if (!order) return null;
@@ -48,6 +60,7 @@ export default function ActiveDelivery() {
     setBusy(true);
     try {
       await api.patch(`/courier/orders/${order.id}/status`, { status: step.next });
+      await refreshCourier();
       if (step.next === "DELIVERED") {
         navigate("/");
         return;

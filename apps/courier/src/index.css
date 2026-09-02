@@ -159,3 +159,7 @@ h1, h2, h3 { font-family: var(--font-display); font-style: italic; font-weight: 
 @media (prefers-reduced-motion: reduce) {
   .waiting-pulse { animation: none; }
 }
+
+/* GPS runtime V6 */
+.gps-runtime-copy { display: inline-block; margin-top: .45rem; color: rgba(255,255,255,.72); font-size: .68rem; font-weight: 700; }
+.availability-hero:not(.is-online) .gps-runtime-copy { color: var(--muted); }

@@ -29,8 +29,12 @@ courierRouter.post(
 courierRouter.post(
   "/location",
   asyncHandler(async (req, res) => {
-    const { lat, lng } = z.object({ lat: z.number(), lng: z.number() }).parse(req.body);
-    await courierService.updateLocation(req.auth!.sub, lat, lng);
+    const { lat, lng, accuracyM } = z.object({
+      lat: z.number().min(-90).max(90),
+      lng: z.number().min(-180).max(180),
+      accuracyM: z.number().min(0).max(50_000),
+    }).parse(req.body);
+    await courierService.updateLocation(req.auth!.sub, lat, lng, accuracyM);
     res.json({ success: true });
   }),
 );
