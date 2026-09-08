@@ -4,6 +4,7 @@ import { BikeIcon, PinIcon } from "../components/NavIcons";
 import FranchiseModal from "../components/FranchiseModal";
 import { resolvePrimaryRestaurant, VAIPIZZA } from "../config/vaipizza";
 import { useAuth } from "../context/AuthContext";
+import { useCart } from "../context/CartContext";
 import { api } from "../lib/api";
 import "../lab-home.css";
 import RestaurantMenu from "./RestaurantMenu";
@@ -23,12 +24,38 @@ interface HomeRestaurant {
 const FALLBACK_HERO =
   "https://images.unsplash.com/photo-1579751626657-72bc17010498?q=86&w=2200&auto=format&fit=crop";
 
+const PROMOS = [
+  {
+    eyebrow: "DELIVERY & TAKEAWAY",
+    title: "HOJE VAI DE PIZZA",
+    lines: ["HOJE VAI", "DE PIZZA"],
+    detail: "Escolhe a tua favorita, personaliza e faz o pedido em poucos passos.",
+    badge: "PIZZA!",
+  },
+  {
+    eyebrow: "MONTA AO TEU GOSTO",
+    title: "TAMANHO MASSA E EXTRAS",
+    lines: ["DO TEU", "JEITO"],
+    detail: "Tamanho, massa, extras e ingredientes. A pizza fica como tu queres.",
+    badge: "VAI!",
+  },
+  {
+    eyebrow: "PEDIU? VAI.",
+    title: "ENTREGA OU RECOLHA",
+    lines: ["PEDIU?", "VAI."],
+    detail: "Recebe em casa ou passa para recolher. Tu escolhes como termina o pedido.",
+    badge: "RÁPIDO!",
+  },
+] as const;
+
 export default function Home() {
   const { user } = useAuth();
+  const { items, subtotal } = useCart();
   const [restaurant, setRestaurant] = useState<HomeRestaurant | null>(null);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(false);
   const [franchiseOpen, setFranchiseOpen] = useState(false);
+  const [promoIndex, setPromoIndex] = useState(0);
 
   useEffect(() => {
     api
@@ -45,6 +72,8 @@ export default function Home() {
   }, []);
 
   const heroImage = restaurant?.bannerUrl ?? FALLBACK_HERO;
+  const promo = PROMOS[promoIndex];
+  const cartCount = items.reduce((sum, item) => sum + item.quantity, 0);
   const statusLabel = loading
     ? "A ligar à loja"
     : loadError
@@ -53,183 +82,145 @@ export default function Home() {
         ? "Aberto para pedidos"
         : "Fechado neste momento";
 
+  const previousPromo = () => setPromoIndex((index) => (index - 1 + PROMOS.length) % PROMOS.length);
+  const nextPromo = () => setPromoIndex((index) => (index + 1) % PROMOS.length);
+
   return (
-    <div className="lab-home">
-      <header className="lab-topbar">
-        <Link className="lab-brand" to="/" aria-label="VAIPIZZA — início">
-          <img src={VAIPIZZA.logoPath} alt="" />
-          <span>
-            <strong>{VAIPIZZA.name}</strong>
-            <small>{VAIPIZZA.tagline}</small>
-          </span>
-        </Link>
+    <div className="lab-home matteo-lab">
+      <section className="matteo-hero" aria-label="Promoções em destaque">
+        <header className="matteo-nav-shell">
+          <a className="matteo-order-contact" href="#menu-home">
+            <span className="matteo-phone-icon" aria-hidden="true">↗</span>
+            <span>
+              <small>PEDIR AGORA</small>
+              <strong>{VAIPIZZA.serviceLabel}</strong>
+            </span>
+          </a>
 
-        <nav className="lab-nav" aria-label="Navegação principal">
-          <a href="#ofertas">Ofertas</a>
-          <a href="#menu-home">Menu</a>
-          <Link to={user ? "/orders" : "/login"}>{user ? "Pedidos" : "Entrar"}</Link>
-          <a className="lab-nav-order" href="#menu-home">Pedir agora</a>
-        </nav>
-      </header>
+          <nav className="matteo-nav" aria-label="Navegação principal">
+            <a href="#inicio">Home</a>
+            <a href="#menu-home">Produtos</a>
+            <a href="#menu-home">Menu</a>
+            <Link className="matteo-brand" to="/" aria-label="VAIPIZZA — início">
+              <img src={VAIPIZZA.logoPath} alt="" />
+              <strong>{VAIPIZZA.name}</strong>
+            </Link>
+            <a href="#como-receber">Delivery</a>
+            <Link to={user ? "/orders" : "/login"}>{user ? "Pedidos" : "Entrar"}</Link>
+          </nav>
 
-      <main>
-        <section className="lab-hero">
-          <div className="lab-hero-copy">
-            <div className="lab-status-pill">
-              <span className={`lab-status-dot${restaurant?.isOpen ? " is-open" : ""}`} />
+          <Link className="matteo-cart" to="/cart" aria-label={`Carrinho com ${cartCount} itens`}>
+            <span aria-hidden="true">🛒</span>
+            {cartCount > 0 && <b>{cartCount}</b>}
+          </Link>
+        </header>
+
+        <div className="matteo-slide" id="inicio">
+          <button className="matteo-arrow matteo-arrow-left" type="button" onClick={previousPromo} aria-label="Promoção anterior">
+            ‹
+          </button>
+
+          <div className="matteo-pizza-stage" aria-hidden="true">
+            <div className="matteo-board" />
+            <div className="matteo-pizza matteo-pizza-back">
+              <img src={heroImage} alt="" />
+            </div>
+            <div className="matteo-pizza matteo-pizza-front">
+              <img src={heroImage} alt="" />
+            </div>
+            <span className="matteo-splash matteo-splash-one">{promo.badge}</span>
+            <span className="matteo-splash matteo-splash-two">VAIPIZZA</span>
+          </div>
+
+          <div className="matteo-copy">
+            <div className="matteo-status">
+              <span className={`matteo-status-dot${restaurant?.isOpen ? " is-open" : ""}`} />
               {statusLabel}
             </div>
-
-            <p className="lab-eyebrow">DELIVERY · TAKEAWAY · PIZZA DO TEU JEITO</p>
-            <h1>Pizza que dá vontade.<br /><span>Pedido que vai.</span></h1>
-            <p className="lab-hero-lead">
-              Escolhe a tua favorita, personaliza sem complicação e recebe onde quiseres — ou passa por cá e leva contigo.
-            </p>
-
-            <div className="lab-hero-actions">
-              <a className="lab-btn lab-btn-primary" href="#menu-home">Pedir agora <span>→</span></a>
-              <a className="lab-btn lab-btn-secondary" href="#ofertas">Ver ofertas</a>
+            <p className="matteo-eyebrow">{promo.eyebrow}</p>
+            <h1 aria-label={promo.title}>
+              <span>{promo.lines[0]}</span>
+              <span>{promo.lines[1]}</span>
+            </h1>
+            <p className="matteo-detail">{promo.detail}</p>
+            <div className="matteo-actions">
+              <a className="matteo-primary" href="#menu-home">Pedir agora</a>
+              <a className="matteo-secondary" href="#como-receber">Como funciona</a>
             </div>
-
-            <div className="lab-hero-meta">
-              {restaurant?.todayHours && <span><strong>Hoje</strong>{restaurant.todayHours}</span>}
-              {restaurant?.address && <span><strong>Loja</strong>{restaurant.address}</span>}
+            <div className="matteo-meta">
+              {restaurant?.todayHours && <span><small>HOJE</small>{restaurant.todayHours}</span>}
+              {cartCount > 0 && <span><small>NO CARRINHO</small>{cartCount} itens · {subtotal.toFixed(2)} €</span>}
             </div>
           </div>
 
-          <div className="lab-hero-visual" aria-label="Pizza em destaque">
-            <div className="lab-burst lab-burst-one" aria-hidden="true">PIZZA!</div>
-            <div className="lab-burst lab-burst-two" aria-hidden="true">VAI!</div>
-            <div className="lab-pizza-frame">
-              <img src={heroImage} alt="Pizza VAIPIZZA em destaque" />
-            </div>
-            <div className="lab-price-sticker" aria-hidden="true">
-              <small>HOJE VAI DE</small>
-              <strong>PIZZA</strong>
-            </div>
+          <button className="matteo-arrow matteo-arrow-right" type="button" onClick={nextPromo} aria-label="Próxima promoção">
+            ›
+          </button>
+
+          <div className="matteo-dots" aria-label="Selecionar promoção">
+            {PROMOS.map((item, index) => (
+              <button
+                key={item.title}
+                type="button"
+                className={index === promoIndex ? "active" : ""}
+                aria-label={`Mostrar promoção ${index + 1}`}
+                onClick={() => setPromoIndex(index)}
+              />
+            ))}
           </div>
-        </section>
+        </div>
+      </section>
 
-        <section className="lab-service-section" aria-label="Como quer receber">
-          <div className="lab-section-intro">
-            <p>COMO QUER RECEBER?</p>
-            <h2>Tu escolhes o plano.<br />A pizza faz o resto.</h2>
-          </div>
-
-          <div className="lab-service-grid">
-            <a className={`lab-service-card lab-delivery${restaurant?.acceptsDelivery === false ? " is-disabled" : ""}`} href="#menu-home">
-              <span className="lab-service-icon"><BikeIcon /></span>
-              <div>
-                <small>SEM SAIR DE CASA</small>
-                <h3>Entrega</h3>
-                <p>{restaurant?.acceptsDelivery === false ? "Indisponível nesta loja" : "Escolhe, pede e nós tratamos do caminho."}</p>
-              </div>
-              <b aria-hidden="true">→</b>
-            </a>
-
-            <a className={`lab-service-card lab-pickup${restaurant?.acceptsPickup === false ? " is-disabled" : ""}`} href="#menu-home">
-              <span className="lab-service-icon"><PinIcon /></span>
-              <div>
-                <small>PASSA E LEVA</small>
-                <h3>Recolha</h3>
-                <p>{restaurant?.acceptsPickup === false ? "Indisponível nesta loja" : "Faz o pedido antes e vem buscar sem complicação."}</p>
-              </div>
-              <b aria-hidden="true">→</b>
-            </a>
-          </div>
-        </section>
-
-        <section className="lab-offers" id="ofertas" aria-label="Ofertas VaiPizza">
-          <div className="lab-offers-heading">
-            <div>
-              <p>OFERTAS VAIPIZZA</p>
-              <h2>Para hoje ir<br />direto ao ponto.</h2>
-            </div>
-            <a href="#menu-home">Ver menu completo <span>↘</span></a>
-          </div>
-
-          <div className="lab-offer-grid">
-            <a className="lab-offer-card lab-offer-red" href="#menu-home">
-              <span className="lab-offer-number">01</span>
-              <small>PARA PARTILHAR</small>
-              <h3>Pizza grande,<br />fome pequena.</h3>
-              <p>Escolhe o tamanho e monta à tua maneira.</p>
-              <b>Escolher pizza →</b>
-            </a>
-
-            <a className="lab-offer-card lab-offer-yellow" href="#menu-home">
-              <span className="lab-offer-number">02</span>
-              <small>SEM COMPLICAÇÃO</small>
-              <h3>Combo que<br />resolve o jantar.</h3>
-              <p>Pizza, extras e bebida num pedido só.</p>
-              <b>Ver combos →</b>
-            </a>
-
-            <a className="lab-offer-card lab-offer-cream" href="#menu-home">
-              <span className="lab-offer-number">03</span>
-              <small>DO TEU JEITO</small>
-              <h3>Mais queijo?<br />Claro que sim.</h3>
-              <p>Tamanho, massa, extras e ingredientes como preferires.</p>
-              <b>Personalizar →</b>
-            </a>
-          </div>
-        </section>
-
-        <section className="lab-menu-bridge">
-          <div>
-            <p>AGORA ESCOLHE A TUA</p>
-            <h2>O menu está servido.</h2>
-          </div>
-          <span>↓</span>
-        </section>
-
-        <div className="lab-menu-shell">
-          <RestaurantMenu restaurantSlug={VAIPIZZA.slug} embedded />
+      <section className="matteo-service-strip" id="como-receber" aria-label="Como quer receber">
+        <div className="matteo-service-title">
+          <small>ESCOLHE O TEU JEITO</small>
+          <h2>Como quer receber?</h2>
         </div>
 
-        <section className="lab-confidence">
-          <article>
-            <span>01</span>
-            <h3>Escolhe</h3>
-            <p>Encontra a pizza, combo ou acompanhamento que te apetece.</p>
-          </article>
-          <article>
-            <span>02</span>
-            <h3>Personaliza</h3>
-            <p>Tamanho, massa, extras e ingredientes ficam nas tuas mãos.</p>
-          </article>
-          <article>
-            <span>03</span>
-            <h3>Recebe</h3>
-            <p>Acompanha o pedido até chegar — ou até estar pronto para recolha.</p>
-          </article>
-        </section>
+        <a className={`matteo-service-option${restaurant?.acceptsDelivery === false ? " is-disabled" : ""}`} href="#menu-home">
+          <span><BikeIcon /></span>
+          <div><strong>Entrega</strong><small>{restaurant?.acceptsDelivery === false ? "Indisponível" : "Levamos até si"}</small></div>
+          <b>→</b>
+        </a>
 
-        <section className="lab-final-cta">
-          <div>
-            <p>JÁ ESTÁ A DAR FOME?</p>
-            <h2>Então vai de VAIPIZZA.</h2>
-          </div>
-          <a className="lab-btn lab-btn-light" href="#menu-home">Abrir o menu <span>↑</span></a>
-        </section>
+        <a className={`matteo-service-option${restaurant?.acceptsPickup === false ? " is-disabled" : ""}`} href="#menu-home">
+          <span><PinIcon /></span>
+          <div><strong>Recolha</strong><small>{restaurant?.acceptsPickup === false ? "Indisponível" : "Pede e passa para buscar"}</small></div>
+          <b>→</b>
+        </a>
+      </section>
 
-        <section className="lab-franchise">
-          <span>EXPANSÃO VAIPIZZA</span>
-          <h2>Quer levar a VAIPIZZA para a sua cidade?</h2>
-          <button type="button" onClick={() => setFranchiseOpen(true)}>Seja um franqueado →</button>
-        </section>
-      </main>
+      <section className="matteo-menu-intro">
+        <p>ESCOLHE. PERSONALIZA. PEDE.</p>
+        <h2>Agora é só escolher a pizza.</h2>
+        <a href="#menu-home">Ver menu ↓</a>
+      </section>
 
-      <footer className="lab-footer">
-        <Link className="lab-footer-brand" to="/">
-          <img src={VAIPIZZA.logoPath} alt="" />
-          <strong>{VAIPIZZA.name}</strong>
-        </Link>
-        <span>{VAIPIZZA.serviceLabel} · {VAIPIZZA.tagline}</span>
+      <div className="matteo-menu-shell">
+        <RestaurantMenu restaurantSlug={VAIPIZZA.slug} embedded />
+      </div>
+
+      <section className="matteo-bottom-promo">
         <div>
-          <button type="button" onClick={() => setFranchiseOpen(true)}>Franquia</button>
-          <Link to="/privacidade">Privacidade</Link>
+          <small>VAIPIZZA</small>
+          <h2>Pediu? Vai.</h2>
+          <p>Do clique à entrega, sem complicação.</p>
         </div>
+        <a href="#menu-home">Abrir o menu →</a>
+      </section>
+
+      <section className="matteo-franchise">
+        <div>
+          <small>EXPANSÃO VAIPIZZA</small>
+          <h2>Quer levar a VAIPIZZA para a sua cidade?</h2>
+        </div>
+        <button type="button" onClick={() => setFranchiseOpen(true)}>Seja um franqueado →</button>
+      </section>
+
+      <footer className="matteo-footer">
+        <Link to="/" className="matteo-footer-brand"><img src={VAIPIZZA.logoPath} alt="" /><strong>{VAIPIZZA.name}</strong></Link>
+        <span>{VAIPIZZA.serviceLabel} · {VAIPIZZA.tagline}</span>
+        <Link to="/privacidade">Privacidade</Link>
       </footer>
 
       {franchiseOpen && <FranchiseModal onClose={() => setFranchiseOpen(false)} />}
