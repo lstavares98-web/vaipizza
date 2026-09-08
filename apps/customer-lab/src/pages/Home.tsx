@@ -21,32 +21,18 @@ interface HomeRestaurant {
   acceptsDelivery: boolean;
 }
 
-const FALLBACK_HERO =
-  "https://images.unsplash.com/photo-1579751626657-72bc17010498?q=86&w=2200&auto=format&fit=crop";
-
-const PROMOS = [
-  {
-    eyebrow: "DELIVERY & TAKEAWAY",
-    title: "HOJE VAI DE PIZZA",
-    lines: ["HOJE VAI", "DE PIZZA"],
-    detail: "Escolhe a tua favorita, personaliza e faz o pedido em poucos passos.",
-    badge: "PIZZA!",
-  },
-  {
-    eyebrow: "MONTA AO TEU GOSTO",
-    title: "TAMANHO MASSA E EXTRAS",
-    lines: ["DO TEU", "JEITO"],
-    detail: "Tamanho, massa, extras e ingredientes. A pizza fica como tu queres.",
-    badge: "VAI!",
-  },
-  {
-    eyebrow: "PEDIU? VAI.",
-    title: "ENTREGA OU RECOLHA",
-    lines: ["PEDIU?", "VAI."],
-    detail: "Recebe em casa ou passa para recolher. Tu escolhes como termina o pedido.",
-    badge: "RÁPIDO!",
-  },
+const FALLBACK_PIZZA_IMAGES = [
+  "https://images.unsplash.com/photo-1579751626657-72bc17010498?q=86&w=2200&auto=format&fit=crop",
+  "https://images.unsplash.com/photo-1513104890138-7c749659a591?q=86&w=2200&auto=format&fit=crop",
+  "https://images.unsplash.com/photo-1565299624946-b28f40a0ae38?q=86&w=2200&auto=format&fit=crop",
 ] as const;
+
+const HERO_COPY = {
+  eyebrow: "DELIVERY & TAKEAWAY",
+  title: "HOJE VAI DE PIZZA",
+  lines: ["HOJE VAI", "DE PIZZA"],
+  detail: "Escolhe a tua favorita, personaliza e faz o pedido em poucos passos.",
+} as const;
 
 export default function Home() {
   const { user } = useAuth();
@@ -55,7 +41,7 @@ export default function Home() {
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(false);
   const [franchiseOpen, setFranchiseOpen] = useState(false);
-  const [promoIndex, setPromoIndex] = useState(0);
+  const [imageIndex, setImageIndex] = useState(0);
 
   useEffect(() => {
     api
@@ -71,8 +57,11 @@ export default function Home() {
       .finally(() => setLoading(false));
   }, []);
 
-  const heroImage = restaurant?.bannerUrl ?? FALLBACK_HERO;
-  const promo = PROMOS[promoIndex] ?? PROMOS[0];
+  const pizzaImages = restaurant?.bannerUrl
+    ? [restaurant.bannerUrl, FALLBACK_PIZZA_IMAGES[1], FALLBACK_PIZZA_IMAGES[2]]
+    : [...FALLBACK_PIZZA_IMAGES];
+  const currentPizzaImage = pizzaImages[imageIndex] ?? pizzaImages[0] ?? FALLBACK_PIZZA_IMAGES[0];
+  const nextPizzaImage = pizzaImages[(imageIndex + 1) % pizzaImages.length] ?? currentPizzaImage;
   const cartCount = items.reduce((sum, item) => sum + item.quantity, 0);
   const statusLabel = loading
     ? "A ligar à loja"
@@ -82,8 +71,8 @@ export default function Home() {
         ? "Aberto para pedidos"
         : "Fechado neste momento";
 
-  const previousPromo = () => setPromoIndex((index) => (index - 1 + PROMOS.length) % PROMOS.length);
-  const nextPromo = () => setPromoIndex((index) => (index + 1) % PROMOS.length);
+  const previousPizza = () => setImageIndex((index) => (index - 1 + pizzaImages.length) % pizzaImages.length);
+  const nextPizza = () => setImageIndex((index) => (index + 1) % pizzaImages.length);
 
   return (
     <div className="lab-home matteo-lab">
@@ -116,20 +105,20 @@ export default function Home() {
         </header>
 
         <div className="matteo-slide" id="inicio">
-          <button className="matteo-arrow matteo-arrow-left" type="button" onClick={previousPromo} aria-label="Promoção anterior">
+          <button className="matteo-arrow matteo-arrow-left" type="button" onClick={previousPizza} aria-label="Pizza anterior">
             ‹
           </button>
 
-          <div className="matteo-pizza-stage" aria-hidden="true">
-            <div className="matteo-board" />
+          <div className="matteo-pizza-stage" aria-label="Pizzas em destaque">
+            <div className="matteo-board" aria-hidden="true" />
             <div className="matteo-pizza matteo-pizza-back">
-              <img src={heroImage} alt="" />
+              <img src={nextPizzaImage} alt="Pizza VAIPIZZA em segundo plano" />
             </div>
             <div className="matteo-pizza matteo-pizza-front">
-              <img src={heroImage} alt="" />
+              <img src={currentPizzaImage} alt="Pizza VAIPIZZA em destaque" />
             </div>
-            <span className="matteo-splash matteo-splash-one">{promo.badge}</span>
-            <span className="matteo-splash matteo-splash-two">VAIPIZZA</span>
+            <span className="matteo-splash matteo-splash-one" aria-hidden="true">PIZZA!</span>
+            <span className="matteo-splash matteo-splash-two" aria-hidden="true">VAIPIZZA</span>
           </div>
 
           <div className="matteo-copy">
@@ -137,12 +126,12 @@ export default function Home() {
               <span className={`matteo-status-dot${restaurant?.isOpen ? " is-open" : ""}`} />
               {statusLabel}
             </div>
-            <p className="matteo-eyebrow">{promo.eyebrow}</p>
-            <h1 aria-label={promo.title}>
-              <span>{promo.lines[0]}</span>
-              <span>{promo.lines[1]}</span>
+            <p className="matteo-eyebrow">{HERO_COPY.eyebrow}</p>
+            <h1 aria-label={HERO_COPY.title}>
+              <span>{HERO_COPY.lines[0]}</span>
+              <span>{HERO_COPY.lines[1]}</span>
             </h1>
-            <p className="matteo-detail">{promo.detail}</p>
+            <p className="matteo-detail">{HERO_COPY.detail}</p>
             <div className="matteo-actions">
               <a className="matteo-primary" href="#menu-home">Pedir agora</a>
               <a className="matteo-secondary" href="#como-receber">Como funciona</a>
@@ -153,18 +142,18 @@ export default function Home() {
             </div>
           </div>
 
-          <button className="matteo-arrow matteo-arrow-right" type="button" onClick={nextPromo} aria-label="Próxima promoção">
+          <button className="matteo-arrow matteo-arrow-right" type="button" onClick={nextPizza} aria-label="Próxima pizza">
             ›
           </button>
 
-          <div className="matteo-dots" aria-label="Selecionar promoção">
-            {PROMOS.map((item, index) => (
+          <div className="matteo-dots" aria-label="Selecionar pizza">
+            {pizzaImages.map((image, index) => (
               <button
-                key={item.title}
+                key={`${image}-${index}`}
                 type="button"
-                className={index === promoIndex ? "active" : ""}
-                aria-label={`Mostrar promoção ${index + 1}`}
-                onClick={() => setPromoIndex(index)}
+                className={index === imageIndex ? "active" : ""}
+                aria-label={`Mostrar pizza ${index + 1}`}
+                onClick={() => setImageIndex(index)}
               />
             ))}
           </div>
