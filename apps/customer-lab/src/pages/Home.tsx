@@ -72,7 +72,7 @@ export default function Home() {
   }, []);
 
   const heroImage = restaurant?.bannerUrl ?? FALLBACK_HERO;
-  const promo = PROMOS[promoIndex];
+  const promo = PROMOS[promoIndex] ?? PROMOS[0];
   const cartCount = items.reduce((sum, item) => sum + item.quantity, 0);
   const statusLabel = loading
     ? "A ligar à loja"
