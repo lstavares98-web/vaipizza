@@ -1,0 +1,1003 @@
+.lab-home {
+  --lab-red: #e52b24;
+  --lab-red-dark: #b81916;
+  --lab-yellow: #ffc928;
+  --lab-cream: #fff4d7;
+  --lab-paper: #fffaf0;
+  --lab-ink: #1f1612;
+  --lab-muted: #75655e;
+  --lab-line: rgba(31, 22, 18, 0.14);
+  min-height: 100vh;
+  overflow-x: hidden;
+  background: var(--lab-paper);
+  color: var(--lab-ink);
+  font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
+
+.lab-home *,
+.lab-home *::before,
+.lab-home *::after {
+  box-sizing: border-box;
+}
+
+.lab-topbar {
+  position: sticky;
+  top: 0;
+  z-index: 80;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 78px;
+  padding: 12px clamp(20px, 4vw, 68px);
+  border-bottom: 2px solid var(--lab-ink);
+  background: rgba(255, 250, 240, 0.95);
+  backdrop-filter: blur(14px);
+}
+
+.lab-brand,
+.lab-footer-brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 11px;
+  color: inherit;
+  text-decoration: none;
+}
+
+.lab-brand img,
+.lab-footer-brand img {
+  width: 48px;
+  height: 48px;
+  border-radius: 14px;
+  object-fit: cover;
+  box-shadow: 3px 3px 0 var(--lab-ink);
+}
+
+.lab-brand span {
+  display: grid;
+  line-height: 1;
+}
+
+.lab-brand strong {
+  font-size: 1.08rem;
+  letter-spacing: 0.08em;
+}
+
+.lab-brand small {
+  margin-top: 5px;
+  color: var(--lab-red);
+  font-size: 0.72rem;
+  font-weight: 900;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.lab-nav {
+  display: flex;
+  align-items: center;
+  gap: clamp(14px, 2.2vw, 30px);
+}
+
+.lab-nav a {
+  color: var(--lab-ink);
+  font-size: 0.9rem;
+  font-weight: 850;
+  text-decoration: none;
+}
+
+.lab-nav a:not(.lab-nav-order):hover {
+  color: var(--lab-red);
+}
+
+.lab-nav .lab-nav-order {
+  padding: 12px 18px;
+  border: 2px solid var(--lab-ink);
+  border-radius: 999px;
+  background: var(--lab-red);
+  color: white;
+  box-shadow: 3px 3px 0 var(--lab-ink);
+}
+
+.lab-hero {
+  position: relative;
+  display: grid;
+  grid-template-columns: minmax(0, 0.95fr) minmax(420px, 1.05fr);
+  min-height: 680px;
+  border-bottom: 2px solid var(--lab-ink);
+  background:
+    radial-gradient(circle at 6% 14%, rgba(255, 201, 40, 0.55) 0 9%, transparent 9.5%),
+    linear-gradient(115deg, var(--lab-cream) 0 54%, var(--lab-yellow) 54% 100%);
+}
+
+.lab-hero-copy {
+  position: relative;
+  z-index: 2;
+  align-self: center;
+  padding: clamp(52px, 7vw, 104px) clamp(24px, 5vw, 82px);
+}
+
+.lab-status-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  margin-bottom: 28px;
+  padding: 9px 13px;
+  border: 2px solid var(--lab-ink);
+  border-radius: 999px;
+  background: white;
+  font-size: 0.78rem;
+  font-weight: 900;
+  letter-spacing: 0.04em;
+  box-shadow: 3px 3px 0 var(--lab-ink);
+}
+
+.lab-status-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: #777;
+}
+
+.lab-status-dot.is-open {
+  background: #1ca84a;
+  box-shadow: 0 0 0 4px rgba(28, 168, 74, 0.14);
+}
+
+.lab-eyebrow,
+.lab-section-intro > p,
+.lab-offers-heading p,
+.lab-menu-bridge p,
+.lab-final-cta p,
+.lab-franchise > span {
+  margin: 0 0 14px;
+  color: var(--lab-red);
+  font-size: 0.76rem;
+  font-weight: 950;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+.lab-hero h1 {
+  max-width: 760px;
+  margin: 0;
+  font-size: clamp(3.7rem, 7.6vw, 8.4rem);
+  font-weight: 950;
+  line-height: 0.84;
+  letter-spacing: -0.075em;
+  text-transform: uppercase;
+}
+
+.lab-hero h1 span {
+  color: var(--lab-red);
+}
+
+.lab-hero-lead {
+  max-width: 620px;
+  margin: 26px 0 0;
+  color: #4d3f39;
+  font-size: clamp(1.03rem, 1.35vw, 1.28rem);
+  font-weight: 650;
+  line-height: 1.55;
+}
+
+.lab-hero-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px;
+  margin-top: 34px;
+}
+
+.lab-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 22px;
+  min-height: 56px;
+  padding: 0 24px;
+  border: 2px solid var(--lab-ink);
+  border-radius: 999px;
+  font-size: 0.94rem;
+  font-weight: 950;
+  text-decoration: none;
+  transition: transform 160ms ease, box-shadow 160ms ease;
+}
+
+.lab-btn:hover {
+  transform: translate(-2px, -2px);
+}
+
+.lab-btn-primary {
+  background: var(--lab-red);
+  color: white;
+  box-shadow: 5px 5px 0 var(--lab-ink);
+}
+
+.lab-btn-secondary {
+  background: white;
+  color: var(--lab-ink);
+  box-shadow: 5px 5px 0 var(--lab-yellow);
+}
+
+.lab-btn-light {
+  background: var(--lab-yellow);
+  color: var(--lab-ink);
+  box-shadow: 5px 5px 0 white;
+}
+
+.lab-hero-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 26px;
+  margin-top: 36px;
+  padding-top: 24px;
+  border-top: 1px solid rgba(31, 22, 18, 0.18);
+}
+
+.lab-hero-meta span {
+  display: grid;
+  gap: 4px;
+  max-width: 280px;
+  color: var(--lab-muted);
+  font-size: 0.82rem;
+  font-weight: 650;
+}
+
+.lab-hero-meta strong {
+  color: var(--lab-ink);
+  font-size: 0.7rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.lab-hero-visual {
+  position: relative;
+  display: grid;
+  place-items: center;
+  min-height: 620px;
+  overflow: hidden;
+}
+
+.lab-hero-visual::before,
+.lab-hero-visual::after {
+  content: "";
+  position: absolute;
+  width: 520px;
+  height: 520px;
+  border: 3px solid var(--lab-ink);
+  border-radius: 50%;
+}
+
+.lab-hero-visual::after {
+  width: 610px;
+  height: 610px;
+  border-style: dashed;
+  opacity: 0.28;
+  animation: lab-spin 28s linear infinite;
+}
+
+@keyframes lab-spin {
+  to { transform: rotate(360deg); }
+}
+
+.lab-pizza-frame {
+  position: relative;
+  z-index: 2;
+  width: min(72%, 560px);
+  aspect-ratio: 1;
+  border: 8px solid white;
+  border-radius: 50%;
+  overflow: hidden;
+  box-shadow: 14px 16px 0 var(--lab-red), 18px 20px 0 var(--lab-ink);
+  transform: rotate(-4deg);
+}
+
+.lab-pizza-frame img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.lab-burst {
+  position: absolute;
+  z-index: 4;
+  display: grid;
+  place-items: center;
+  width: 104px;
+  height: 104px;
+  border: 2px solid var(--lab-ink);
+  background: white;
+  font-size: 1.1rem;
+  font-weight: 950;
+  letter-spacing: -0.04em;
+  clip-path: polygon(50% 0%, 61% 20%, 82% 7%, 84% 31%, 100% 34%, 86% 52%, 99% 68%, 76% 70%, 78% 94%, 57% 82%, 44% 100%, 34% 80%, 11% 91%, 17% 66%, 0 57%, 20% 45%, 6% 25%, 31% 25%);
+}
+
+.lab-burst-one {
+  top: 12%;
+  right: 8%;
+  background: var(--lab-red);
+  color: white;
+  transform: rotate(12deg);
+}
+
+.lab-burst-two {
+  bottom: 12%;
+  left: 6%;
+  width: 82px;
+  height: 82px;
+  background: white;
+  color: var(--lab-red);
+  transform: rotate(-13deg);
+}
+
+.lab-price-sticker {
+  position: absolute;
+  z-index: 5;
+  right: 7%;
+  bottom: 10%;
+  display: grid;
+  place-items: center;
+  width: 132px;
+  height: 132px;
+  border: 3px solid var(--lab-ink);
+  border-radius: 50%;
+  background: var(--lab-cream);
+  text-align: center;
+  transform: rotate(8deg);
+  box-shadow: 6px 7px 0 var(--lab-ink);
+}
+
+.lab-price-sticker small {
+  font-size: 0.64rem;
+  font-weight: 950;
+  letter-spacing: 0.08em;
+}
+
+.lab-price-sticker strong {
+  color: var(--lab-red);
+  font-size: 1.5rem;
+  line-height: 1;
+}
+
+.lab-service-section,
+.lab-offers,
+.lab-confidence {
+  padding: clamp(62px, 8vw, 116px) clamp(20px, 5vw, 76px);
+}
+
+.lab-service-section {
+  display: grid;
+  grid-template-columns: minmax(250px, 0.6fr) minmax(0, 1.4fr);
+  gap: clamp(30px, 5vw, 74px);
+  align-items: end;
+  border-bottom: 2px solid var(--lab-ink);
+  background: white;
+}
+
+.lab-section-intro h2,
+.lab-offers-heading h2,
+.lab-menu-bridge h2,
+.lab-final-cta h2,
+.lab-franchise h2 {
+  margin: 0;
+  font-size: clamp(2.4rem, 5vw, 5.7rem);
+  line-height: 0.93;
+  letter-spacing: -0.055em;
+}
+
+.lab-service-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 18px;
+}
+
+.lab-service-card {
+  position: relative;
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  gap: 18px;
+  align-items: center;
+  min-height: 188px;
+  padding: clamp(22px, 3vw, 34px);
+  border: 2px solid var(--lab-ink);
+  border-radius: 28px;
+  color: var(--lab-ink);
+  text-decoration: none;
+  box-shadow: 6px 7px 0 var(--lab-ink);
+  transition: transform 160ms ease, box-shadow 160ms ease;
+}
+
+.lab-service-card:hover {
+  transform: translate(-3px, -3px);
+  box-shadow: 9px 10px 0 var(--lab-ink);
+}
+
+.lab-delivery { background: var(--lab-yellow); }
+.lab-pickup { background: var(--lab-red); color: white; }
+.lab-service-card.is-disabled { opacity: 0.58; filter: grayscale(0.3); }
+
+.lab-service-icon {
+  display: grid;
+  place-items: center;
+  width: 58px;
+  height: 58px;
+  border: 2px solid currentColor;
+  border-radius: 18px;
+  background: rgba(255,255,255,0.26);
+}
+
+.lab-service-icon svg {
+  width: 30px;
+  height: 30px;
+}
+
+.lab-service-card small {
+  display: block;
+  margin-bottom: 7px;
+  font-size: 0.68rem;
+  font-weight: 950;
+  letter-spacing: 0.1em;
+}
+
+.lab-service-card h3 {
+  margin: 0;
+  font-size: clamp(1.65rem, 2.5vw, 2.4rem);
+  letter-spacing: -0.045em;
+}
+
+.lab-service-card p {
+  margin: 7px 0 0;
+  max-width: 340px;
+  font-size: 0.9rem;
+  font-weight: 650;
+  line-height: 1.45;
+  opacity: 0.82;
+}
+
+.lab-service-card > b {
+  font-size: 1.8rem;
+}
+
+.lab-offers {
+  border-bottom: 2px solid var(--lab-ink);
+  background: var(--lab-cream);
+}
+
+.lab-offers-heading {
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+  gap: 30px;
+  margin-bottom: 38px;
+}
+
+.lab-offers-heading > a {
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+  padding-bottom: 6px;
+  border-bottom: 2px solid var(--lab-ink);
+  color: var(--lab-ink);
+  font-weight: 900;
+  text-decoration: none;
+}
+
+.lab-offer-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 18px;
+}
+
+.lab-offer-card {
+  position: relative;
+  min-height: 330px;
+  padding: 30px;
+  border: 2px solid var(--lab-ink);
+  border-radius: 28px;
+  color: var(--lab-ink);
+  text-decoration: none;
+  overflow: hidden;
+  box-shadow: 6px 7px 0 var(--lab-ink);
+  transition: transform 160ms ease;
+}
+
+.lab-offer-card:hover { transform: translateY(-5px) rotate(-0.4deg); }
+.lab-offer-red { background: var(--lab-red); color: white; }
+.lab-offer-yellow { background: var(--lab-yellow); }
+.lab-offer-cream { background: white; }
+
+.lab-offer-number {
+  position: absolute;
+  top: 20px;
+  right: 22px;
+  font-size: 4.5rem;
+  font-weight: 950;
+  line-height: 1;
+  opacity: 0.13;
+}
+
+.lab-offer-card small {
+  display: block;
+  margin-bottom: 36px;
+  font-size: 0.68rem;
+  font-weight: 950;
+  letter-spacing: 0.12em;
+}
+
+.lab-offer-card h3 {
+  margin: 0;
+  font-size: clamp(2rem, 3.1vw, 3.7rem);
+  line-height: 0.94;
+  letter-spacing: -0.055em;
+}
+
+.lab-offer-card p {
+  max-width: 310px;
+  margin: 22px 0 30px;
+  font-weight: 650;
+  line-height: 1.45;
+  opacity: 0.84;
+}
+
+.lab-offer-card b {
+  display: inline-block;
+  padding-bottom: 5px;
+  border-bottom: 2px solid currentColor;
+  font-size: 0.84rem;
+}
+
+.lab-menu-bridge {
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+  gap: 24px;
+  padding: clamp(54px, 7vw, 94px) clamp(20px, 5vw, 76px) 34px;
+  background: var(--lab-paper);
+}
+
+.lab-menu-bridge > span {
+  color: var(--lab-red);
+  font-size: clamp(4rem, 7vw, 8rem);
+  font-weight: 200;
+  line-height: 0.8;
+}
+
+.lab-menu-shell {
+  position: relative;
+  background: var(--lab-paper);
+}
+
+/* The menu logic stays untouched; these selectors only restyle the embedded presentation in the lab. */
+.lab-home .order-page-embedded {
+  background: var(--lab-paper);
+}
+
+.lab-home .order-page-embedded .order-content {
+  max-width: none;
+  padding-left: clamp(20px, 5vw, 76px);
+  padding-right: clamp(20px, 5vw, 76px);
+}
+
+.lab-home .order-page-embedded .editorial-menu-heading {
+  padding-top: 20px;
+  border-top: 2px solid var(--lab-ink);
+}
+
+.lab-home .order-page-embedded .menu-kicker {
+  color: var(--lab-red);
+  font-weight: 950;
+  letter-spacing: 0.12em;
+}
+
+.lab-home .order-page-embedded .editorial-category-tabs {
+  top: 78px;
+  border: 2px solid var(--lab-ink);
+  border-radius: 999px;
+  background: white;
+  box-shadow: 4px 5px 0 var(--lab-ink);
+}
+
+.lab-home .order-page-embedded .category-tab {
+  font-weight: 850;
+}
+
+.lab-home .order-page-embedded .category-tab.active {
+  background: var(--lab-red);
+  color: white;
+}
+
+.lab-home .order-page-embedded .editorial-product-card,
+.lab-home .order-page-embedded .combo-product-card {
+  overflow: hidden;
+  border: 2px solid var(--lab-ink);
+  border-radius: 24px;
+  background: white;
+  box-shadow: 5px 6px 0 rgba(31, 22, 18, 0.88);
+  transition: transform 150ms ease, box-shadow 150ms ease;
+}
+
+.lab-home .order-page-embedded .editorial-product-card:hover,
+.lab-home .order-page-embedded .combo-product-card:hover {
+  transform: translate(-2px, -4px);
+  box-shadow: 8px 10px 0 rgba(31, 22, 18, 0.9);
+}
+
+.lab-home .order-page-embedded .product-card-image {
+  min-height: 220px;
+  background-color: var(--lab-cream);
+}
+
+.lab-home .order-page-embedded .product-card-action {
+  display: grid;
+  place-items: center;
+  width: 42px;
+  height: 42px;
+  border: 2px solid var(--lab-ink);
+  border-radius: 50%;
+  background: var(--lab-yellow);
+  color: var(--lab-ink);
+  font-size: 1.35rem;
+  font-weight: 950;
+  box-shadow: 2px 2px 0 var(--lab-ink);
+}
+
+.lab-home .order-page-embedded .product-card-copy {
+  padding: 20px 20px 22px;
+}
+
+.lab-home .order-page-embedded .product-card-title-row h3 {
+  font-size: 1.2rem;
+  letter-spacing: -0.025em;
+}
+
+.lab-home .order-page-embedded .product-card-title-row .price,
+.lab-home .order-page-embedded .combo-card-price .price {
+  color: var(--lab-red);
+  font-weight: 950;
+}
+
+.lab-home .order-page-embedded .product-card-choose {
+  color: var(--lab-red);
+  font-weight: 900;
+}
+
+.lab-home .order-page-embedded .desktop-order-cart {
+  border: 2px solid var(--lab-ink);
+  border-radius: 24px;
+  background: var(--lab-yellow);
+  box-shadow: 6px 7px 0 var(--lab-ink);
+}
+
+.lab-home .order-page-embedded .menu-cart-bar {
+  background: var(--lab-red);
+  color: white;
+}
+
+.lab-confidence {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0;
+  padding-top: 0;
+  padding-bottom: 0;
+  border-top: 2px solid var(--lab-ink);
+  border-bottom: 2px solid var(--lab-ink);
+  background: white;
+}
+
+.lab-confidence article {
+  min-height: 250px;
+  padding: 36px;
+  border-right: 2px solid var(--lab-ink);
+}
+
+.lab-confidence article:last-child { border-right: 0; }
+
+.lab-confidence article > span {
+  color: var(--lab-red);
+  font-size: 0.75rem;
+  font-weight: 950;
+}
+
+.lab-confidence h3 {
+  margin: 54px 0 12px;
+  font-size: clamp(2rem, 3vw, 3.4rem);
+  letter-spacing: -0.05em;
+}
+
+.lab-confidence p {
+  max-width: 360px;
+  margin: 0;
+  color: var(--lab-muted);
+  font-weight: 600;
+  line-height: 1.5;
+}
+
+.lab-final-cta {
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+  gap: 30px;
+  padding: clamp(66px, 9vw, 126px) clamp(20px, 5vw, 76px);
+  border-bottom: 2px solid var(--lab-ink);
+  background: var(--lab-red);
+  color: white;
+}
+
+.lab-final-cta p { color: var(--lab-yellow); }
+.lab-final-cta h2 { max-width: 760px; }
+
+.lab-franchise {
+  display: grid;
+  grid-template-columns: 0.35fr 1fr auto;
+  gap: 30px;
+  align-items: center;
+  padding: 40px clamp(20px, 5vw, 76px);
+  border-bottom: 2px solid var(--lab-ink);
+  background: var(--lab-yellow);
+}
+
+.lab-franchise > span {
+  margin: 0;
+  color: var(--lab-red);
+}
+
+.lab-franchise h2 {
+  font-size: clamp(1.8rem, 3.2vw, 3.8rem);
+}
+
+.lab-franchise button,
+.lab-footer button {
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  font-weight: 900;
+  cursor: pointer;
+}
+
+.lab-franchise button {
+  padding: 13px 18px;
+  border: 2px solid var(--lab-ink);
+  border-radius: 999px;
+  background: white;
+  box-shadow: 3px 3px 0 var(--lab-ink);
+}
+
+.lab-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 22px;
+  padding: 26px clamp(20px, 5vw, 76px);
+  background: var(--lab-ink);
+  color: white;
+}
+
+.lab-footer-brand img {
+  width: 38px;
+  height: 38px;
+  box-shadow: none;
+}
+
+.lab-footer > span {
+  color: rgba(255,255,255,0.62);
+  font-size: 0.82rem;
+}
+
+.lab-footer > div {
+  display: flex;
+  gap: 18px;
+}
+
+.lab-footer a,
+.lab-footer button {
+  color: white;
+  font-size: 0.82rem;
+  text-decoration: none;
+}
+
+@media (max-width: 1080px) {
+  .lab-nav > a:not(.lab-nav-order):first-child { display: none; }
+
+  .lab-hero {
+    grid-template-columns: 1fr;
+  }
+
+  .lab-hero-copy {
+    padding-bottom: 34px;
+  }
+
+  .lab-hero-visual {
+    min-height: 520px;
+    border-top: 2px solid var(--lab-ink);
+  }
+
+  .lab-service-section {
+    grid-template-columns: 1fr;
+    align-items: stretch;
+  }
+
+  .lab-offer-grid {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .lab-offer-card:last-child {
+    grid-column: 1 / -1;
+  }
+
+  .lab-franchise {
+    grid-template-columns: 1fr;
+  }
+
+  .lab-franchise button {
+    justify-self: start;
+  }
+}
+
+@media (max-width: 760px) {
+  .lab-topbar {
+    min-height: 68px;
+    padding: 10px 16px;
+  }
+
+  .lab-brand img {
+    width: 42px;
+    height: 42px;
+  }
+
+  .lab-brand small { display: none; }
+  .lab-nav { gap: 10px; }
+  .lab-nav > a:not(.lab-nav-order) { display: none; }
+  .lab-nav .lab-nav-order { padding: 10px 14px; }
+
+  .lab-hero-copy {
+    padding: 46px 18px 30px;
+  }
+
+  .lab-hero h1 {
+    font-size: clamp(3.5rem, 18vw, 6rem);
+  }
+
+  .lab-hero-lead {
+    font-size: 1rem;
+  }
+
+  .lab-hero-actions {
+    display: grid;
+    grid-template-columns: 1fr;
+  }
+
+  .lab-btn {
+    width: 100%;
+  }
+
+  .lab-hero-meta {
+    display: grid;
+    gap: 12px;
+  }
+
+  .lab-hero-visual {
+    min-height: 410px;
+  }
+
+  .lab-hero-visual::before {
+    width: 330px;
+    height: 330px;
+  }
+
+  .lab-hero-visual::after {
+    width: 390px;
+    height: 390px;
+  }
+
+  .lab-pizza-frame {
+    width: 72%;
+    border-width: 5px;
+    box-shadow: 9px 10px 0 var(--lab-red), 12px 13px 0 var(--lab-ink);
+  }
+
+  .lab-price-sticker {
+    width: 96px;
+    height: 96px;
+    right: 4%;
+    bottom: 7%;
+  }
+
+  .lab-price-sticker strong { font-size: 1.08rem; }
+  .lab-burst-one { top: 6%; right: 4%; }
+  .lab-burst-two { bottom: 8%; left: 2%; }
+
+  .lab-service-section,
+  .lab-offers,
+  .lab-confidence {
+    padding-left: 16px;
+    padding-right: 16px;
+  }
+
+  .lab-service-grid,
+  .lab-offer-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .lab-service-card {
+    grid-template-columns: auto 1fr;
+    min-height: 154px;
+  }
+
+  .lab-service-card > b { display: none; }
+
+  .lab-offer-card,
+  .lab-offer-card:last-child {
+    grid-column: auto;
+    min-height: 280px;
+  }
+
+  .lab-offers-heading,
+  .lab-final-cta,
+  .lab-menu-bridge {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .lab-menu-bridge,
+  .lab-final-cta {
+    padding-left: 16px;
+    padding-right: 16px;
+  }
+
+  .lab-menu-bridge > span { display: none; }
+
+  .lab-home .order-page-embedded .order-content {
+    padding-left: 14px;
+    padding-right: 14px;
+  }
+
+  .lab-home .order-page-embedded .editorial-category-tabs {
+    top: 68px;
+    border-radius: 18px;
+  }
+
+  .lab-home .order-page-embedded .product-card-image {
+    min-height: 180px;
+  }
+
+  .lab-confidence {
+    grid-template-columns: 1fr;
+    padding: 0;
+  }
+
+  .lab-confidence article {
+    min-height: 190px;
+    padding: 28px 20px;
+    border-right: 0;
+    border-bottom: 2px solid var(--lab-ink);
+  }
+
+  .lab-confidence article:last-child { border-bottom: 0; }
+  .lab-confidence h3 { margin-top: 32px; }
+
+  .lab-final-cta {
+    display: grid;
+  }
+
+  .lab-franchise {
+    padding-left: 16px;
+    padding-right: 16px;
+  }
+
+  .lab-footer {
+    align-items: flex-start;
+    flex-direction: column;
+    padding: 24px 16px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .lab-hero-visual::after { animation: none; }
+  .lab-btn,
+  .lab-service-card,
+  .lab-offer-card,
+  .lab-home .order-page-embedded .editorial-product-card,
+  .lab-home .order-page-embedded .combo-product-card {
+    transition: none;
+  }
+}
