@@ -7,6 +7,7 @@ import { useAuth } from "../context/AuthContext";
 import { useCart } from "../context/CartContext";
 import { api } from "../lib/api";
 import "../lab-home.css";
+import "../matteo-carousel.css";
 import RestaurantMenu from "./RestaurantMenu";
 
 interface HomeRestaurant {
@@ -27,12 +28,38 @@ const FALLBACK_PIZZA_IMAGES = [
   "https://images.unsplash.com/photo-1565299624946-b28f40a0ae38?q=86&w=2200&auto=format&fit=crop",
 ] as const;
 
-const HERO_COPY = {
-  eyebrow: "DELIVERY & TAKEAWAY",
-  title: "HOJE VAI DE PIZZA",
-  lines: ["HOJE VAI", "DE PIZZA"],
-  detail: "Escolhe a tua favorita, personaliza e faz o pedido em poucos passos.",
-} as const;
+const HERO_SLIDES = [
+  {
+    id: "pizza-day",
+    eyebrow: "DELIVERY & TAKEAWAY",
+    title: "HOJE VAI DE PIZZA",
+    lines: ["HOJE VAI", "DE PIZZA"],
+    detail: "Escolhe a tua favorita, personaliza e faz o pedido em poucos passos.",
+    badge: "PIZZA!",
+    layout: "duo",
+    images: [0, 1],
+  },
+  {
+    id: "two-pizzas",
+    eyebrow: "PARA PARTILHAR",
+    title: "DUAS PIZZAS UM BOM PLANO",
+    lines: ["DUAS PIZZAS", "UM BOM PLANO"],
+    detail: "Junta duas favoritas, acrescenta bebida e resolve o jantar sem complicação.",
+    badge: "VAI 2!",
+    layout: "trio",
+    images: [1, 2, 0],
+  },
+  {
+    id: "build-yours",
+    eyebrow: "DO TEU JEITO",
+    title: "MONTA A TUA PIZZA",
+    lines: ["MONTA A", "TUA PIZZA"],
+    detail: "Escolhe tamanho, massa, extras e ingredientes. A pizza fica mesmo tua.",
+    badge: "À TUA!",
+    layout: "reverse",
+    images: [2, 0],
+  },
+] as const;
 
 export default function Home() {
   const { user } = useAuth();
@@ -41,7 +68,7 @@ export default function Home() {
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(false);
   const [franchiseOpen, setFranchiseOpen] = useState(false);
-  const [imageIndex, setImageIndex] = useState(0);
+  const [slideIndex, setSlideIndex] = useState(0);
 
   useEffect(() => {
     api
@@ -60,8 +87,7 @@ export default function Home() {
   const pizzaImages = restaurant?.bannerUrl
     ? [restaurant.bannerUrl, FALLBACK_PIZZA_IMAGES[1], FALLBACK_PIZZA_IMAGES[2]]
     : [...FALLBACK_PIZZA_IMAGES];
-  const currentPizzaImage = pizzaImages[imageIndex] ?? pizzaImages[0] ?? FALLBACK_PIZZA_IMAGES[0];
-  const nextPizzaImage = pizzaImages[(imageIndex + 1) % pizzaImages.length] ?? currentPizzaImage;
+  const getPizzaImage = (index: number) => pizzaImages[index] ?? FALLBACK_PIZZA_IMAGES[0];
   const cartCount = items.reduce((sum, item) => sum + item.quantity, 0);
   const statusLabel = loading
     ? "A ligar à loja"
@@ -71,12 +97,12 @@ export default function Home() {
         ? "Aberto para pedidos"
         : "Fechado neste momento";
 
-  const previousPizza = () => setImageIndex((index) => (index - 1 + pizzaImages.length) % pizzaImages.length);
-  const nextPizza = () => setImageIndex((index) => (index + 1) % pizzaImages.length);
+  const previousSlide = () => setSlideIndex((index) => (index - 1 + HERO_SLIDES.length) % HERO_SLIDES.length);
+  const nextSlide = () => setSlideIndex((index) => (index + 1) % HERO_SLIDES.length);
 
   return (
     <div className="lab-home matteo-lab">
-      <section className="matteo-hero" aria-label="Promoções em destaque">
+      <section className="matteo-hero matteo-hero-carousel" aria-label="Promoções em destaque">
         <header className="matteo-nav-shell">
           <a className="matteo-order-contact" href="#menu-home">
             <span className="matteo-phone-icon" aria-hidden="true">↗</span>
@@ -104,56 +130,69 @@ export default function Home() {
           </Link>
         </header>
 
-        <div className="matteo-slide" id="inicio">
-          <button className="matteo-arrow matteo-arrow-left" type="button" onClick={previousPizza} aria-label="Pizza anterior">
+        <div className="matteo-carousel" id="inicio">
+          <button className="matteo-arrow matteo-arrow-left" type="button" onClick={previousSlide} aria-label="Promoção anterior">
             ‹
           </button>
 
-          <div className="matteo-pizza-stage" aria-label="Pizzas em destaque">
-            <div className="matteo-board" aria-hidden="true" />
-            <div className="matteo-pizza matteo-pizza-back">
-              <img src={nextPizzaImage} alt="Pizza VAIPIZZA em segundo plano" />
+          <div className="matteo-carousel-window">
+            <div
+              className="matteo-carousel-track"
+              style={{ transform: `translate3d(-${slideIndex * 100}%, 0, 0)` }}
+            >
+              {HERO_SLIDES.map((slide) => (
+                <article className={`matteo-campaign matteo-campaign-${slide.layout}`} key={slide.id} aria-label={slide.title}>
+                  <div className="matteo-campaign-visual" aria-hidden="true">
+                    <div className="matteo-board" />
+                    {slide.images.map((imageIndex, position) => (
+                      <div
+                        className={`matteo-product-shot matteo-product-shot-${position + 1}`}
+                        key={`${slide.id}-${imageIndex}-${position}`}
+                      >
+                        <img src={getPizzaImage(imageIndex)} alt="" />
+                      </div>
+                    ))}
+                    <span className="matteo-splash matteo-splash-one">{slide.badge}</span>
+                    <span className="matteo-splash matteo-splash-two">VAIPIZZA</span>
+                  </div>
+
+                  <div className="matteo-copy matteo-campaign-copy">
+                    <div className="matteo-status">
+                      <span className={`matteo-status-dot${restaurant?.isOpen ? " is-open" : ""}`} />
+                      {statusLabel}
+                    </div>
+                    <p className="matteo-eyebrow">{slide.eyebrow}</p>
+                    <h1 aria-label={slide.title}>
+                      <span>{slide.lines[0]}</span>
+                      <span>{slide.lines[1]}</span>
+                    </h1>
+                    <p className="matteo-detail">{slide.detail}</p>
+                    <div className="matteo-actions">
+                      <a className="matteo-primary" href="#menu-home">Pedir agora</a>
+                      <a className="matteo-secondary" href="#como-receber">Como funciona</a>
+                    </div>
+                    <div className="matteo-meta">
+                      {restaurant?.todayHours && <span><small>HOJE</small>{restaurant.todayHours}</span>}
+                      {cartCount > 0 && <span><small>NO CARRINHO</small>{cartCount} itens · {subtotal.toFixed(2)} €</span>}
+                    </div>
+                  </div>
+                </article>
+              ))}
             </div>
-            <div className="matteo-pizza matteo-pizza-front">
-              <img src={currentPizzaImage} alt="Pizza VAIPIZZA em destaque" />
-            </div>
-            <span className="matteo-splash matteo-splash-one" aria-hidden="true">PIZZA!</span>
-            <span className="matteo-splash matteo-splash-two" aria-hidden="true">VAIPIZZA</span>
           </div>
 
-          <div className="matteo-copy">
-            <div className="matteo-status">
-              <span className={`matteo-status-dot${restaurant?.isOpen ? " is-open" : ""}`} />
-              {statusLabel}
-            </div>
-            <p className="matteo-eyebrow">{HERO_COPY.eyebrow}</p>
-            <h1 aria-label={HERO_COPY.title}>
-              <span>{HERO_COPY.lines[0]}</span>
-              <span>{HERO_COPY.lines[1]}</span>
-            </h1>
-            <p className="matteo-detail">{HERO_COPY.detail}</p>
-            <div className="matteo-actions">
-              <a className="matteo-primary" href="#menu-home">Pedir agora</a>
-              <a className="matteo-secondary" href="#como-receber">Como funciona</a>
-            </div>
-            <div className="matteo-meta">
-              {restaurant?.todayHours && <span><small>HOJE</small>{restaurant.todayHours}</span>}
-              {cartCount > 0 && <span><small>NO CARRINHO</small>{cartCount} itens · {subtotal.toFixed(2)} €</span>}
-            </div>
-          </div>
-
-          <button className="matteo-arrow matteo-arrow-right" type="button" onClick={nextPizza} aria-label="Próxima pizza">
+          <button className="matteo-arrow matteo-arrow-right" type="button" onClick={nextSlide} aria-label="Próxima promoção">
             ›
           </button>
 
-          <div className="matteo-dots" aria-label="Selecionar pizza">
-            {pizzaImages.map((image, index) => (
+          <div className="matteo-dots" aria-label="Selecionar promoção">
+            {HERO_SLIDES.map((slide, index) => (
               <button
-                key={`${image}-${index}`}
+                key={slide.id}
                 type="button"
-                className={index === imageIndex ? "active" : ""}
-                aria-label={`Mostrar pizza ${index + 1}`}
-                onClick={() => setImageIndex(index)}
+                className={index === slideIndex ? "active" : ""}
+                aria-label={`Mostrar promoção ${index + 1}`}
+                onClick={() => setSlideIndex(index)}
               />
             ))}
           </div>
