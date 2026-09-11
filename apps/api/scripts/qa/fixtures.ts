@@ -4,9 +4,11 @@ import type { PrismaClient } from "@prisma/client";
 import type { QaConfig, QaRunManifest } from "./types.js";
 import { assertMutationConfirmation } from "./config.js";
 import { expectQaSuccess, qaRequest } from "./http.js";
-import { qaCourierEmail, qaEmail, saveManifest } from "./manifest.js";
+import { qaCourierEmail, qaEmail, qaOperatorEmail, saveManifest } from "./manifest.js";
 
 const BCRYPT_ROUNDS = 12;
+
+export type QaOperatorKind = "staff" | "kitchen";
 
 export interface QaCustomerSession {
   userId: string;
@@ -20,6 +22,14 @@ export interface QaCourierSession {
   courierId: string;
   email: string;
   password: string;
+}
+
+export interface QaOperatorSession {
+  userId: string;
+  email: string;
+  password: string;
+  accessToken: string;
+  role: "RESTAURANT_STAFF" | "KITCHEN";
 }
 
 export interface QaCourierFixtureOptions {
@@ -40,6 +50,14 @@ export function qaPhone(index: number): string {
 
 export function createQaPassword(): string {
   return `${randomBytes(18).toString("base64url")}Aa1!`;
+}
+
+export function qaOperatorRole(kind: QaOperatorKind): "RESTAURANT_STAFF" | "KITCHEN" {
+  return kind === "staff" ? "RESTAURANT_STAFF" : "KITCHEN";
+}
+
+export function qaOperatorLoginPath(kind: QaOperatorKind): "/api/auth/restaurant/login" | "/api/auth/kitchen/login" {
+  return kind === "staff" ? "/api/auth/restaurant/login" : "/api/auth/kitchen/login";
 }
 
 export async function createQaCustomer(
@@ -70,6 +88,44 @@ export async function createQaCustomer(
   manifest.customerUserIds.push(data.user.id);
   await saveManifest(manifest);
   return { userId: data.user.id, email, password, accessToken: data.accessToken };
+}
+
+export async function createQaOperatorFixture(
+  prisma: PrismaClient,
+  config: QaConfig,
+  manifest: QaRunManifest,
+  kind: QaOperatorKind,
+): Promise<QaOperatorSession> {
+  assertMutationConfirmation(config);
+  const slug = process.env.PRIMARY_RESTAURANT_SLUG ?? "vaipizza";
+  const restaurant = await prisma.restaurant.findUnique({ where: { slug }, select: { id: true } });
+  if (!restaurant) throw new Error(`QA operator restaurant not found: ${slug}`);
+
+  const email = qaOperatorEmail(manifest.runId, kind);
+  const password = createQaPassword();
+  const passwordHash = await bcrypt.hash(password, BCRYPT_ROUNDS);
+  const role = qaOperatorRole(kind);
+  const user = await prisma.user.create({
+    data: {
+      email,
+      passwordHash,
+      name: `[QA ${manifest.runId}] Operador ${kind}`,
+      phone: qaPhone(kind === "staff" ? 8_000_001 : 8_000_002),
+      role,
+      restaurantId: restaurant.id,
+    },
+  });
+  manifest.operatorUserIds.push(user.id);
+  await saveManifest(manifest);
+
+  const response = await qaRequest<{ success: boolean; accessToken: string; message?: string }>(
+    config,
+    qaOperatorLoginPath(kind),
+    { method: "POST", body: { email, password } },
+  );
+  const data = expectQaSuccess(response, `Login QA ${kind} operator`);
+  if (!data.accessToken) throw new Error(`QA ${kind} operator login returned no access token`);
+  return { userId: user.id, email, password, accessToken: data.accessToken, role };
 }
 
 export async function createQaCatalogFixture(
