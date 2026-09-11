@@ -33,12 +33,12 @@ export interface CleanupResult {
 }
 
 function expectedCustomerEmail(runId: string, email: string) {
-  const prefix = `qa+${runId}-`;
+  const prefix = `qa+${runId.toLowerCase()}-`;
   return email.startsWith(prefix) && !email.startsWith(`${prefix}courier-`) && email.endsWith("@vaipizza.test");
 }
 
 function expectedCourierEmail(runId: string, email: string) {
-  return email.startsWith(`qa+${runId}-courier-`) && email.endsWith("@vaipizza.test");
+  return email.startsWith(`qa+${runId.toLowerCase()}-courier-`) && email.endsWith("@vaipizza.test");
 }
 
 export function validateCleanupOwnership(manifest: QaRunManifest, snapshot: CleanupOwnershipSnapshot): void {
