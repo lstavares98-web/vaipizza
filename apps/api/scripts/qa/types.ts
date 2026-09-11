@@ -1,0 +1,44 @@
+export type QaScenarioStatus = "PASS" | "FAIL" | "SKIP";
+
+export interface QaConfig {
+  environment: string;
+  apiUrl: string;
+  apiHostname: string;
+  allowedApiHosts: string[];
+  databaseHostname: string;
+  supabaseProjectRef: string;
+  mutationConfirmation?: string;
+}
+
+export interface QaScenarioResult {
+  name: string;
+  status: QaScenarioStatus;
+  durationMs: number;
+  details?: Record<string, unknown>;
+  reason?: string;
+}
+
+export interface QaResult {
+  runId: string;
+  startedAt: string;
+  finishedAt?: string;
+  status: "PASS" | "FAIL";
+  scenarios: QaScenarioResult[];
+}
+
+export interface QaRunManifest {
+  runId: string;
+  createdAt: string;
+  environment: "staging";
+  apiHost: string;
+  supabaseProjectRef: string;
+  scenarioNames: string[];
+  customerUserIds: string[];
+  courierUserIds: string[];
+  courierIds: string[];
+  addressIds: string[];
+  categoryIds: string[];
+  productIds: string[];
+  orderIds: string[];
+  timings: Record<string, number>;
+}

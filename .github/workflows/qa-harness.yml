@@ -1,0 +1,32 @@
+name: QA Harness Safety
+
+on:
+  push:
+    branches:
+      - feature/qa-harness-safe
+  pull_request:
+    branches:
+      - redesign-vaipizza
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: QA guardrail tests
+        run: npm run qa:test
+
+      - name: Existing API tests
+        run: npm run test -w apps/api

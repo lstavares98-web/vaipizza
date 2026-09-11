@@ -12,6 +12,7 @@ node_modules
 dist
 dist-ssr
 *.local
+qa-artifacts/
 
 # Editor directories and files
 .vscode/*
