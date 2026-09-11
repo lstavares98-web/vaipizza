@@ -4,6 +4,7 @@ import { readJsonArtifact, writeJsonArtifact } from "./artifacts.js";
 const RUN_ID_PATTERN = /^QA-\d{8}-\d{6}(?:-[A-Za-z0-9_-]+)?$/;
 const ID_ARRAY_KEYS = [
   "customerUserIds",
+  "operatorUserIds",
   "courierUserIds",
   "courierIds",
   "addressIds",
@@ -55,6 +56,7 @@ export function createEmptyManifest(config: QaConfig, runId = createRunId()): Qa
     supabaseProjectRef: config.supabaseProjectRef,
     scenarioNames: [],
     customerUserIds: [],
+    operatorUserIds: [],
     courierUserIds: [],
     courierIds: [],
     addressIds: [],
@@ -95,6 +97,7 @@ export function manifestForPersistence(manifest: QaRunManifest): QaRunManifest {
     supabaseProjectRef: manifest.supabaseProjectRef,
     scenarioNames: [...manifest.scenarioNames],
     customerUserIds: [...manifest.customerUserIds],
+    operatorUserIds: [...manifest.operatorUserIds],
     courierUserIds: [...manifest.courierUserIds],
     courierIds: [...manifest.courierIds],
     addressIds: [...manifest.addressIds],
