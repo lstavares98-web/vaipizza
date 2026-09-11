@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { assertFunctionalDeliveredState, combineFunctionalAndCleanupErrors } from "./functional.js";
+import {
+  assertFunctionalDeliveredState,
+  combineFunctionalAndCleanupErrors,
+  runWithGuaranteedCleanup,
+} from "./functional.js";
 
 describe("functional QA final validation", () => {
   it("accepts a delivered cash order visible in courier history with earnings", () => {
@@ -33,5 +37,31 @@ describe("functional QA final validation", () => {
     const error = combineFunctionalAndCleanupErrors(new Error("scenario failed"), new Error("cleanup failed"));
     expect(error.message).toMatch(/scenario failed/i);
     expect(error.message).toMatch(/cleanup failed/i);
+  });
+
+  it("always runs cleanup after a successful scenario", async () => {
+    const events: string[] = [];
+    const result = await runWithGuaranteedCleanup(
+      async () => { events.push("scenario"); return "ok"; },
+      async () => { events.push("cleanup"); },
+    );
+    expect(result).toBe("ok");
+    expect(events).toEqual(["scenario", "cleanup"]);
+  });
+
+  it("runs cleanup after a failed scenario and keeps the scenario error", async () => {
+    const events: string[] = [];
+    await expect(runWithGuaranteedCleanup(
+      async () => { events.push("scenario"); throw new Error("scenario failed"); },
+      async () => { events.push("cleanup"); },
+    )).rejects.toThrow(/scenario failed/i);
+    expect(events).toEqual(["scenario", "cleanup"]);
+  });
+
+  it("reports cleanup failure even when the scenario also failed", async () => {
+    await expect(runWithGuaranteedCleanup(
+      async () => { throw new Error("scenario failed"); },
+      async () => { throw new Error("cleanup failed"); },
+    )).rejects.toThrow(/cleanup also failed/i);
   });
 });
