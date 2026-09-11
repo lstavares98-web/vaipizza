@@ -1,14 +1,9 @@
 import { useCallback, useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { MapContainer, Marker, Polyline, Popup, TileLayer } from "react-leaflet";
-import "leaflet/dist/leaflet.css";
 import { api } from "../lib/api";
 import { getSocket } from "../lib/socket";
 import { useCourierRuntime } from "../context/CourierRuntimeContext";
 import { buildDirectionsUrl, getDeliveryStep } from "../lib/deliveryPresentation";
-import { fixLeafletIcons } from "../lib/leafletIcons";
-
-fixLeafletIcons();
 
 interface OrderItem { id: string; productNameSnapshot: string; quantity: number; }
 interface ActiveOrder {
@@ -73,35 +68,44 @@ export default function ActiveDelivery() {
     }
   }
 
-  const restaurantPos: [number, number] = [order.restaurant.lat, order.restaurant.lng];
-  const customerPos: [number, number] | null = order.address ? [order.address.lat, order.address.lng] : null;
-  const targetPos = step?.target === "customer" && customerPos ? customerPos : restaurantPos;
-  const directionsUrl = buildDirectionsUrl(targetPos[0], targetPos[1]);
+  const isCustomerTarget = step?.target === "customer" && Boolean(order.address);
+  const targetLat = isCustomerTarget && order.address ? order.address.lat : order.restaurant.lat;
+  const targetLng = isCustomerTarget && order.address ? order.address.lng : order.restaurant.lng;
+  const directionsUrl = buildDirectionsUrl(targetLat, targetLng);
+  const targetName = isCustomerTarget ? order.user.name : (order.restaurant.name || "VAIPIZZA");
+  const targetAddress = isCustomerTarget && order.address
+    ? `${order.address.line1}, ${order.address.city}`
+    : order.restaurant.address;
+  const stageLabel = isCustomerTarget ? "Entrega" : "Recolha";
+  const stageHint = !isCustomerTarget
+    ? "Abra a navegação e siga para o restaurante para recolher o pedido."
+    : order.status === "PICKED_UP"
+      ? "Abra a navegação e siga para a morada do cliente."
+      : "Confirme a entrega assim que o pedido estiver nas mãos do cliente.";
+  const canCallCustomer = isCustomerTarget && Boolean(order.user.phone);
 
   return (
     <div className="delivery-page">
-      <div className="map-wrap">
-        <MapContainer center={targetPos} zoom={14} style={{ height: "100%", width: "100%" }}>
-          <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" attribution="&copy; OpenStreetMap" />
-          <Marker position={restaurantPos}><Popup>{order.restaurant.name}</Popup></Marker>
-          {customerPos && <Marker position={customerPos}><Popup>{order.user.name}</Popup></Marker>}
-          {customerPos && <Polyline positions={[restaurantPos, customerPos]} color="#a51f10" />}
-        </MapContainer>
-        <div className="delivery-map-overlay">
-          <span>Pedido #{order.orderNumber}</span>
-          <strong>{step?.title ?? "Entrega ativa"}</strong>
-        </div>
-      </div>
-
       <div className="delivery-info">
-        <section className="delivery-target-card">
-          <p className="page-eyebrow">Destino atual</p>
-          <h1>{step?.target === "customer" ? order.user.name : "VAIPIZZA"}</h1>
-          <p>{step?.target === "customer" && order.address ? `${order.address.line1}, ${order.address.city}` : order.restaurant.address}</p>
-          <div className="delivery-quick-actions">
-            <a className="nav-btn" href={directionsUrl} target="_blank" rel="noreferrer">Navegar</a>
-            {step?.target === "customer" && order.user.phone && <a className="call-btn" href={`tel:${order.user.phone}`}>Ligar</a>}
+        <section className="delivery-status-card">
+          <div className="delivery-status-topline">
+            <span className="delivery-order-badge">Pedido #{order.orderNumber}</span>
+            <span className="delivery-stage-badge">{stageLabel}</span>
           </div>
+          <p className="page-eyebrow">Etapa atual</p>
+          <h1>{step?.title ?? "Entrega ativa"}</h1>
+          <p className="delivery-status-copy">{stageHint}</p>
+        </section>
+
+        <section className="delivery-target-card">
+          <p className="page-eyebrow">{isCustomerTarget ? "Destino do cliente" : "Local de recolha"}</p>
+          <h2>{targetName}</h2>
+          <p>{targetAddress}</p>
+          <div className={`delivery-quick-actions ${canCallCustomer ? "" : "single"}`}>
+            <a className="nav-btn" href={directionsUrl} target="_blank" rel="noreferrer">Navegar</a>
+            {canCallCustomer && <a className="call-btn" href={`tel:${order.user.phone}`}>Ligar</a>}
+          </div>
+          <small className="navigation-note">O botão Navegar abre o Google Maps com o destino já preenchido.</small>
         </section>
 
         <section className="delivery-order-card">
