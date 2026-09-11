@@ -168,3 +168,44 @@ h1, h2, h3 { font-family: var(--font-display); font-style: italic; font-weight: 
 .offer-alert-toggle.is-ready { opacity: .8; cursor: default; }
 .availability-hero:not(.is-online) .offer-alert-toggle { color: var(--green-dark); border-color: #c9b895; }
 
+/* Mobile delivery: keep status clear of Safari/map controls and reserve a real row for the action dock. */
+@media (max-width: 699px) {
+  .app-shell.delivery-mode .courier-main {
+    min-height: 0;
+  }
+
+  .delivery-page {
+    height: calc(100dvh - 68px);
+    min-height: 0;
+    padding-bottom: 0;
+    display: grid;
+    grid-template-rows: minmax(250px, 42dvh) minmax(0, 1fr) auto;
+    overflow: hidden;
+  }
+
+  .map-wrap {
+    height: 100%;
+    min-height: 250px;
+  }
+
+  .delivery-map-overlay {
+    top: calc(4.25rem + env(safe-area-inset-top));
+    left: 1rem;
+    right: 1rem;
+    width: fit-content;
+    max-width: calc(100% - 2rem);
+  }
+
+  .delivery-info {
+    min-height: 0;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    padding-bottom: 1rem;
+  }
+
+  .delivery-action-dock {
+    position: static;
+    width: 100%;
+    padding: .65rem 1rem calc(.65rem + env(safe-area-inset-bottom));
+  }
+}
