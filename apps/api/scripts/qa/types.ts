@@ -42,3 +42,42 @@ export interface QaRunManifest {
   orderIds: string[];
   timings: Record<string, number>;
 }
+
+export interface ProtectedDeliveryFeeTier {
+  id: string;
+  upToKm: number;
+  fee: number;
+}
+
+export interface ProtectedRestaurantSnapshot {
+  id: string;
+  slug: string;
+  name: string;
+  lat: number;
+  lng: number;
+  deliveryRadiusKm: number;
+  courierDispatchRadiusKm: number;
+  deliveryFeeMode: string;
+  deliveryFeeBase: number;
+  deliveryFeePerKm: number;
+  deliveryFeeFreeKm: number;
+  deliveryFeeTiers: ProtectedDeliveryFeeTier[];
+}
+
+export interface ProtectedCourierSnapshot {
+  id: string;
+  userId: string;
+  verificationStatus: string;
+}
+
+export interface ProtectedSnapshot {
+  version: 1;
+  restaurant: ProtectedRestaurantSnapshot;
+  couriers: ProtectedCourierSnapshot[];
+}
+
+export interface SnapshotDiff {
+  path: string;
+  before: unknown;
+  after: unknown;
+}
