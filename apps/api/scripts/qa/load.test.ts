@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildLoadCases, LOAD_STAGES, nextLoadStage } from "./load.js";
+import { buildLoadCases, LOAD_STAGES, nextLoadStage, summarizeDurations } from "./load.js";
 
 describe("QA load progression", () => {
   it("uses the approved progressive stages", () => {
@@ -36,5 +36,21 @@ describe("QA load geographic mix", () => {
   it("never generates negative distances for very small radii", () => {
     const cases = buildLoadCases(10, 0.05);
     expect(cases.every((item) => item.distanceKm >= 0)).toBe(true);
+  });
+});
+
+describe("QA load timing summary", () => {
+  it("reports count, average, p50, p95 and max", () => {
+    expect(summarizeDurations([10, 20, 30, 40, 50, 60, 70, 80, 90, 100])).toEqual({
+      count: 10,
+      averageMs: 55,
+      p50Ms: 50,
+      p95Ms: 100,
+      maxMs: 100,
+    });
+  });
+
+  it("handles an empty sample without NaN", () => {
+    expect(summarizeDurations([])).toEqual({ count: 0, averageMs: 0, p50Ms: 0, p95Ms: 0, maxMs: 0 });
   });
 });
