@@ -1,5 +1,6 @@
-import { NavLink, Outlet } from "react-router-dom";
+import { NavLink, Outlet, useLocation } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
+import { isDeliveryRoute, shouldShowBottomNav } from "../lib/layoutPresentation";
 
 function HomeIcon() {
   return <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 10.8 12 3l9 7.8v9.7h-6v-6h-6v6H3z" /></svg>;
@@ -13,8 +14,11 @@ function HistoryIcon() {
 
 export default function Layout() {
   const { user, logout } = useAuth();
+  const location = useLocation();
+  const deliveryMode = isDeliveryRoute(location.pathname);
+  const showBottomNav = shouldShowBottomNav(Boolean(user), location.pathname);
   return (
-    <div className="app-shell">
+    <div className={`app-shell ${deliveryMode ? "delivery-mode" : ""}`}>
       <header className="top-bar">
         <NavLink to="/" className="brand" aria-label="VAIPIZZA Estafeta">
           <img src="/logo.png" alt="" className="brand-logo" />
@@ -26,7 +30,7 @@ export default function Layout() {
         {user && <button className="link-btn logout-btn" onClick={logout}>Sair</button>}
       </header>
       <main className="courier-main"><Outlet /></main>
-      {user && (
+      {showBottomNav && (
         <nav className="bottom-nav" aria-label="Navegação do estafeta">
           <NavLink to="/" end><HomeIcon /><span>Início</span></NavLink>
           <NavLink to="/earnings"><WalletIcon /><span>Ganhos</span></NavLink>

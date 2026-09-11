@@ -4,6 +4,7 @@ import { api } from "../lib/api";
 import { getSocket } from "../lib/socket";
 import { captureAndReportCurrentLocation } from "../hooks/useLocationReporting";
 import { useCourierRuntime } from "../context/CourierRuntimeContext";
+import { isOfferAlertReady, primeOfferAlert, startOfferAlert, stopOfferAlert } from "../lib/offerAlert";
 
 interface Assignment {
   id: string;
@@ -29,6 +30,7 @@ export default function Home() {
   const [now, setNow] = useState(Date.now());
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [alertReady, setAlertReady] = useState(() => isOfferAlertReady());
 
   const online = Boolean(courier && courier.status !== "OFFLINE");
   const canToggleAvailability = courier?.status === "OFFLINE" || courier?.status === "AVAILABLE";
@@ -72,12 +74,40 @@ export default function Home() {
     };
   }, [load]);
 
+  const secondsLeft = assignment ? Math.max(0, Math.round((new Date(assignment.expiresAt).getTime() - now) / 1000)) : 0;
+  const offerExpired = !assignment || secondsLeft === 0;
+
+  useEffect(() => {
+    if (assignment && !offerExpired) {
+      const started = startOfferAlert();
+      setAlertReady(isOfferAlertReady());
+      if (!started) setAlertReady(false);
+    } else {
+      stopOfferAlert();
+    }
+    return () => stopOfferAlert();
+  }, [assignment?.id, offerExpired]);
+
+  async function enableAlerts() {
+    setError(null);
+    const ready = await primeOfferAlert();
+    setAlertReady(ready);
+    if (!ready) {
+      setError("O navegador bloqueou o som. Toque novamente em Ativar alertas e confirme o volume do telemóvel.");
+      return;
+    }
+    if (assignment && secondsLeft > 0) startOfferAlert();
+  }
+
   async function toggleOnline() {
     if (!courier || !canToggleAvailability) return;
     setBusy(true);
     setError(null);
     try {
       if (!online) {
+        // Prime Web Audio while this click still counts as a user gesture (important on iPhone/Safari).
+        const ready = await primeOfferAlert();
+        setAlertReady(ready);
         // The backend will refuse online status without a fresh/accurate point.
         // Capture it first so there is no OFFLINE -> AVAILABLE race.
         await captureAndReportCurrentLocation();
@@ -94,6 +124,7 @@ export default function Home() {
 
   async function acceptOffer() {
     if (!assignment) return;
+    stopOfferAlert();
     setBusy(true);
     setError(null);
     try {
@@ -103,6 +134,7 @@ export default function Home() {
     } catch (err: any) {
       setError(err?.response?.data?.message ?? "Esta oferta já não está disponível");
       await load();
+      if (assignment && secondsLeft > 0) startOfferAlert();
     } finally {
       setBusy(false);
     }
@@ -110,6 +142,7 @@ export default function Home() {
 
   async function rejectOffer() {
     if (!assignment) return;
+    stopOfferAlert();
     setBusy(true);
     setError(null);
     try {
@@ -118,6 +151,7 @@ export default function Home() {
       await refreshCourier();
     } catch (err: any) {
       setError(err?.response?.data?.message ?? "Não foi possível recusar a oferta");
+      if (assignment && secondsLeft > 0) startOfferAlert();
     } finally {
       setBusy(false);
     }
@@ -136,7 +170,6 @@ export default function Home() {
     );
   }
 
-  const secondsLeft = assignment ? Math.max(0, Math.round((new Date(assignment.expiresAt).getTime() - now) / 1000)) : 0;
   const gpsCopy = location.lastSentAt
     ? `GPS atualizado · precisão ±${Math.round(location.accuracyM ?? 0)} m`
     : online
@@ -154,6 +187,14 @@ export default function Home() {
           </div>
           <p>{online ? "Está ligado à operação de entregas." : "Fique online quando estiver pronto para começar."}</p>
           <small className="gps-runtime-copy">{gpsCopy}</small>
+          <button
+            type="button"
+            className={`offer-alert-toggle ${alertReady ? "is-ready" : ""}`}
+            onClick={enableAlerts}
+            disabled={alertReady}
+          >
+            {alertReady ? "🔔 Alertas ativos" : "🔕 Ativar alertas"}
+          </button>
         </div>
         <button
           className={`availability-toggle ${online ? "on" : ""}`}

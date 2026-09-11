@@ -26,6 +26,7 @@ input, select { font-size: 1rem; padding: .8rem .9rem; border: 1px solid var(--b
 h1, h2, h3 { font-family: var(--font-display); font-style: italic; font-weight: 600; letter-spacing: -.02em; }
 
 .app-shell { min-height: 100vh; display: flex; flex-direction: column; padding-bottom: calc(84px + env(safe-area-inset-bottom)); }
+.app-shell.delivery-mode { padding-bottom: 0; }
 .courier-main { flex: 1; }
 .top-bar { min-height: 68px; display: flex; justify-content: space-between; align-items: center; padding: .65rem 1rem; background: rgba(255,253,248,.94); border-bottom: 1px solid var(--border); position: sticky; top: 0; z-index: 50; backdrop-filter: blur(12px); }
 .brand { display: flex; align-items: center; gap: .65rem; color: var(--green-dark); text-decoration: none; }
@@ -163,3 +164,7 @@ h1, h2, h3 { font-family: var(--font-display); font-style: italic; font-weight: 
 /* GPS runtime V6 */
 .gps-runtime-copy { display: inline-block; margin-top: .45rem; color: rgba(255,255,255,.72); font-size: .68rem; font-weight: 700; }
 .availability-hero:not(.is-online) .gps-runtime-copy { color: var(--muted); }
+.offer-alert-toggle { margin-top: .65rem; min-height: 34px; border: 1px solid currentColor; border-radius: 999px; padding: .35rem .7rem; background: transparent; color: inherit; font-size: .7rem; font-weight: 900; }
+.offer-alert-toggle.is-ready { opacity: .8; cursor: default; }
+.availability-hero:not(.is-online) .offer-alert-toggle { color: var(--green-dark); border-color: #c9b895; }
+
