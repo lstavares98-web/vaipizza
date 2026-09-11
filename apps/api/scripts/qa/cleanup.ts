@@ -18,6 +18,7 @@ export interface CleanupOwnershipSnapshot {
 export interface CleanupPlan {
   runId: string;
   customerUserIds: string[];
+  operatorUserIds: string[];
   courierUserIds: string[];
   courierIds: string[];
   addressIds: string[];
@@ -34,30 +35,63 @@ export interface CleanupResult {
 
 function expectedCustomerEmail(runId: string, email: string) {
   const prefix = `qa+${runId.toLowerCase()}-`;
-  return email.startsWith(prefix) && !email.startsWith(`${prefix}courier-`) && email.endsWith("@vaipizza.test");
+  return email.startsWith(prefix) && !email.startsWith(`${prefix}courier-`) && !email.startsWith(`${prefix}operator-`) && email.endsWith("@vaipizza.test");
 }
 
 function expectedCourierEmail(runId: string, email: string) {
   return email.startsWith(`qa+${runId.toLowerCase()}-courier-`) && email.endsWith("@vaipizza.test");
 }
 
+function expectedOperatorEmail(runId: string, email: string, role: string) {
+  const kind = role === "RESTAURANT_STAFF" ? "staff" : role === "KITCHEN" ? "kitchen" : null;
+  if (!kind) return false;
+  return email === `qa+${runId.toLowerCase()}-operator-${kind}@vaipizza.test`;
+}
+
+function assertDisjointUserSets(manifest: QaRunManifest) {
+  const memberships = new Map<string, string[]>();
+  const groups: Array<[string, string[]]> = [
+    ["customer", manifest.customerUserIds],
+    ["operator", manifest.operatorUserIds],
+    ["courier", manifest.courierUserIds],
+  ];
+
+  for (const [label, ids] of groups) {
+    for (const id of ids) {
+      const existing = memberships.get(id) ?? [];
+      existing.push(label);
+      memberships.set(id, existing);
+    }
+  }
+
+  for (const [id, labels] of memberships) {
+    if (labels.length > 1) {
+      throw new Error(`User id appears in multiple QA ownership groups (${labels.join(", ")}): ${id}`);
+    }
+  }
+}
+
 export function validateCleanupOwnership(manifest: QaRunManifest, snapshot: CleanupOwnershipSnapshot): void {
   const customerIds = new Set(manifest.customerUserIds);
+  const operatorUserIds = new Set(manifest.operatorUserIds);
   const courierUserIds = new Set(manifest.courierUserIds);
   const courierIds = new Set(manifest.courierIds);
   const categoryIds = new Set(manifest.categoryIds);
 
-  for (const id of customerIds) {
-    if (courierUserIds.has(id)) throw new Error(`User id appears as both customer and courier: ${id}`);
-  }
+  assertDisjointUserSets(manifest);
 
   for (const user of snapshot.users) {
+    const email = user.email.toLowerCase();
     if (customerIds.has(user.id)) {
-      if (user.role !== "CUSTOMER" || !expectedCustomerEmail(manifest.runId, user.email.toLowerCase())) {
+      if (user.role !== "CUSTOMER" || !expectedCustomerEmail(manifest.runId, email)) {
         throw new Error(`Cleanup ownership mismatch for customer user ${user.id}`);
       }
+    } else if (operatorUserIds.has(user.id)) {
+      if (!expectedOperatorEmail(manifest.runId, email, user.role)) {
+        throw new Error(`Cleanup ownership mismatch for operator user ${user.id}`);
+      }
     } else if (courierUserIds.has(user.id)) {
-      if (user.role !== "COURIER" || !expectedCourierEmail(manifest.runId, user.email.toLowerCase())) {
+      if (user.role !== "COURIER" || !expectedCourierEmail(manifest.runId, email)) {
         throw new Error(`Cleanup ownership mismatch for courier user ${user.id}`);
       }
     } else {
@@ -107,12 +141,8 @@ export function validateCleanupOwnership(manifest: QaRunManifest, snapshot: Clea
   }
 }
 
-function notInFilter(ids: string[]) {
-  return ids.length ? { notIn: ids } : undefined;
-}
-
 export async function preflightCleanup(prisma: PrismaClient, manifest: QaRunManifest): Promise<CleanupPlan> {
-  const allUserIds = [...manifest.customerUserIds, ...manifest.courierUserIds];
+  const allUserIds = [...manifest.customerUserIds, ...manifest.operatorUserIds, ...manifest.courierUserIds];
   const [users, orders, couriers, addresses, products, categories] = await Promise.all([
     allUserIds.length
       ? prisma.user.findMany({ where: { id: { in: allUserIds } }, select: { id: true, email: true, role: true } })
@@ -248,6 +278,7 @@ export async function preflightCleanup(prisma: PrismaClient, manifest: QaRunMani
   return {
     runId: manifest.runId,
     customerUserIds: [...manifest.customerUserIds],
+    operatorUserIds: [...manifest.operatorUserIds],
     courierUserIds: [...manifest.courierUserIds],
     courierIds: [...manifest.courierIds],
     addressIds: [...manifest.addressIds],
@@ -264,7 +295,7 @@ export function cleanupMode(confirmDelete: boolean): "dry-run" | "delete" {
 
 export async function executeCleanup(prisma: PrismaClient, plan: CleanupPlan, config: QaConfig): Promise<CleanupResult> {
   assertMutationConfirmation(config);
-  const allUserIds = [...plan.customerUserIds, ...plan.courierUserIds];
+  const allUserIds = [...plan.customerUserIds, ...plan.operatorUserIds, ...plan.courierUserIds];
   const deleted: Record<string, number> = {};
 
   await prisma.$transaction(async (tx) => {
