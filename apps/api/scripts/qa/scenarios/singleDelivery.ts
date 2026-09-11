@@ -1,3 +1,6 @@
+import type { QaConfig } from "../types.js";
+import { expectQaSuccess, qaRequest, type QaHttpResponse, type QaRequestOptions } from "../http.js";
+
 const DELIVERY_STATUS_PLAN = [
   "NEW",
   "PREPARING",
@@ -10,6 +13,11 @@ const DELIVERY_STATUS_PLAN = [
 
 export type QaDeliveryStatus = (typeof DELIVERY_STATUS_PLAN)[number];
 export type QaDeliveryApiMethod = "POST" | "PATCH";
+export type QaRequestExecutor = <T>(
+  config: QaConfig,
+  path: string,
+  options?: QaRequestOptions,
+) => Promise<QaHttpResponse<T>>;
 
 export interface QaDeliveryApiStep {
   label: string;
@@ -17,6 +25,18 @@ export interface QaDeliveryApiStep {
   path: string;
   body: Record<string, unknown> | undefined;
   expectedStatus: QaDeliveryStatus;
+}
+
+export interface QaDeliveryTokens {
+  staffToken: string;
+  kitchenToken: string;
+  courierToken: string;
+}
+
+export interface QaTransitionResult {
+  assignmentId: string;
+  finalStatus: "DELIVERED";
+  timings: Record<string, number>;
 }
 
 export function singleDeliveryStatusPlan(): QaDeliveryStatus[] {
@@ -88,4 +108,55 @@ export function assertQaOrderStatus(
   if (order.status !== expected) {
     throw new Error(`${label}: expected order status ${expected}, received ${order.status ?? "<missing>"}`);
   }
+}
+
+export async function runSingleDeliveryTransitions(
+  config: QaConfig,
+  orderId: string,
+  tokens: QaDeliveryTokens,
+  request: QaRequestExecutor = qaRequest,
+): Promise<QaTransitionResult> {
+  const timings: Record<string, number> = {};
+  const placeholderPlan = singleDeliveryApiPlan(orderId, "pending-assignment");
+
+  for (const [index, token] of [tokens.staffToken, tokens.kitchenToken].entries()) {
+    const step = placeholderPlan[index]!;
+    const response = await request<{ success: boolean; order: { id: string; status: string }; message?: string }>(
+      config,
+      step.path,
+      { method: step.method, token, body: step.body },
+    );
+    const data = expectQaSuccess(response, step.label);
+    if (!data.order?.id || data.order.id !== orderId) throw new Error(`${step.label}: API returned the wrong order`);
+    assertQaOrderStatus(data.order, step.expectedStatus, step.label);
+    timings[step.label] = response.durationMs;
+  }
+
+  const assignmentResponse = await request<{
+    success: boolean;
+    assignment: null | { id: string; order?: { id?: string } };
+    message?: string;
+  }>(config, "/api/courier/assignments/current", { token: tokens.courierToken });
+  const assignmentData = expectQaSuccess(assignmentResponse, "courier current assignment");
+  if (!assignmentData.assignment?.id) throw new Error("courier current assignment: no live offer was returned");
+  if (assignmentData.assignment.order?.id && assignmentData.assignment.order.id !== orderId) {
+    throw new Error(`courier current assignment: expected order ${orderId}, received ${assignmentData.assignment.order.id}`);
+  }
+  const assignmentId = assignmentData.assignment.id;
+  timings["courier current assignment"] = assignmentResponse.durationMs;
+
+  const courierSteps = singleDeliveryApiPlan(orderId, assignmentId).slice(2);
+  for (const step of courierSteps) {
+    const response = await request<{ success: boolean; order: { id: string; status: string }; message?: string }>(
+      config,
+      step.path,
+      { method: step.method, token: tokens.courierToken, body: step.body },
+    );
+    const data = expectQaSuccess(response, step.label);
+    if (!data.order?.id || data.order.id !== orderId) throw new Error(`${step.label}: API returned the wrong order`);
+    assertQaOrderStatus(data.order, step.expectedStatus, step.label);
+    timings[step.label] = response.durationMs;
+  }
+
+  return { assignmentId, finalStatus: "DELIVERED", timings };
 }
