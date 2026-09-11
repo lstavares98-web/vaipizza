@@ -37,3 +37,29 @@ export function combineFunctionalAndCleanupErrors(
   if (cleanupError) return cleanupError;
   return new Error("Functional QA failed without a reported error");
 }
+
+export async function runWithGuaranteedCleanup<T>(
+  scenario: () => Promise<T>,
+  cleanup: () => Promise<void>,
+): Promise<T> {
+  let result: T | undefined;
+  let scenarioError: Error | null = null;
+  let cleanupError: Error | null = null;
+
+  try {
+    result = await scenario();
+  } catch (error) {
+    scenarioError = error instanceof Error ? error : new Error(String(error));
+  }
+
+  try {
+    await cleanup();
+  } catch (error) {
+    cleanupError = error instanceof Error ? error : new Error(String(error));
+  }
+
+  if (scenarioError || cleanupError) {
+    throw combineFunctionalAndCleanupErrors(scenarioError, cleanupError);
+  }
+  return result as T;
+}
