@@ -34,6 +34,7 @@ export interface QaRunManifest {
   supabaseProjectRef: string;
   scenarioNames: string[];
   customerUserIds: string[];
+  operatorUserIds: string[];
   courierUserIds: string[];
   courierIds: string[];
   addressIds: string[];
