@@ -12,6 +12,7 @@ function manifest(): QaRunManifest {
     supabaseProjectRef: "vnuowugruqheakomdtuh",
     scenarioNames: [],
     customerUserIds: ["customer-1"],
+    operatorUserIds: [],
     courierUserIds: ["courier-user-1"],
     courierIds: ["courier-1"],
     addressIds: ["address-1"],
@@ -45,6 +46,26 @@ describe("QA cleanup ownership guard", () => {
     const snapshot = ownedSnapshot();
     snapshot.users[0]!.email = "real@customer.pt";
     expect(() => validateCleanupOwnership(manifest(), snapshot)).toThrow(/customer user/i);
+  });
+
+  it("accepts an isolated QA restaurant operator", () => {
+    const testManifest = manifest();
+    testManifest.operatorUserIds.push("operator-1");
+    const snapshot = ownedSnapshot();
+    snapshot.users.push({
+      id: "operator-1",
+      email: "qa+QA-20260911-191500-operator-staff@vaipizza.test",
+      role: "RESTAURANT_STAFF",
+    });
+    expect(() => validateCleanupOwnership(testManifest, snapshot)).not.toThrow();
+  });
+
+  it("rejects a tracked operator with a non-QA email", () => {
+    const testManifest = manifest();
+    testManifest.operatorUserIds.push("operator-1");
+    const snapshot = ownedSnapshot();
+    snapshot.users.push({ id: "operator-1", email: "gestao@real.pt", role: "RESTAURANT_STAFF" });
+    expect(() => validateCleanupOwnership(testManifest, snapshot)).toThrow(/operator user/i);
   });
 
   it("rejects an order owned by a non-QA user", () => {
