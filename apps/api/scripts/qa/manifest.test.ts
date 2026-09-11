@@ -27,6 +27,13 @@ describe("QA manifest markers", () => {
     expect(() => validateManifest(manifest)).toThrow(/empty id/i);
   });
 
+  it("tracks QA operator user ids for cleanup", () => {
+    const manifest = createEmptyManifest(config, "QA-20260911-191500");
+    manifest.operatorUserIds.push("operator-1");
+    const persisted = manifestForPersistence(manifest);
+    expect(persisted.operatorUserIds).toEqual(["operator-1"]);
+  });
+
   it("persists only the approved manifest fields", () => {
     const manifest = createEmptyManifest(config, "QA-20260911-191500") as QaRunManifest & {
       accessToken?: string;
