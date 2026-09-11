@@ -6,6 +6,7 @@ import { readJsonArtifact, writeJsonArtifact } from "./artifacts.js";
 import { captureProtectedSnapshot, compareProtectedSnapshots } from "./snapshot.js";
 import { assertRunId, loadManifest } from "./manifest.js";
 import { cleanupMode, executeCleanup, preflightCleanup } from "./cleanup.js";
+import { runFunctionalQa } from "./functional.js";
 
 function snapshotRunId(now = new Date()) {
   const stamp = now.toISOString().replace(/[-:]/g, "").replace(/\.\d{3}Z$/, "Z");
@@ -44,7 +45,7 @@ async function runCleanup(prisma: PrismaClient, config: ReturnType<typeof loadQa
   const plan = await preflightCleanup(prisma, manifest);
   const mode = cleanupMode(hasFlag("--confirm-delete"));
   console.log(`Cleanup ${mode}: ${runId}; tracked ids=${
-    plan.customerUserIds.length + plan.courierUserIds.length + plan.courierIds.length + plan.addressIds.length +
+    plan.customerUserIds.length + plan.operatorUserIds.length + plan.courierUserIds.length + plan.courierIds.length + plan.addressIds.length +
     plan.productIds.length + plan.categoryIds.length + plan.orderIds.length
   }; already missing=${plan.missingIds.length}`);
 
@@ -85,6 +86,12 @@ async function main() {
   try {
     if (command === "snapshot") {
       await runSnapshot(prisma);
+      return;
+    }
+    if (command === "functional") {
+      assertMutationConfirmation(config);
+      const result = await runFunctionalQa(prisma, config);
+      console.log(`Functional QA PASS: ${result.runId}; order=${result.orderId}; status=${result.finalStatus}; cleanup complete.`);
       return;
     }
     if (command === "cleanup") {
