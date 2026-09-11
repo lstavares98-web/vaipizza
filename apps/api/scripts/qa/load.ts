@@ -9,11 +9,38 @@ export interface QaLoadCase {
   expectedCheckout: "ACCEPT" | "OUT_OF_RANGE";
 }
 
+export interface QaDurationSummary {
+  count: number;
+  averageMs: number;
+  p50Ms: number;
+  p95Ms: number;
+  maxMs: number;
+}
+
 export function nextLoadStage(current: QaLoadStage, passed: boolean): QaLoadStage | null {
   if (!passed) return null;
   const index = LOAD_STAGES.indexOf(current);
   if (index < 0 || index === LOAD_STAGES.length - 1) return null;
   return LOAD_STAGES[index + 1] ?? null;
+}
+
+function percentile(sorted: number[], ratio: number) {
+  if (!sorted.length) return 0;
+  const index = Math.max(0, Math.ceil(sorted.length * ratio) - 1);
+  return sorted[Math.min(index, sorted.length - 1)] ?? 0;
+}
+
+export function summarizeDurations(values: number[]): QaDurationSummary {
+  const safe = values.filter((value) => Number.isFinite(value) && value >= 0).sort((a, b) => a - b);
+  if (!safe.length) return { count: 0, averageMs: 0, p50Ms: 0, p95Ms: 0, maxMs: 0 };
+  const total = safe.reduce((sum, value) => sum + value, 0);
+  return {
+    count: safe.length,
+    averageMs: Math.round((total / safe.length) * 100) / 100,
+    p50Ms: percentile(safe, 0.5),
+    p95Ms: percentile(safe, 0.95),
+    maxMs: safe[safe.length - 1] ?? 0,
+  };
 }
 
 export function buildLoadCases(total: number, deliveryRadiusKm: number): QaLoadCase[] {
