@@ -80,10 +80,12 @@ The first automated suite will cover:
 - Pickup/takeaway order
 
 ### Payment
-- Card/online-compatible path where staging allows it
-- MB Way/terminal path where supported
+- Card/online-compatible path when staging payment credentials and endpoints are available
+- MB Way/terminal path when the current API exposes it
 - Cash without change
 - Cash with change
+
+If a payment integration is intentionally unavailable in staging, the scenario is reported as **SKIPPED with reason**, never counted as PASS.
 
 ### Restaurant/KDS lifecycle
 - NEW → accepted/preparing
@@ -101,7 +103,7 @@ The first automated suite will cover:
 - Courier with stale GPS is not selected
 - Courier with poor GPS accuracy is not selected
 - Courier outside dispatch radius is not selected
-- Multiple eligible couriers choose the expected candidate according to dispatch rules
+- Multiple eligible couriers select the candidate expected from the current distance/fairness rules
 - Reassignment path where supported
 
 ### Delivery lifecycle
@@ -148,12 +150,12 @@ The next load stage will not start if any of the following occurs:
 - Database/config snapshot mismatch
 - Any non-QA row is detected as a cleanup candidate
 - Unexpected 5xx error rate above 1%
-- Order state corruption or impossible transition
-- Duplicate active assignment for the same courier/order where not allowed
-- A meaningful number of orders remain stuck after the scenario timeout
-- API becomes unavailable
+- Any impossible order-state transition is observed
+- Any duplicate active assignment is observed for the same order/courier where the domain forbids it
+- More than 1% of the stage's orders remain in an unexpected intermediate state 120 seconds after the scenario's expected terminal transition
+- API becomes unavailable for 10 consecutive seconds
 
-Latency thresholds will be reported first and tuned after a baseline run; they will not be used to hide functional failures.
+For the 10-order correctness baseline, **one functional inconsistency is enough to fail the stage**. Latency thresholds are reported first and tuned after a baseline run; they will not be used to hide functional failures.
 
 ## Sound, vibration and PWA testing
 
