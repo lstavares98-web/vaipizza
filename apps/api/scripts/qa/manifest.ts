@@ -40,6 +40,11 @@ export function qaCourierEmail(runId: string, index: number): string {
   return `qa+${runId}-courier-${index}@vaipizza.test`;
 }
 
+export function qaOperatorEmail(runId: string, kind: "staff" | "kitchen"): string {
+  assertRunId(runId);
+  return `qa+${runId}-operator-${kind}@vaipizza.test`;
+}
+
 export function createEmptyManifest(config: QaConfig, runId = createRunId()): QaRunManifest {
   assertRunId(runId);
   return {
