@@ -1,9 +1,35 @@
 import { describe, expect, it } from "vitest";
-import { validateCourierRaceOutcome, type CourierRaceSnapshot } from "./courierRace.js";
+import {
+  prepareCourierRaceBeforeDispatch,
+  validateCourierRaceOutcome,
+  type CourierRaceSnapshot,
+} from "./courierRace.js";
 import {
   validateCourierAcceptRejectOutcome,
   type CourierAcceptRejectSnapshot,
 } from "./courierAcceptReject.js";
+
+describe("courier race preparation", () => {
+  it("creates QA offers before marking the delivery order ready", async () => {
+    const events: string[] = [];
+
+    const orderId = await prepareCourierRaceBeforeDispatch({
+      createPreparingOrder: async () => {
+        events.push("order:preparing");
+        return "o1";
+      },
+      createOffers: async (id) => {
+        events.push(`offers:${id}`);
+      },
+      markReady: async (id) => {
+        events.push(`ready:${id}`);
+      },
+    });
+
+    expect(orderId).toBe("o1");
+    expect(events).toEqual(["order:preparing", "offers:o1", "ready:o1"]);
+  });
+});
 
 describe("courier acceptance race validation", () => {
   it("passes with exactly one accepted winner and no competing active offer", () => {
