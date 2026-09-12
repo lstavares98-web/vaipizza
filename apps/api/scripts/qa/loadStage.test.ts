@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { buildLoadCases } from "./load.js";
 import {
+  assertLiveLoadStageEnabled,
   assertLoadStagePreflight,
   classifyLoadCheckout,
   runLoadCasesSequentially,
@@ -36,6 +37,17 @@ describe("QA load stage outcome validation", () => {
     }));
     outcomes[outside.index] = { index: outside.index, outcome: "DELIVERED" };
     expect(() => validateLoadStageOutcomes(cases, outcomes)).toThrow(new RegExp(`case ${outside.index}`, "i"));
+  });
+});
+
+describe("QA live load promotion gate", () => {
+  it("enables 10 and 50 after stage 10 passed", () => {
+    expect(() => assertLiveLoadStageEnabled(10)).not.toThrow();
+    expect(() => assertLiveLoadStageEnabled(50)).not.toThrow();
+  });
+
+  it("keeps 100 blocked until stage 50 passes", () => {
+    expect(() => assertLiveLoadStageEnabled(100)).toThrow(/not enabled/i);
   });
 });
 
