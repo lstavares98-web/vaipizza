@@ -23,6 +23,7 @@ import {
   assertLiveLoadStageEnabled,
   assertLoadStagePreflight,
   classifyLoadCheckout,
+  refreshLoadCourierLocation,
   runLoadCasesSequentially,
   validateLoadStageOutcomes,
   type QaLoadCaseOutcome,
@@ -119,6 +120,14 @@ export async function runLoadStageQa(
         const courierToken = await loginQaCourier(config, courier.email, courier.password);
 
         observedOutcomes = await runLoadCasesSequentially(cases, async (testCase) => {
+          const heartbeatMs = await refreshLoadCourierLocation(
+            config,
+            courierToken,
+            protectedBefore.restaurant.lat,
+            protectedBefore.restaurant.lng,
+          );
+          manifest.timings[`case-${testCase.index}.courier GPS heartbeat`] = heartbeatMs;
+
           const customer = await createQaCustomer(config, manifest, testCase.index);
           const point = pointAtDistanceKm(
             protectedBefore.restaurant.lat,
