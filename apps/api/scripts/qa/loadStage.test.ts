@@ -1,9 +1,12 @@
 import { describe, expect, it } from "vitest";
+import type { QaConfig } from "./types.js";
+import type { QaHttpResponse, QaRequestOptions } from "./http.js";
 import { buildLoadCases } from "./load.js";
 import {
   assertLiveLoadStageEnabled,
   assertLoadStagePreflight,
   classifyLoadCheckout,
+  refreshLoadCourierLocation,
   runLoadCasesSequentially,
   validateLoadStageOutcomes,
 } from "./loadStage.js";
@@ -48,6 +51,55 @@ describe("QA live load promotion gate", () => {
 
   it("keeps 100 blocked until stage 50 passes", () => {
     expect(() => assertLiveLoadStageEnabled(100)).toThrow(/not enabled/i);
+  });
+});
+
+describe("QA load courier GPS heartbeat", () => {
+  it("renews the QA courier location through the real courier API", async () => {
+    const calls: Array<{ path: string; options?: QaRequestOptions }> = [];
+    const request = async <T>(
+      _config: QaConfig,
+      path: string,
+      options?: QaRequestOptions,
+    ): Promise<QaHttpResponse<T>> => {
+      calls.push({ path, options });
+      return { ok: true, status: 200, durationMs: 17, data: { success: true } as T };
+    };
+
+    const duration = await refreshLoadCourierLocation(
+      {} as QaConfig,
+      "courier-token",
+      41.5610096,
+      -8.4065289,
+      request,
+    );
+
+    expect(duration).toBe(17);
+    expect(calls).toEqual([{
+      path: "/api/courier/location",
+      options: {
+        method: "POST",
+        token: "courier-token",
+        body: { lat: 41.5610096, lng: -8.4065289, accuracyM: 10 },
+      },
+    }]);
+  });
+
+  it("fails the load stage when the GPS heartbeat itself fails", async () => {
+    const request = async <T>(): Promise<QaHttpResponse<T>> => ({
+      ok: false,
+      status: 500,
+      durationMs: 12,
+      data: { success: false, message: "GPS update failed" } as T,
+    });
+
+    await expect(refreshLoadCourierLocation(
+      {} as QaConfig,
+      "courier-token",
+      41.5610096,
+      -8.4065289,
+      request,
+    )).rejects.toThrow(/GPS/i);
   });
 });
 
