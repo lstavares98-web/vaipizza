@@ -1,4 +1,5 @@
 import type { PrismaClient } from "@prisma/client";
+import type { CheckoutInput } from "@yummix/validation";
 import type { QaConfig, QaRunManifest } from "../types.js";
 import { qaRequest, type QaHttpResponse } from "../http.js";
 import {
@@ -9,6 +10,7 @@ import {
 import { saveManifest } from "../manifest.js";
 import { pointAtDistanceKm } from "../scenarios/geo.js";
 import { singleDeliveryCheckoutBody } from "../scenarios/singleDelivery.js";
+import { checkout } from "../../../src/modules/orders/orders.service.js";
 
 export type ConcurrentCheckoutAttemptResult =
   | { kind: "ACCEPTED"; orderId: string; status: number }
@@ -36,6 +38,8 @@ type CheckoutData = {
   message?: string;
   order?: { id?: string; status?: string };
 };
+
+type DirectCheckoutValue = { order: { id: string } };
 
 export function createStartBarrier() {
   let releaseGate!: () => void;
@@ -71,6 +75,19 @@ export function classifyConcurrentCheckout(
   };
 }
 
+export function classifyDirectCheckoutSettled(
+  result: PromiseSettledResult<DirectCheckoutValue>,
+): ConcurrentCheckoutAttemptResult {
+  if (result.status === "fulfilled") {
+    return { kind: "ACCEPTED", orderId: result.value.order.id, status: 200 };
+  }
+  const reason = result.reason as { statusCode?: unknown; code?: unknown } | null | undefined;
+  const status = typeof reason?.statusCode === "number" ? reason.statusCode : 0;
+  const code = typeof reason?.code === "string" ? reason.code : undefined;
+  if (code === "OUT_OF_RANGE") return { kind: "OUT_OF_RANGE", status, code };
+  return { kind: "REJECTED", status, ...(code ? { code } : {}) };
+}
+
 export function validateSameCartConcurrentCheckout(results: ConcurrentCheckoutAttemptResult[]): void {
   const uniqueAcceptedOrderIds = new Set(
     results.flatMap((result) => result.kind === "ACCEPTED" ? [result.orderId] : []),
@@ -104,6 +121,21 @@ async function runSynchronizedCheckouts(
   });
 }
 
+async function runSynchronizedDirectCheckouts(
+  userId: string,
+  body: CheckoutInput,
+): Promise<ConcurrentCheckoutAttemptResult[]> {
+  const barrier = createStartBarrier();
+  const pending = [0, 1].map(async () => {
+    await barrier.wait();
+    return checkout(userId, body);
+  });
+  barrier.release();
+  return (await Promise.allSettled(pending)).map((result) =>
+    classifyDirectCheckoutSettled(result as PromiseSettledResult<DirectCheckoutValue>),
+  );
+}
+
 async function rememberReturnedOrderIds(
   manifest: QaRunManifest,
   responses: Array<QaHttpResponse<CheckoutData>>,
@@ -113,6 +145,20 @@ async function rememberReturnedOrderIds(
     const orderId = response.data?.order?.id;
     if (orderId && !manifest.orderIds.includes(orderId)) {
       manifest.orderIds.push(orderId);
+      changed = true;
+    }
+  }
+  if (changed) await saveManifest(manifest);
+}
+
+async function rememberAcceptedOrderIds(
+  manifest: QaRunManifest,
+  results: ConcurrentCheckoutAttemptResult[],
+): Promise<void> {
+  let changed = false;
+  for (const result of results) {
+    if (result.kind === "ACCEPTED" && !manifest.orderIds.includes(result.orderId)) {
+      manifest.orderIds.push(result.orderId);
       changed = true;
     }
   }
@@ -215,16 +261,20 @@ export async function runConcurrentCheckoutScenario(
     label: "concurrent-same-cart",
     notes: `[QA ${manifest.runId}] concurrent-same-cart`,
   });
-  const sameResponses = await runSynchronizedCheckouts(config, [0, 1].map(() => ({
-    token: samePrepared.customer.accessToken,
-    body: samePrepared.body,
-  })));
-  await rememberReturnedOrderIds(manifest, sameResponses);
-  const sameCart = sameResponses.map(classifyConcurrentCheckout);
+
+  // The deployed Render staging process can intentionally lag this isolated
+  // QA branch. Exercise the branch checkout implementation directly against
+  // the real staging database so a backend fix can be proven without merging
+  // unreviewed code into the shared staging deployment.
+  const sameCart = await runSynchronizedDirectCheckouts(
+    samePrepared.customer.userId,
+    samePrepared.body as CheckoutInput,
+  );
+  await rememberAcceptedOrderIds(manifest, sameCart);
   validateSameCartConcurrentCheckout(sameCart);
   const acceptedSameCart = sameCart.filter((result) => result.kind === "ACCEPTED");
-  if (acceptedSameCart.length < 1) {
-    throw new Error("same-cart concurrent checkout produced no accepted order");
+  if (acceptedSameCart.length !== 1) {
+    throw new Error(`same-cart concurrent checkout expected exactly one accepted order; received ${acceptedSameCart.length}`);
   }
   const sameCartDbOrders = await prisma.order.count({
     where: {
