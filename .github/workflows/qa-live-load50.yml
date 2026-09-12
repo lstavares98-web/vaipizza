@@ -1,0 +1,58 @@
+name: QA Live Load Stage 50
+
+on:
+  push:
+    branches:
+      - feature/qa-harness-safe
+    paths:
+      - qa-load50.trigger
+
+jobs:
+  load-stage-50:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      QA_ENV: staging
+      QA_API_URL: https://vaipizza-api-staging.onrender.com
+      QA_CONFIRM: VAIPIZZA_STAGING_ONLY
+      PRIMARY_RESTAURANT_SLUG: vaipizza
+      DATABASE_URL: ${{ secrets.DATABASE_URL }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Guard database credential
+        shell: bash
+        run: |
+          if [ -z "${DATABASE_URL:-}" ]; then
+            echo "DATABASE_URL secret is not configured; live load QA will not run."
+            exit 1
+          fi
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Re-run QA safety checks
+        run: |
+          npm run qa:typecheck
+          npm run qa:test
+          npm run test -w apps/api
+
+      - name: Run live load stage 50 in staging
+        run: npm run qa:load -w apps/api -- --stage=50
+
+      - name: Upload QA evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: qa-live-load50-evidence
+          path: qa-artifacts/
+          if-no-files-found: ignore
+          retention-days: 14
