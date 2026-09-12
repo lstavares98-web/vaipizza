@@ -3,18 +3,24 @@ import { randomBytes } from "node:crypto";
 import type { PrismaClient } from "@prisma/client";
 import type { QaConfig, QaRunManifest } from "./types.js";
 import { assertMutationConfirmation } from "./config.js";
-import { expectQaSuccess, qaRequest } from "./http.js";
+import { expectQaSuccess, qaRequest, type QaHttpResponse, type QaRequestOptions } from "./http.js";
 import { qaCourierEmail, qaEmail, qaOperatorEmail, saveManifest } from "./manifest.js";
 
 const BCRYPT_ROUNDS = 12;
+const QA_SESSION_REFRESH_AFTER_MS = 10 * 60_000;
 
 export type QaOperatorKind = "staff" | "kitchen";
 
-export interface QaCustomerSession {
+export interface QaAuthSession {
+  accessToken: string;
+  refreshToken: string;
+  refreshedAtMs: number;
+}
+
+export interface QaCustomerSession extends QaAuthSession {
   userId: string;
   email: string;
   password: string;
-  accessToken: string;
 }
 
 export interface QaCourierSession {
@@ -24,11 +30,10 @@ export interface QaCourierSession {
   password: string;
 }
 
-export interface QaOperatorSession {
+export interface QaOperatorSession extends QaAuthSession {
   userId: string;
   email: string;
   password: string;
-  accessToken: string;
   role: "RESTAURANT_STAFF" | "KITCHEN";
 }
 
@@ -40,6 +45,12 @@ export interface QaCourierFixtureOptions {
   accuracyM?: number | null;
   locationUpdatedAt?: Date | null;
 }
+
+export type QaFixtureRequestExecutor = <T>(
+  config: QaConfig,
+  path: string,
+  options?: QaRequestOptions,
+) => Promise<QaHttpResponse<T>>;
 
 export function qaPhone(index: number): string {
   if (!Number.isInteger(index) || index < 0 || index > 9_999_999) {
@@ -58,6 +69,39 @@ export function qaOperatorRole(kind: QaOperatorKind): "RESTAURANT_STAFF" | "KITC
 
 export function qaOperatorLoginPath(kind: QaOperatorKind): "/api/auth/restaurant/login" | "/api/auth/kitchen/login" {
   return kind === "staff" ? "/api/auth/restaurant/login" : "/api/auth/kitchen/login";
+}
+
+export function shouldRefreshQaSession(
+  nowMs: number,
+  refreshedAtMs: number,
+  refreshAfterMs = QA_SESSION_REFRESH_AFTER_MS,
+): boolean {
+  if (!Number.isFinite(nowMs) || !Number.isFinite(refreshedAtMs) || !Number.isFinite(refreshAfterMs) || refreshAfterMs <= 0) {
+    throw new Error("QA session refresh timing is invalid");
+  }
+  return nowMs - refreshedAtMs >= refreshAfterMs;
+}
+
+export async function refreshQaAuthSession(
+  config: QaConfig,
+  session: QaAuthSession,
+  request: QaFixtureRequestExecutor = qaRequest,
+  nowMs = Date.now(),
+): Promise<QaAuthSession> {
+  const response = await request<{
+    success: boolean;
+    accessToken: string;
+    refreshToken: string;
+    message?: string;
+  }>(config, "/api/auth/refresh", {
+    method: "POST",
+    body: { refreshToken: session.refreshToken },
+  });
+  const data = expectQaSuccess(response, "Refresh QA auth session");
+  if (!data.accessToken || !data.refreshToken) {
+    throw new Error("Refresh QA auth session returned incomplete tokens");
+  }
+  return { accessToken: data.accessToken, refreshToken: data.refreshToken, refreshedAtMs: nowMs };
 }
 
 export async function createQaCustomer(
@@ -84,10 +128,19 @@ export async function createQaCustomer(
     },
   });
   const data = expectQaSuccess(response, "Create QA customer");
-  if (!data.user?.id || !data.accessToken) throw new Error("Create QA customer returned an incomplete session");
+  if (!data.user?.id || !data.accessToken || !data.refreshToken) {
+    throw new Error("Create QA customer returned an incomplete session");
+  }
   manifest.customerUserIds.push(data.user.id);
   await saveManifest(manifest);
-  return { userId: data.user.id, email, password, accessToken: data.accessToken };
+  return {
+    userId: data.user.id,
+    email,
+    password,
+    accessToken: data.accessToken,
+    refreshToken: data.refreshToken,
+    refreshedAtMs: Date.now(),
+  };
 }
 
 export async function createQaOperatorFixture(
@@ -118,14 +171,25 @@ export async function createQaOperatorFixture(
   manifest.operatorUserIds.push(user.id);
   await saveManifest(manifest);
 
-  const response = await qaRequest<{ success: boolean; accessToken: string; message?: string }>(
-    config,
-    qaOperatorLoginPath(kind),
-    { method: "POST", body: { email, password } },
-  );
+  const response = await qaRequest<{
+    success: boolean;
+    accessToken: string;
+    refreshToken: string;
+    message?: string;
+  }>(config, qaOperatorLoginPath(kind), { method: "POST", body: { email, password } });
   const data = expectQaSuccess(response, `Login QA ${kind} operator`);
-  if (!data.accessToken) throw new Error(`QA ${kind} operator login returned no access token`);
-  return { userId: user.id, email, password, accessToken: data.accessToken, role };
+  if (!data.accessToken || !data.refreshToken) {
+    throw new Error(`QA ${kind} operator login returned incomplete tokens`);
+  }
+  return {
+    userId: user.id,
+    email,
+    password,
+    accessToken: data.accessToken,
+    refreshToken: data.refreshToken,
+    refreshedAtMs: Date.now(),
+    role,
+  };
 }
 
 export async function createQaCatalogFixture(
@@ -212,16 +276,27 @@ export async function createQaCourierFixture(
   return { userId: user.id, courierId: courier.id, email, password };
 }
 
-export async function loginQaCourier(config: QaConfig, email: string, password: string): Promise<string> {
+export async function loginQaCourierSession(
+  config: QaConfig,
+  email: string,
+  password: string,
+): Promise<QaAuthSession> {
   assertMutationConfirmation(config);
-  const response = await qaRequest<{ success: boolean; accessToken: string; message?: string }>(
-    config,
-    "/api/auth/courier/login",
-    { method: "POST", body: { email, password } },
-  );
+  const response = await qaRequest<{
+    success: boolean;
+    accessToken: string;
+    refreshToken: string;
+    message?: string;
+  }>(config, "/api/auth/courier/login", { method: "POST", body: { email, password } });
   const data = expectQaSuccess(response, "Login QA courier");
-  if (!data.accessToken) throw new Error("QA courier login returned no access token");
-  return data.accessToken;
+  if (!data.accessToken || !data.refreshToken) {
+    throw new Error("QA courier login returned incomplete tokens");
+  }
+  return { accessToken: data.accessToken, refreshToken: data.refreshToken, refreshedAtMs: Date.now() };
+}
+
+export async function loginQaCourier(config: QaConfig, email: string, password: string): Promise<string> {
+  return (await loginQaCourierSession(config, email, password)).accessToken;
 }
 
 export async function createQaAddress(
