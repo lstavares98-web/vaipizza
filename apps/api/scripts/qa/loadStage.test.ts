@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { buildLoadCases } from "./load.js";
 import {
   assertLoadStagePreflight,
+  classifyLoadCheckout,
   runLoadCasesSequentially,
   validateLoadStageOutcomes,
 } from "./loadStage.js";
@@ -35,6 +36,31 @@ describe("QA load stage outcome validation", () => {
     }));
     outcomes[outside.index] = { index: outside.index, outcome: "DELIVERED" };
     expect(() => validateLoadStageOutcomes(cases, outcomes)).toThrow(new RegExp(`case ${outside.index}`, "i"));
+  });
+});
+
+describe("QA load checkout classification", () => {
+  it("accepts only the explicit OUT_OF_RANGE API code for an outside case", () => {
+    const result = classifyLoadCheckout(
+      { index: 8, kind: "edge-outside", distanceKm: 8.1, expectedCheckout: "OUT_OF_RANGE" },
+      { ok: false, status: 400, durationMs: 12, data: { success: false, code: "OUT_OF_RANGE", message: "fora" } },
+    );
+    expect(result).toEqual({ outcome: "OUT_OF_RANGE" });
+  });
+
+  it("does not disguise a server failure as an out-of-range pass", () => {
+    expect(() => classifyLoadCheckout(
+      { index: 9, kind: "far-outside", distanceKm: 11, expectedCheckout: "OUT_OF_RANGE" },
+      { ok: false, status: 500, durationMs: 12, data: { success: false, message: "Internal server error" } },
+    )).toThrow(/case 9/i);
+  });
+
+  it("requires an accepted checkout to return a NEW order id", () => {
+    const result = classifyLoadCheckout(
+      { index: 0, kind: "inside", distanceKm: 1, expectedCheckout: "ACCEPT" },
+      { ok: true, status: 201, durationMs: 20, data: { success: true, order: { id: "order-1", status: "NEW" } } },
+    );
+    expect(result).toEqual({ outcome: "ACCEPT", orderId: "order-1" });
   });
 });
 
