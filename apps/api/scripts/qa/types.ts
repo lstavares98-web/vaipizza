@@ -11,6 +11,7 @@ export interface QaConfig {
   databaseName: string;
   supabaseProjectRef: string;
   mutationConfirmation?: string;
+  localCandidateConfirmation?: string;
 }
 
 export interface QaScenarioResult {
