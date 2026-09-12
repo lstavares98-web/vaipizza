@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { validateCourierRaceOutcome, type CourierRaceSnapshot } from "./courierRace.js";
+import {
+  validateCourierAcceptRejectOutcome,
+  validateCourierRaceOutcome,
+  type CourierAcceptRejectSnapshot,
+  type CourierRaceSnapshot,
+} from "./courierRace.js";
 
 describe("courier acceptance race validation", () => {
   it("passes with exactly one accepted winner and no competing active offer", () => {
@@ -80,5 +85,39 @@ describe("courier acceptance race validation", () => {
       ],
     };
     expect(() => validateCourierRaceOutcome(snapshot)).toThrow(/losing|conflict|409/i);
+  });
+});
+
+describe("courier accept versus reject race validation", () => {
+  it("passes when the accepting courier owns the order and the other assignment is rejected", () => {
+    const snapshot: CourierAcceptRejectSnapshot = {
+      orderId: "o1",
+      orderCourierId: "c1",
+      acceptingCourierId: "c1",
+      rejectingCourierId: "c2",
+      acceptStatus: 200,
+      rejectStatus: 200,
+      assignments: [
+        { courierId: "c1", status: "ACCEPTED" },
+        { courierId: "c2", status: "REJECTED" },
+      ],
+    };
+    expect(() => validateCourierAcceptRejectOutcome(snapshot)).not.toThrow();
+  });
+
+  it("fails if rejection cancels ownership or leaves an active competing offer", () => {
+    const snapshot: CourierAcceptRejectSnapshot = {
+      orderId: "o1",
+      orderCourierId: null,
+      acceptingCourierId: "c1",
+      rejectingCourierId: "c2",
+      acceptStatus: 200,
+      rejectStatus: 200,
+      assignments: [
+        { courierId: "c1", status: "ACCEPTED" },
+        { courierId: "c2", status: "OFFERED" },
+      ],
+    };
+    expect(() => validateCourierAcceptRejectOutcome(snapshot)).toThrow(/owner|rejected|offered/i);
   });
 });
