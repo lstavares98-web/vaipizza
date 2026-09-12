@@ -180,7 +180,11 @@ export async function runCourierAcceptanceRace(
   }
 
   const courierIndexBase = options.courierIndexBase ?? 100;
-  const racers = [];
+  const racers: Array<
+    Awaited<ReturnType<typeof createQaCourierFixture>> & {
+      session: Awaited<ReturnType<typeof loginQaCourierSession>>;
+    }
+  > = [];
   for (let index = 0; index < courierCount; index += 1) {
     const courier = await createQaCourierFixture(prisma, config, manifest, {
       index: courierIndexBase + index,
