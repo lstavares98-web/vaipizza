@@ -1,11 +1,10 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const state = vi.hoisted(() => {
+  const acceptAssignment = vi.fn();
   const assignmentUpdateMany = vi.fn();
   const competingFindMany = vi.fn();
   const courierUpdateMany = vi.fn();
-  const orderUpdateMany = vi.fn();
-  const orderFindUnique = vi.fn();
 
   const tx = {
     courierAssignment: {
@@ -13,63 +12,31 @@ const state = vi.hoisted(() => {
       findMany: competingFindMany,
     },
     courier: { updateMany: courierUpdateMany },
-    order: {
-      updateMany: orderUpdateMany,
-      findUnique: orderFindUnique,
-    },
-    orderStatusEvent: { create: vi.fn() },
   };
 
   const prisma = {
-    courierAssignment: { findFirst: vi.fn() },
-    adminAlert: { updateMany: vi.fn() },
     $transaction: vi.fn(async (callback: (client: typeof tx) => Promise<unknown>) => callback(tx)),
   };
 
   return {
     prisma,
     tx,
+    acceptAssignment,
     assignmentUpdateMany,
     competingFindMany,
     courierUpdateMany,
-    orderUpdateMany,
-    orderFindUnique,
   };
 });
 
 vi.mock("../../config/prisma.js", () => ({ prisma: state.prisma }));
-vi.mock("../../config/env.js", () => ({
-  env: {
-    ASSIGNMENT_OFFER_TTL_SECONDS: 60,
-    COURIER_LOCATION_MAX_AGE_SECONDS: 120,
-    COURIER_MAX_ACCURACY_METERS: 100,
-    DISPATCH_FAIRNESS_WINDOW_MINUTES: 30,
-  },
-}));
-vi.mock("../../sockets/io.js", () => ({
-  getIO: () => undefined,
-  rooms: {
-    restaurant: (id: string) => id,
-    customer: (id: string) => id,
-    courier: (id: string) => id,
-  },
-}));
+vi.mock("./dispatch.service.js", () => ({ acceptAssignment: state.acceptAssignment }));
 
-import { acceptAssignment } from "./dispatch.service.js";
+import { acceptAssignmentAndFinalize } from "./dispatch.acceptance.js";
 
-describe("acceptAssignment concurrent offers", () => {
+describe("acceptAssignmentAndFinalize concurrent offers", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-
-    state.prisma.courierAssignment.findFirst.mockResolvedValue({
-      id: "a1",
-      orderId: "o1",
-      courierId: "c1",
-    });
-    state.assignmentUpdateMany.mockResolvedValue({ count: 1 });
-    state.courierUpdateMany.mockResolvedValue({ count: 1 });
-    state.orderUpdateMany.mockResolvedValue({ count: 1 });
-    state.orderFindUnique.mockResolvedValue({
+    state.acceptAssignment.mockResolvedValue({
       id: "o1",
       restaurantId: "r1",
       userId: "u1",
@@ -77,13 +44,15 @@ describe("acceptAssignment concurrent offers", () => {
       status: "COURIER_ASSIGNED",
     });
     state.competingFindMany.mockResolvedValue([{ id: "a2", courierId: "c2" }]);
-    state.prisma.adminAlert.updateMany.mockResolvedValue({ count: 0 });
+    state.assignmentUpdateMany.mockResolvedValue({ count: 1 });
+    state.courierUpdateMany.mockResolvedValue({ count: 1 });
   });
 
   it("cancels competing offers and releases losing couriers after one acceptance wins", async () => {
-    const order = await acceptAssignment("c1", "a1");
+    const order = await acceptAssignmentAndFinalize("c1", "a1");
 
     expect(order?.id).toBe("o1");
+    expect(state.acceptAssignment).toHaveBeenCalledWith("c1", "a1");
     expect(state.competingFindMany).toHaveBeenCalledWith({
       where: { orderId: "o1", id: { not: "a1" }, status: "OFFERED" },
       select: { id: true, courierId: true },
@@ -96,5 +65,12 @@ describe("acceptAssignment concurrent offers", () => {
       where: { id: { in: ["c2"] }, status: "ASSIGNED" },
       data: { status: "AVAILABLE" },
     });
+  });
+
+  it("does not touch competing offers when the assignment already lost", async () => {
+    state.acceptAssignment.mockResolvedValueOnce(null);
+
+    await expect(acceptAssignmentAndFinalize("c1", "a1")).resolves.toBeNull();
+    expect(state.prisma.$transaction).not.toHaveBeenCalled();
   });
 });
