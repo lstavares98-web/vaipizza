@@ -42,8 +42,23 @@ export interface CourierRaceOptions {
   courierIndexBase?: number;
 }
 
+export interface CourierRacePreparationSteps {
+  createPreparingOrder: () => Promise<string>;
+  createOffers: (orderId: string) => Promise<void>;
+  markReady: (orderId: string) => Promise<void>;
+}
+
 function unique<T>(values: T[]): T[] {
   return Array.from(new Set(values));
+}
+
+export async function prepareCourierRaceBeforeDispatch(
+  steps: CourierRacePreparationSteps,
+): Promise<string> {
+  const orderId = await steps.createPreparingOrder();
+  await steps.createOffers(orderId);
+  await steps.markReady(orderId);
+  return orderId;
 }
 
 export function validateCourierRaceOutcome(snapshot: CourierRaceSnapshot): void {
@@ -87,22 +102,11 @@ export function validateCourierRaceOutcome(snapshot: CourierRaceSnapshot): void 
   }
 }
 
-async function createWaitingQaOrder(
-  prisma: PrismaClient,
+async function createPreparingQaOrder(
   config: QaConfig,
   manifest: QaRunManifest,
   options: CourierRaceOptions,
 ): Promise<string> {
-  const nonQaAvailable = await prisma.courier.count({
-    where: {
-      status: "AVAILABLE",
-      ...(manifest.courierIds.length > 0 ? { id: { notIn: manifest.courierIds } } : {}),
-    },
-  });
-  if (nonQaAvailable !== 0) {
-    throw new Error(`Courier race is blocked because ${nonQaAvailable} non-QA AVAILABLE courier(s) exist`);
-  }
-
   const point = pointAtDistanceKm(options.restaurantLat, options.restaurantLng, 1, 75);
   const customer = await createQaCustomer(config, manifest, options.customerIndex ?? 200_000);
   const addressId = await createQaAddress(config, manifest, customer.accessToken, {
@@ -146,16 +150,22 @@ async function createWaitingQaOrder(
     throw new Error(`Courier race restaurant accept failed: ${accepted.data?.message ?? `HTTP ${accepted.status}`}`);
   }
 
+  return orderId;
+}
+
+async function markQaOrderReady(
+  config: QaConfig,
+  orderId: string,
+  kitchenToken: string,
+): Promise<void> {
   const ready = await qaRequest<{ success?: boolean; order?: { id?: string; status?: string }; message?: string }>(
     config,
     `/api/restaurant/orders/${orderId}/status`,
-    { method: "PATCH", token: options.kitchenToken, body: { status: "READY_FOR_PICKUP" } },
+    { method: "PATCH", token: kitchenToken, body: { status: "READY_FOR_PICKUP" } },
   );
   if (!ready.ok || ready.data?.success === false || ready.data?.order?.status !== "WAITING_FOR_COURIER") {
     throw new Error(`Courier race kitchen ready failed: ${ready.data?.message ?? `HTTP ${ready.status}`}`);
   }
-
-  return orderId;
 }
 
 export async function runCourierAcceptanceRace(
@@ -184,19 +194,43 @@ export async function runCourierAcceptanceRace(
     racers.push({ ...courier, session });
   }
 
-  const orderId = await createWaitingQaOrder(prisma, config, manifest, options);
-  const expiresAt = new Date(Date.now() + 5 * 60_000);
-  const assignments = await prisma.$transaction(
-    racers.map((racer) => prisma.courierAssignment.create({
-      data: {
-        orderId,
-        courierId: racer.courierId,
-        status: "OFFERED",
-        expiresAt,
-      },
-      select: { id: true, courierId: true },
-    })),
-  );
+  let assignments: Array<{ id: string; courierId: string }> = [];
+  const orderId = await prepareCourierRaceBeforeDispatch({
+    createPreparingOrder: () => createPreparingQaOrder(config, manifest, options),
+    createOffers: async (preparedOrderId) => {
+      const expiresAt = new Date(Date.now() + 5 * 60_000);
+      assignments = await prisma.$transaction(
+        racers.map((racer) => prisma.courierAssignment.create({
+          data: {
+            orderId: preparedOrderId,
+            courierId: racer.courierId,
+            status: "OFFERED",
+            expiresAt,
+          },
+          select: { id: true, courierId: true },
+        })),
+      );
+    },
+    markReady: async (preparedOrderId) => {
+      await markQaOrderReady(config, preparedOrderId, options.kitchenToken);
+      const unexpectedAssignments = await prisma.courierAssignment.findMany({
+        where: {
+          orderId: preparedOrderId,
+          courierId: { notIn: racers.map((racer) => racer.courierId) },
+        },
+        select: { courierId: true, status: true },
+      });
+      if (unexpectedAssignments.length > 0) {
+        throw new Error(
+          `Courier race dispatch isolation failed: ${unexpectedAssignments.length} non-QA courier assignment(s) appeared`,
+        );
+      }
+    },
+  });
+
+  if (assignments.length !== racers.length) {
+    throw new Error(`Courier race expected ${racers.length} QA offers but created ${assignments.length}`);
+  }
 
   const barrier = createStartBarrier();
   const pending = racers.map(async (racer) => {
