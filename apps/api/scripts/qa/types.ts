@@ -6,6 +6,9 @@ export interface QaConfig {
   apiHostname: string;
   allowedApiHosts: string[];
   databaseHostname: string;
+  databaseUsername: string;
+  databasePort: string;
+  databaseName: string;
   supabaseProjectRef: string;
   mutationConfirmation?: string;
 }
