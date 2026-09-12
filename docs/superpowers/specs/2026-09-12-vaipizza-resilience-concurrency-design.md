@@ -118,12 +118,12 @@ Verify automatic dispatch behaviour when courier availability changes.
 7. Courier is outside dispatch radius.
 8. Multiple eligible couriers reject/expire in sequence.
 9. Automatic reassignment to the next eligible courier.
-10. Manual reassignment where supported by the management API/UI.
+10. Manual reassignment through the management API/UI if that capability already exists; if it does not exist, record the missing capability explicitly instead of silently skipping the scenario.
 
 ### Expected invariants
 
 - ineligible couriers are never chosen;
-- rejected/expired assignment is not later accept-able;
+- rejected/expired assignment is not later acceptable;
 - dispatch moves to the next valid courier when appropriate;
 - a waiting order remains visible and recoverable if nobody is eligible;
 - assignment exhaustion/alerts are internally consistent;
