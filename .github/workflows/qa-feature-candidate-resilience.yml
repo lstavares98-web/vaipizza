@@ -1,0 +1,105 @@
+name: QA Feature Candidate Resilience
+
+on:
+  push:
+    branches:
+      - feature/qa-harness-safe
+    paths:
+      - qa-feature-candidate.trigger
+
+jobs:
+  feature-candidate-resilience:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    env:
+      QA_ENV: staging
+      QA_API_URL: http://127.0.0.1:4000
+      QA_CONFIRM: VAIPIZZA_STAGING_ONLY
+      QA_LOCAL_CANDIDATE_CONFIRM: VAIPIZZA_FEATURE_CANDIDATE_ONLY
+      PRIMARY_RESTAURANT_SLUG: vaipizza
+      DATABASE_URL: ${{ secrets.DATABASE_URL }}
+      NODE_ENV: test
+      PORT: 4000
+      CORS_ORIGINS: http://127.0.0.1
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Guard database credential
+        shell: bash
+        run: |
+          if [ -z "${DATABASE_URL:-}" ]; then
+            echo "DATABASE_URL secret is not configured; feature candidate QA will not run."
+            exit 1
+          fi
+
+      - name: Read and guard candidate group
+        id: group
+        shell: bash
+        run: |
+          GROUP="$(tr -d '[:space:]' < qa-feature-candidate.trigger)"
+          case "$GROUP" in
+            courier-race-2|courier-race-3) ;;
+            *)
+              echo "Unsupported feature-candidate group: $GROUP"
+              exit 1
+              ;;
+          esac
+          echo "group=$GROUP" >> "$GITHUB_OUTPUT"
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Re-run QA safety checks
+        run: |
+          npm run qa:typecheck
+          npm run qa:test
+          npm run test -w apps/api
+
+      - name: Run branch API and candidate resilience group
+        shell: bash
+        env:
+          JWT_ACCESS_SECRET: ${{ github.sha }}candidate-access
+          JWT_REFRESH_SECRET: ${{ github.sha }}candidate-refresh
+        run: |
+          set -euo pipefail
+          (cd apps/api && npx tsx scripts/qa/localCandidateServer.ts) > /tmp/vaipizza-candidate-api.log 2>&1 &
+          API_PID=$!
+          trap 'kill "$API_PID" 2>/dev/null || true' EXIT
+
+          READY=0
+          for attempt in $(seq 1 30); do
+            if curl --fail --silent --show-error http://127.0.0.1:4000/health >/dev/null; then
+              READY=1
+              break
+            fi
+            sleep 1
+          done
+          if [ "$READY" -ne 1 ]; then
+            echo "Local candidate API did not become healthy."
+            cat /tmp/vaipizza-candidate-api.log || true
+            exit 1
+          fi
+
+          npm run qa:resilience:backend -w apps/api -- --group=${{ steps.group.outputs.group }}
+
+      - name: Show candidate API log on failure
+        if: failure()
+        shell: bash
+        run: cat /tmp/vaipizza-candidate-api.log || true
+
+      - name: Upload QA evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: qa-feature-candidate-${{ steps.group.outputs.group }}-evidence
+          path: qa-artifacts/
+          if-no-files-found: ignore
+          retention-days: 14
