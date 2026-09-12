@@ -2,6 +2,7 @@ import type { QaConfig, QaRunManifest } from "./types.js";
 import { readJsonArtifact, writeJsonArtifact } from "./artifacts.js";
 
 const RUN_ID_PATTERN = /^QA-\d{8}-\d{6}(?:-[A-Za-z0-9_-]+)?$/;
+const LOOPBACK_API_HOSTS = new Set(["127.0.0.1", "localhost"]);
 const ID_ARRAY_KEYS = [
   "customerUserIds",
   "operatorUserIds",
@@ -76,10 +77,17 @@ function assertIdArray(values: string[], label: string) {
   }
 }
 
+function isApprovedManifestApiHost(apiHost: string): boolean {
+  const normalized = apiHost.trim().toLowerCase();
+  return normalized.includes("staging") || LOOPBACK_API_HOSTS.has(normalized);
+}
+
 export function validateManifest(manifest: QaRunManifest): void {
   assertRunId(manifest.runId);
   if (manifest.environment !== "staging") throw new Error("QA manifest must be staging-only");
-  if (!manifest.apiHost.includes("staging")) throw new Error("QA manifest API host must be staging");
+  if (!isApprovedManifestApiHost(manifest.apiHost)) {
+    throw new Error("QA manifest API host must be staging or an explicit loopback candidate");
+  }
   if (!manifest.supabaseProjectRef) throw new Error("QA manifest is missing Supabase project ref");
   for (const key of ID_ARRAY_KEYS) assertIdArray(manifest[key], key);
   for (const name of manifest.scenarioNames) {
