@@ -11,7 +11,7 @@ import {
   createQaCourierFixture,
   createQaCustomer,
   createQaOperatorFixture,
-  loginQaCourier,
+  loginQaCourierSession,
 } from "./fixtures.js";
 import { pointAtDistanceKm } from "./scenarios/geo.js";
 import { runSingleDeliveryTransitions, singleDeliveryCheckoutBody } from "./scenarios/singleDelivery.js";
@@ -23,9 +23,11 @@ import {
   assertLiveLoadStageEnabled,
   assertLoadStagePreflight,
   classifyLoadCheckout,
+  refreshLoadAuthSessionsIfDue,
   refreshLoadCourierLocation,
   runLoadCasesSequentially,
   validateLoadStageOutcomes,
+  type QaLoadAuthSessions,
   type QaLoadCaseOutcome,
 } from "./loadStage.js";
 
@@ -117,12 +119,24 @@ export async function runLoadStageQa(
           accuracyM: 10,
           locationUpdatedAt: new Date(),
         });
-        const courierToken = await loginQaCourier(config, courier.email, courier.password);
+        const courierAuth = await loginQaCourierSession(config, courier.email, courier.password);
+        let authSessions: QaLoadAuthSessions = {
+          staff,
+          kitchen,
+          courier: courierAuth,
+        };
 
         observedOutcomes = await runLoadCasesSequentially(cases, async (testCase) => {
+          const authRefreshStarted = performance.now();
+          const authRefresh = await refreshLoadAuthSessionsIfDue(config, authSessions);
+          authSessions = authRefresh.sessions;
+          if (authRefresh.refreshed) {
+            manifest.timings[`case-${testCase.index}.auth refresh`] = performance.now() - authRefreshStarted;
+          }
+
           const heartbeatMs = await refreshLoadCourierLocation(
             config,
-            courierToken,
+            authSessions.courier.accessToken,
             protectedBefore.restaurant.lat,
             protectedBefore.restaurant.lng,
           );
@@ -181,9 +195,9 @@ export async function runLoadStageQa(
             config,
             checkout.orderId,
             {
-              staffToken: staff.accessToken,
-              kitchenToken: kitchen.accessToken,
-              courierToken,
+              staffToken: authSessions.staff.accessToken,
+              kitchenToken: authSessions.kitchen.accessToken,
+              courierToken: authSessions.courier.accessToken,
             },
           );
           const lifecycleMs = performance.now() - lifecycleStarted;
@@ -207,7 +221,7 @@ export async function runLoadStageQa(
             success: boolean;
             orders: Array<{ id: string; status: string }>;
             message?: string;
-          }>(config, "/api/courier/history", { token: courierToken });
+          }>(config, "/api/courier/history", { token: authSessions.courier.accessToken });
           if (!historyResponse.ok || historyResponse.data.success === false) {
             throw new Error(`QA load case ${testCase.index} could not verify courier history`);
           }
@@ -217,7 +231,7 @@ export async function runLoadStageQa(
             lifetimeDeliveries: number;
             today: { deliveries: number; total: number };
             message?: string;
-          }>(config, "/api/courier/earnings", { token: courierToken });
+          }>(config, "/api/courier/earnings", { token: authSessions.courier.accessToken });
           if (!earningsResponse.ok || earningsResponse.data.success === false) {
             throw new Error(`QA load case ${testCase.index} could not verify courier earnings`);
           }
