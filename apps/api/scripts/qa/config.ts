@@ -7,6 +7,8 @@ const REQUIRED_SUPABASE_POOLER_HOST = "aws-1-eu-west-1.pooler.supabase.com";
 const REQUIRED_SUPABASE_POOLER_USER = `postgres.${REQUIRED_SUPABASE_REF}`;
 const DEFAULT_ALLOWED_API_HOSTS = ["vaipizza-api-staging.onrender.com"];
 const MUTATION_CONFIRMATION = "VAIPIZZA_STAGING_ONLY";
+const LOCAL_CANDIDATE_CONFIRMATION = "VAIPIZZA_FEATURE_CANDIDATE_ONLY";
+const LOCAL_CANDIDATE_HOSTS = new Set(["127.0.0.1", "localhost"]);
 
 function normalizeAllowedHosts(raw?: string) {
   if (!raw) return [...DEFAULT_ALLOWED_API_HOSTS];
@@ -56,25 +58,11 @@ export function loadQaConfig(env: NodeJS.ProcessEnv): QaConfig {
     databaseName: database.databaseName,
     supabaseProjectRef: REQUIRED_SUPABASE_REF,
     mutationConfirmation: env.QA_CONFIRM,
+    localCandidateConfirmation: env.QA_LOCAL_CANDIDATE_CONFIRM,
   };
 }
 
-export function assertSafeTarget(config: QaConfig): void {
-  if (config.environment !== REQUIRED_ENV) {
-    throw new Error(`QA runner only accepts QA_ENV=${REQUIRED_ENV}`);
-  }
-
-  const parsedApi = new URL(config.apiUrl);
-  if (parsedApi.protocol !== "https:") {
-    throw new Error("QA staging API must use HTTPS");
-  }
-  if (!config.apiHostname.includes("staging")) {
-    throw new Error("QA target must be an explicit staging API host");
-  }
-  if (!config.allowedApiHosts.includes(config.apiHostname)) {
-    throw new Error(`QA API host is not allowlisted: ${config.apiHostname}`);
-  }
-
+function assertApprovedStagingDatabase(config: QaConfig): void {
   const directMatch = config.databaseHostname === REQUIRED_SUPABASE_HOST;
   const poolerMatch =
     config.databaseHostname === REQUIRED_SUPABASE_POOLER_HOST &&
@@ -87,6 +75,36 @@ export function assertSafeTarget(config: QaConfig): void {
   if (config.databaseName !== "postgres") {
     throw new Error("Supabase database must be postgres");
   }
+}
+
+export function assertSafeTarget(config: QaConfig): void {
+  if (config.environment !== REQUIRED_ENV) {
+    throw new Error(`QA runner only accepts QA_ENV=${REQUIRED_ENV}`);
+  }
+
+  const parsedApi = new URL(config.apiUrl);
+  const localCandidate = LOCAL_CANDIDATE_HOSTS.has(config.apiHostname);
+
+  if (localCandidate) {
+    if (parsedApi.protocol !== "http:") {
+      throw new Error("Local candidate QA API must use an HTTP loopback address");
+    }
+    if (config.localCandidateConfirmation !== LOCAL_CANDIDATE_CONFIRMATION) {
+      throw new Error(`Local candidate QA requires QA_LOCAL_CANDIDATE_CONFIRM=${LOCAL_CANDIDATE_CONFIRMATION}`);
+    }
+  } else {
+    if (parsedApi.protocol !== "https:") {
+      throw new Error("QA staging API must use HTTPS");
+    }
+    if (!config.apiHostname.includes("staging")) {
+      throw new Error("QA target must be an explicit staging API host");
+    }
+    if (!config.allowedApiHosts.includes(config.apiHostname)) {
+      throw new Error(`QA API host is not allowlisted: ${config.apiHostname}`);
+    }
+  }
+
+  assertApprovedStagingDatabase(config);
 }
 
 export function assertMutationConfirmation(config: QaConfig): void {
@@ -103,4 +121,5 @@ export const QA_SAFETY_CONSTANTS = Object.freeze({
   requiredSupabaseRef: REQUIRED_SUPABASE_REF,
   defaultAllowedApiHosts: [...DEFAULT_ALLOWED_API_HOSTS],
   mutationConfirmation: MUTATION_CONFIRMATION,
+  localCandidateConfirmation: LOCAL_CANDIDATE_CONFIRMATION,
 });
