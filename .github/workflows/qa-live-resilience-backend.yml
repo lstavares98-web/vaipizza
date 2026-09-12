@@ -60,7 +60,7 @@ jobs:
           npm run test -w apps/api
 
       - name: Run live backend resilience group in staging
-        run: npm run qa:resilience:backend -- --group=${{ steps.group.outputs.group }}
+        run: npm run qa:resilience:backend -w apps/api -- --group=${{ steps.group.outputs.group }}
 
       - name: Upload QA evidence
         if: always()
