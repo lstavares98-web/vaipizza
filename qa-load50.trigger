@@ -1,3 +1,3 @@
-run=QA-LIVE-LOAD-STAGE-50
-requested_at=2026-09-12T11:54:00Z
+run=QA-LIVE-LOAD-STAGE-50-GPS-HEARTBEAT
+requested_at=2026-09-12T12:01:00Z
 scope=staging-only-load-50
