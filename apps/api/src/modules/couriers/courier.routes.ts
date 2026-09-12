@@ -4,7 +4,8 @@ import { Role } from "@yummix/types";
 import { asyncHandler } from "../../middleware/errorHandler.js";
 import { requireAuth, requireRole } from "../../middleware/auth.js";
 import * as courierService from "./courier.service.js";
-import { acceptAssignment, rejectAssignment } from "../dispatch/dispatch.service.js";
+import { rejectAssignment } from "../dispatch/dispatch.service.js";
+import { acceptAssignmentAndFinalize } from "../dispatch/dispatch.acceptance.js";
 
 export const courierRouter = Router();
 courierRouter.use(requireAuth, requireRole(Role.COURIER));
@@ -51,7 +52,7 @@ courierRouter.post(
   "/assignments/:id/accept",
   asyncHandler(async (req, res) => {
     const courier = await courierService.getCourierByUserId(req.auth!.sub);
-    const order = await acceptAssignment(courier.id, req.params.id!);
+    const order = await acceptAssignmentAndFinalize(courier.id, req.params.id!);
     if (!order) return res.status(409).json({ success: false, message: "Esta oferta já não está disponível" });
     res.json({ success: true, order });
   }),
