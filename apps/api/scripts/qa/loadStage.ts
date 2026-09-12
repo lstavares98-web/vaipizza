@@ -1,6 +1,8 @@
 import type { QaHttpResponse } from "./http.js";
 import { LOAD_STAGES, type QaLoadCase, type QaLoadStage } from "./load.js";
 
+const LIVE_LOAD_STAGES = [10, 50] as const;
+
 export type QaLoadOutcome = "DELIVERED" | "OUT_OF_RANGE";
 
 export interface QaLoadCaseOutcome {
@@ -18,6 +20,12 @@ type LoadCheckoutData = {
   message?: string;
   order?: { id?: string; status?: string };
 };
+
+export function assertLiveLoadStageEnabled(stage: number): void {
+  if (!LIVE_LOAD_STAGES.includes(stage as (typeof LIVE_LOAD_STAGES)[number])) {
+    throw new Error(`QA live load stage ${stage} is not enabled yet`);
+  }
+}
 
 export function classifyLoadCheckout(
   testCase: QaLoadCase,
