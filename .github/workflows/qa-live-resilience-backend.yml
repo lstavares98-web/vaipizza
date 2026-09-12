@@ -1,0 +1,72 @@
+name: QA Live Backend Resilience
+
+on:
+  push:
+    branches:
+      - feature/qa-harness-safe
+    paths:
+      - qa-resilience-backend.trigger
+
+jobs:
+  backend-resilience:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    env:
+      QA_ENV: staging
+      QA_API_URL: https://vaipizza-api-staging.onrender.com
+      QA_CONFIRM: VAIPIZZA_STAGING_ONLY
+      PRIMARY_RESTAURANT_SLUG: vaipizza
+      DATABASE_URL: ${{ secrets.DATABASE_URL }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Guard database credential
+        shell: bash
+        run: |
+          if [ -z "${DATABASE_URL:-}" ]; then
+            echo "DATABASE_URL secret is not configured; live backend resilience QA will not run."
+            exit 1
+          fi
+
+      - name: Read and guard resilience group
+        id: group
+        shell: bash
+        run: |
+          GROUP="$(tr -d '[:space:]' < qa-resilience-backend.trigger)"
+          case "$GROUP" in
+            concurrent|courier-race-2|courier-race-3|dispatch|idempotency) ;;
+            *)
+              echo "Unsupported or inert resilience group: $GROUP"
+              exit 1
+              ;;
+          esac
+          echo "group=$GROUP" >> "$GITHUB_OUTPUT"
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Re-run QA safety checks
+        run: |
+          npm run qa:typecheck
+          npm run qa:test
+          npm run test -w apps/api
+
+      - name: Run live backend resilience group in staging
+        run: npm run qa:resilience:backend -- --group=${{ steps.group.outputs.group }}
+
+      - name: Upload QA evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: qa-live-backend-resilience-${{ steps.group.outputs.group }}-evidence
+          path: qa-artifacts/
+          if-no-files-found: ignore
+          retention-days: 14
