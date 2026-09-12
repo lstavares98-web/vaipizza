@@ -93,9 +93,21 @@ describe("QA cleanup ownership guard", () => {
     expect(() => validateCleanupOwnership(manifest(), empty)).not.toThrow();
   });
 
-  it("rejects any untracked courier or product relationship", () => {
+  it("allows a transient dispatch offer from a QA courier to an old waiting order", () => {
     const snapshot = ownedSnapshot();
-    snapshot.unexpectedCourierRefs.push({ courierId: "courier-1", orderId: "real-order", source: "assignment" });
+    snapshot.unexpectedCourierRefs.push({ courierId: "courier-1", orderId: "old-waiting-order", source: "assignment" });
+    expect(() => validateCleanupOwnership(manifest(), snapshot)).not.toThrow();
+  });
+
+  it("still rejects an untracked order that actually owns the QA courier", () => {
+    const snapshot = ownedSnapshot();
+    snapshot.unexpectedCourierRefs.push({ courierId: "courier-1", orderId: "real-order", source: "order" });
     expect(() => validateCleanupOwnership(manifest(), snapshot)).toThrow(/untracked orders/i);
+  });
+
+  it("rejects a QA product referenced outside the run", () => {
+    const snapshot = ownedSnapshot();
+    snapshot.unexpectedProductRefs.push({ productId: "product-1", source: "order-item", ownerId: "real-order" });
+    expect(() => validateCleanupOwnership(manifest(), snapshot)).toThrow(/referenced outside/i);
   });
 });
