@@ -1,4 +1,5 @@
-import type { QaHttpResponse } from "./http.js";
+import type { QaConfig } from "./types.js";
+import { qaRequest, type QaHttpResponse, type QaRequestOptions } from "./http.js";
 import { LOAD_STAGES, type QaLoadCase, type QaLoadStage } from "./load.js";
 
 const LIVE_LOAD_STAGES = [10, 50] as const;
@@ -14,6 +15,12 @@ export type QaLoadCheckoutResult =
   | { outcome: "OUT_OF_RANGE" }
   | { outcome: "ACCEPT"; orderId: string };
 
+export type QaLoadRequestExecutor = <T>(
+  config: QaConfig,
+  path: string,
+  options?: QaRequestOptions,
+) => Promise<QaHttpResponse<T>>;
+
 type LoadCheckoutData = {
   success?: boolean;
   code?: string;
@@ -21,10 +28,34 @@ type LoadCheckoutData = {
   order?: { id?: string; status?: string };
 };
 
+type LoadCourierLocationData = {
+  success?: boolean;
+  message?: string;
+};
+
 export function assertLiveLoadStageEnabled(stage: number): void {
   if (!LIVE_LOAD_STAGES.includes(stage as (typeof LIVE_LOAD_STAGES)[number])) {
     throw new Error(`QA live load stage ${stage} is not enabled yet`);
   }
+}
+
+export async function refreshLoadCourierLocation(
+  config: QaConfig,
+  token: string,
+  lat: number,
+  lng: number,
+  request: QaLoadRequestExecutor = qaRequest,
+): Promise<number> {
+  const response = await request<LoadCourierLocationData>(config, "/api/courier/location", {
+    method: "POST",
+    token,
+    body: { lat, lng, accuracyM: 10 },
+  });
+  if (!response.ok || response.data?.success === false) {
+    const message = response.data?.message ?? `HTTP ${response.status}`;
+    throw new Error(`QA courier GPS heartbeat failed: ${message}`);
+  }
+  return response.durationMs;
 }
 
 export function classifyLoadCheckout(
