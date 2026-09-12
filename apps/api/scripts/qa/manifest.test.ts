@@ -30,6 +30,22 @@ describe("QA manifest markers", () => {
     expect(() => validateManifest(manifest)).toThrow(/empty id/i);
   });
 
+  it("accepts an exact loopback host for an isolated feature candidate manifest", () => {
+    const manifest = createEmptyManifest(
+      { ...config, apiUrl: "http://127.0.0.1:4000", apiHostname: "127.0.0.1" },
+      "QA-20260911-191500",
+    );
+    expect(() => validateManifest(manifest)).not.toThrow();
+  });
+
+  it("still rejects arbitrary non-staging, non-loopback API hosts", () => {
+    const manifest = createEmptyManifest(
+      { ...config, apiUrl: "https://api.vaipizza.pt", apiHostname: "api.vaipizza.pt" },
+      "QA-20260911-191500",
+    );
+    expect(() => validateManifest(manifest)).toThrow(/staging|loopback/i);
+  });
+
   it("tracks QA operator user ids for cleanup", () => {
     const manifest = createEmptyManifest(config, "QA-20260911-191500");
     manifest.operatorUserIds.push("operator-1");
