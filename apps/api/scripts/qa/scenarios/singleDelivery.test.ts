@@ -14,6 +14,9 @@ const config: QaConfig = {
   apiHostname: "vaipizza-api-staging.onrender.com",
   allowedApiHosts: ["vaipizza-api-staging.onrender.com"],
   databaseHostname: "db.vnuowugruqheakomdtuh.supabase.co",
+  databaseUsername: "postgres",
+  databasePort: "5432",
+  databaseName: "postgres",
   supabaseProjectRef: "vnuowugruqheakomdtuh",
   mutationConfirmation: "VAIPIZZA_STAGING_ONLY",
 };
