@@ -1,11 +1,13 @@
 import { describe, expect, it } from "vitest";
 import type { QaConfig } from "./types.js";
+import type { QaAuthSession } from "./fixtures.js";
 import type { QaHttpResponse, QaRequestOptions } from "./http.js";
 import { buildLoadCases } from "./load.js";
 import {
   assertLiveLoadStageEnabled,
   assertLoadStagePreflight,
   classifyLoadCheckout,
+  refreshLoadAuthSessionsIfDue,
   refreshLoadCourierLocation,
   runLoadCasesSequentially,
   validateLoadStageOutcomes,
@@ -53,6 +55,69 @@ describe("QA live load promotion gate", () => {
 
   it("keeps unapproved stages blocked", () => {
     expect(() => assertLiveLoadStageEnabled(500)).toThrow(/not enabled/i);
+  });
+});
+
+describe("QA load authentication renewal", () => {
+  const session = (name: string, refreshedAtMs: number): QaAuthSession => ({
+    accessToken: `${name}-access`,
+    refreshToken: `${name}-refresh`,
+    refreshedAtMs,
+  });
+
+  it("refreshes staff, kitchen and courier sessions before 15-minute expiry", async () => {
+    const calls: string[] = [];
+    const refresher = async (
+      _config: QaConfig,
+      current: QaAuthSession,
+    ): Promise<QaAuthSession> => {
+      calls.push(current.accessToken);
+      return {
+        accessToken: `${current.accessToken}-new`,
+        refreshToken: `${current.refreshToken}-new`,
+        refreshedAtMs: 10 * 60_000,
+      };
+    };
+
+    const result = await refreshLoadAuthSessionsIfDue(
+      {} as QaConfig,
+      {
+        staff: session("staff", 0),
+        kitchen: session("kitchen", 0),
+        courier: session("courier", 0),
+      },
+      10 * 60_000,
+      refresher,
+    );
+
+    expect(result.refreshed).toBe(true);
+    expect(calls).toEqual(["staff-access", "kitchen-access", "courier-access"]);
+    expect(result.sessions.staff.accessToken).toBe("staff-access-new");
+    expect(result.sessions.kitchen.accessToken).toBe("kitchen-access-new");
+    expect(result.sessions.courier.accessToken).toBe("courier-access-new");
+  });
+
+  it("does not refresh sessions that are still fresh", async () => {
+    let calls = 0;
+    const refresher = async (_config: QaConfig, current: QaAuthSession): Promise<QaAuthSession> => {
+      calls += 1;
+      return current;
+    };
+
+    const sessions = {
+      staff: session("staff", 0),
+      kitchen: session("kitchen", 0),
+      courier: session("courier", 0),
+    };
+    const result = await refreshLoadAuthSessionsIfDue(
+      {} as QaConfig,
+      sessions,
+      9 * 60_000,
+      refresher,
+    );
+
+    expect(result).toEqual({ sessions, refreshed: false });
+    expect(calls).toBe(0);
   });
 });
 
