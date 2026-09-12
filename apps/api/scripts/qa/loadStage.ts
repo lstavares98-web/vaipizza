@@ -1,4 +1,6 @@
 import type { QaConfig } from "./types.js";
+import type { QaAuthSession } from "./fixtures.js";
+import { refreshQaAuthSession, shouldRefreshQaSession } from "./fixtures.js";
 import { qaRequest, type QaHttpResponse, type QaRequestOptions } from "./http.js";
 import { LOAD_STAGES, type QaLoadCase, type QaLoadStage } from "./load.js";
 
@@ -21,6 +23,17 @@ export type QaLoadRequestExecutor = <T>(
   options?: QaRequestOptions,
 ) => Promise<QaHttpResponse<T>>;
 
+export interface QaLoadAuthSessions {
+  staff: QaAuthSession;
+  kitchen: QaAuthSession;
+  courier: QaAuthSession;
+}
+
+export type QaLoadAuthRefresher = (
+  config: QaConfig,
+  session: QaAuthSession,
+) => Promise<QaAuthSession>;
+
 type LoadCheckoutData = {
   success?: boolean;
   code?: string;
@@ -37,6 +50,25 @@ export function assertLiveLoadStageEnabled(stage: number): void {
   if (!LIVE_LOAD_STAGES.includes(stage as (typeof LIVE_LOAD_STAGES)[number])) {
     throw new Error(`QA live load stage ${stage} is not enabled yet`);
   }
+}
+
+export async function refreshLoadAuthSessionsIfDue(
+  config: QaConfig,
+  sessions: QaLoadAuthSessions,
+  nowMs = Date.now(),
+  refresher: QaLoadAuthRefresher = refreshQaAuthSession,
+): Promise<{ sessions: QaLoadAuthSessions; refreshed: boolean }> {
+  const next: QaLoadAuthSessions = { ...sessions };
+  let refreshed = false;
+
+  for (const key of ["staff", "kitchen", "courier"] as const) {
+    const current = next[key];
+    if (!shouldRefreshQaSession(nowMs, current.refreshedAtMs)) continue;
+    next[key] = await refresher(config, current);
+    refreshed = true;
+  }
+
+  return { sessions: next, refreshed };
 }
 
 export async function refreshLoadCourierLocation(
