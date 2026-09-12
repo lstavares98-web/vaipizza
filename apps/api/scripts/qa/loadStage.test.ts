@@ -44,14 +44,15 @@ describe("QA load stage outcome validation", () => {
 });
 
 describe("QA live load promotion gate", () => {
-  it("enables 10, 50 and 100 after stage 50 passed", () => {
+  it("enables 10, 50, 100 and 250 after stage 100 passed", () => {
     expect(() => assertLiveLoadStageEnabled(10)).not.toThrow();
     expect(() => assertLiveLoadStageEnabled(50)).not.toThrow();
     expect(() => assertLiveLoadStageEnabled(100)).not.toThrow();
+    expect(() => assertLiveLoadStageEnabled(250)).not.toThrow();
   });
 
-  it("keeps 250 blocked until stage 100 passes", () => {
-    expect(() => assertLiveLoadStageEnabled(250)).toThrow(/not enabled/i);
+  it("keeps unapproved stages blocked", () => {
+    expect(() => assertLiveLoadStageEnabled(500)).toThrow(/not enabled/i);
   });
 });
 
