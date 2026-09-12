@@ -7,6 +7,7 @@ import { captureProtectedSnapshot, compareProtectedSnapshots } from "./snapshot.
 import { assertRunId, loadManifest } from "./manifest.js";
 import { cleanupMode, executeCleanup, preflightCleanup } from "./cleanup.js";
 import { runFunctionalQa } from "./functional.js";
+import { runLoadStageQa } from "./loadStageRunner.js";
 
 function snapshotRunId(now = new Date()) {
   const stamp = now.toISOString().replace(/[-:]/g, "").replace(/\.\d{3}Z$/, "Z");
@@ -92,6 +93,14 @@ async function main() {
       assertMutationConfirmation(config);
       const result = await runFunctionalQa(prisma, config);
       console.log(`Functional QA PASS: ${result.runId}; order=${result.orderId}; status=${result.finalStatus}; cleanup complete.`);
+      return;
+    }
+    if (command === "load") {
+      assertMutationConfirmation(config);
+      const stage = Number(readOption("--stage") ?? "10");
+      if (!Number.isInteger(stage)) throw new Error("load requires an integer --stage");
+      const result = await runLoadStageQa(prisma, config, stage);
+      console.log(`Load QA PASS: ${result.runId}; stage=${result.stage}; delivered=${result.delivered}; outOfRange=${result.outOfRange}; cleanup complete.`);
       return;
     }
     if (command === "cleanup") {
