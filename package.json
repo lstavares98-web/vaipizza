@@ -25,6 +25,7 @@
     "qa:snapshot": "npm run qa:snapshot -w apps/api",
     "qa:functional": "npm run qa:functional -w apps/api",
     "qa:load": "npm run qa:load -w apps/api",
+    "qa:resilience:backend": "npm run qa:resilience:backend -w apps/api",
     "qa:cleanup": "npm run qa:cleanup -w apps/api",
     "db:generate": "npm run db:generate -w apps/api",
     "db:migrate": "npm run db:migrate -w apps/api",
