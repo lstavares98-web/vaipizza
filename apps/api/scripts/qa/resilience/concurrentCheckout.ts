@@ -10,7 +10,6 @@ import {
 import { saveManifest } from "../manifest.js";
 import { pointAtDistanceKm } from "../scenarios/geo.js";
 import { singleDeliveryCheckoutBody } from "../scenarios/singleDelivery.js";
-import { checkout } from "../../../src/modules/orders/orders.service.js";
 
 export type ConcurrentCheckoutAttemptResult =
   | { kind: "ACCEPTED"; orderId: string; status: number }
@@ -125,6 +124,10 @@ async function runSynchronizedDirectCheckouts(
   userId: string,
   body: CheckoutInput,
 ): Promise<ConcurrentCheckoutAttemptResult[]> {
+  // Keep production service imports out of the pure QA test module. The API
+  // env is intentionally loaded only when the live staging scenario actually
+  // runs under the credentialed workflow.
+  const { checkout } = await import("../../../src/modules/orders/orders.service.js");
   const barrier = createStartBarrier();
   const pending = [0, 1].map(async () => {
     await barrier.wait();
