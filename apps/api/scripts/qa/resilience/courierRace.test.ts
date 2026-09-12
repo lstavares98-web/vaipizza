@@ -1,10 +1,9 @@
 import { describe, expect, it } from "vitest";
+import { validateCourierRaceOutcome, type CourierRaceSnapshot } from "./courierRace.js";
 import {
   validateCourierAcceptRejectOutcome,
-  validateCourierRaceOutcome,
   type CourierAcceptRejectSnapshot,
-  type CourierRaceSnapshot,
-} from "./courierRace.js";
+} from "./courierAcceptReject.js";
 
 describe("courier acceptance race validation", () => {
   it("passes with exactly one accepted winner and no competing active offer", () => {
