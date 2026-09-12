@@ -20,6 +20,7 @@ import { executeCleanup, preflightCleanup, type CleanupResult } from "./cleanup.
 import { assertFunctionalDeliveredState, runWithGuaranteedCleanup } from "./functional.js";
 import { buildLoadCases, summarizeDurations } from "./load.js";
 import {
+  assertLiveLoadStageEnabled,
   assertLoadStagePreflight,
   classifyLoadCheckout,
   runLoadCasesSequentially,
@@ -81,9 +82,7 @@ export async function runLoadStageQa(
   stage: number,
 ): Promise<QaLoadStageSummary> {
   assertMutationConfirmation(config);
-  if (stage !== 10) {
-    throw new Error(`Live QA load stage ${stage} is not enabled yet; stage 10 must pass first`);
-  }
+  assertLiveLoadStageEnabled(stage);
 
   const protectedBefore = await captureProtectedSnapshot(prisma);
   const waitingOrders = await prisma.order.count({
