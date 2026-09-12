@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  classifyDirectCheckoutSettled,
   createStartBarrier,
   validateSameCartConcurrentCheckout,
   type ConcurrentCheckoutAttemptResult,
@@ -49,5 +50,17 @@ describe("same-cart concurrent checkout validation", () => {
       { kind: "REJECTED", status: 409, code: "CART_EMPTY" },
     ];
     expect(() => validateSameCartConcurrentCheckout(results)).not.toThrow();
+  });
+
+  it("classifies a direct service winner and an AppError loser", () => {
+    expect(classifyDirectCheckoutSettled({
+      status: "fulfilled",
+      value: { order: { id: "order-1" } },
+    })).toEqual({ kind: "ACCEPTED", orderId: "order-1", status: 200 });
+
+    expect(classifyDirectCheckoutSettled({
+      status: "rejected",
+      reason: { statusCode: 400, code: "CART_ALREADY_CHECKED_OUT" },
+    })).toEqual({ kind: "REJECTED", status: 400, code: "CART_ALREADY_CHECKED_OUT" });
   });
 });
