@@ -2,7 +2,7 @@ import type { QaConfig } from "./types.js";
 import { qaRequest, type QaHttpResponse, type QaRequestOptions } from "./http.js";
 import { LOAD_STAGES, type QaLoadCase, type QaLoadStage } from "./load.js";
 
-const LIVE_LOAD_STAGES = [10, 50, 100] as const;
+const LIVE_LOAD_STAGES = [10, 50, 100, 250] as const;
 
 export type QaLoadOutcome = "DELIVERED" | "OUT_OF_RANGE";
 
