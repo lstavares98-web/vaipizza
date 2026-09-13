@@ -6,6 +6,7 @@ const HEADER_FILES = [
   ["customer", resolve(process.cwd(), "public/_headers")],
   ["restaurant", resolve(process.cwd(), "../restaurant/public/_headers")],
   ["kds", resolve(process.cwd(), "../kds/public/_headers")],
+  ["courier", resolve(process.cwd(), "../courier/public/_headers")],
 ] as const;
 
 for (const [surface, file] of HEADER_FILES) {
