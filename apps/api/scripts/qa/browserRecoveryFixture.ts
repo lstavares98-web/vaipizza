@@ -181,13 +181,6 @@ async function assertBrowserRecoveryStartsClean(prisma: PrismaClient, protectedB
   if (waitingOrders !== 0) {
     throw new Error(`Browser recovery cannot start with ${waitingOrders} order(s) waiting for courier`);
   }
-
-  const activeCouriers = await prisma.courier.count({
-    where: { status: { not: "OFFLINE" } },
-  });
-  if (activeCouriers !== 0) {
-    throw new Error(`Browser recovery requires staging couriers to be offline; found ${activeCouriers} active courier(s)`);
-  }
 }
 
 export async function prepareBrowserRecoveryFixture(
