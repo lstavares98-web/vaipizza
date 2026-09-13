@@ -17,9 +17,10 @@ import {
   runTransportRecoveryWorkflow,
 } from "./transportRecoveryRunner.js";
 import {
-  cleanupBrowserRecoveryFixture,
-  prepareBrowserRecoveryFixture,
-} from "./browserRecoveryFixture.js";
+  cleanupBrowserFixture,
+  parseBrowserFixtureCommand,
+  prepareBrowserFixture,
+} from "./browserFixtureRunner.js";
 
 const REPOSITORY_ROOT = fileURLToPath(new URL("../../../../", import.meta.url));
 
@@ -171,7 +172,7 @@ async function main() {
           await runTransportRecoveryGroup(prisma, config, "api");
         },
         prepareBrowser: async () => {
-          await prepareBrowserRecoveryFixture(prisma, config, fixturePath);
+          await prepareBrowserFixture(prisma, config, fixturePath);
         },
         runSocketBrowser: async () => {
           await runCustomerE2e("resilience-socket.spec.ts");
@@ -183,24 +184,26 @@ async function main() {
           });
         },
         cleanupBrowser: async () => {
-          await cleanupBrowserRecoveryFixture(prisma, config, fixturePath);
+          await cleanupBrowserFixture(prisma, config, fixturePath);
         },
       });
       console.log("Full transport recovery QA PASS: API, socket, refresh/reopen and cleanup completed.");
       return;
     }
-    if (command === "browser-recovery-prepare") {
+
+    const browserFixtureCommand = parseBrowserFixtureCommand(command);
+    if (browserFixtureCommand === "prepare") {
       assertMutationConfirmation(config);
       const fixturePath = requiredOption("--session-file");
-      const result = await prepareBrowserRecoveryFixture(prisma, config, fixturePath);
-      console.log(`Browser recovery fixture ready: ${result.runId}; order=${result.orderId}; number=${result.orderNumber}.`);
+      const result = await prepareBrowserFixture(prisma, config, fixturePath);
+      console.log(`Browser fixture ready: ${result.runId}; order=${result.orderId}; number=${result.orderNumber}.`);
       return;
     }
-    if (command === "browser-recovery-cleanup") {
+    if (browserFixtureCommand === "cleanup") {
       assertMutationConfirmation(config);
       const fixturePath = requiredOption("--session-file");
-      const result = await cleanupBrowserRecoveryFixture(prisma, config, fixturePath);
-      console.log(`Browser recovery cleanup completed safely for ${result.runId}; no QA credentials were persisted as artifacts.`);
+      const result = await cleanupBrowserFixture(prisma, config, fixturePath);
+      console.log(`Browser fixture cleanup completed safely for ${result.runId}; no QA credentials were persisted as artifacts.`);
       return;
     }
     if (command === "cleanup") {
