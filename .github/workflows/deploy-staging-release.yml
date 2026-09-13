@@ -1,0 +1,55 @@
+name: Deploy Staging Release
+
+on:
+  push:
+    branches:
+      - staging/qa-verified-fixes-2026-09-13
+    paths:
+      - deploy-staging-release.trigger
+
+jobs:
+  deploy-frontends:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    env:
+      NETLIFY_AUTH_TOKEN: ${{ secrets.NETLIFY_AUTH_TOKEN }}
+      VITE_API_URL: https://vaipizza-api-staging.onrender.com
+    steps:
+      - name: Checkout release
+        uses: actions/checkout@v4
+
+      - name: Guard Netlify token
+        shell: bash
+        run: |
+          if [ -z "${NETLIFY_AUTH_TOKEN:-}" ]; then
+            echo "NETLIFY_AUTH_TOKEN is not configured; no deploy was attempted."
+            exit 1
+          fi
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build staging frontends
+        run: |
+          npm run build -w apps/customer
+          npm run build -w apps/restaurant
+          npm run build -w apps/kds
+          npm run build -w apps/courier
+
+      - name: Deploy customer staging
+        run: npx --yes netlify-cli@latest deploy --prod --auth "$NETLIFY_AUTH_TOKEN" --site 8f6a94ae-b550-47ac-88a0-d9ca28f79b65 --dir apps/customer/dist --message "QA verified staging release $GITHUB_SHA"
+
+      - name: Deploy restaurant staging
+        run: npx --yes netlify-cli@latest deploy --prod --auth "$NETLIFY_AUTH_TOKEN" --site bfb4f12b-72a2-41ab-b528-aa896878d5eb --dir apps/restaurant/dist --message "QA verified staging release $GITHUB_SHA"
+
+      - name: Deploy KDS staging
+        run: npx --yes netlify-cli@latest deploy --prod --auth "$NETLIFY_AUTH_TOKEN" --site bad86175-249d-4306-be03-7221f4ce46ad --dir apps/kds/dist --message "QA verified staging release $GITHUB_SHA"
+
+      - name: Deploy courier staging
+        run: npx --yes netlify-cli@latest deploy --prod --auth "$NETLIFY_AUTH_TOKEN" --site b8dbc44d-390d-4027-834d-0250819f8c1e --dir apps/courier/dist --message "QA verified staging release $GITHUB_SHA"
