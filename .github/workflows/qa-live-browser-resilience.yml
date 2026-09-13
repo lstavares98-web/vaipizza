@@ -10,7 +10,7 @@ on:
 jobs:
   browser-resilience:
     runs-on: ubuntu-latest
-    timeout-minutes: 35
+    timeout-minutes: 45
     env:
       QA_ENV: staging
       QA_API_URL: https://vaipizza-api-staging.onrender.com
@@ -35,7 +35,7 @@ jobs:
           fi
           GROUP="$(tr -d '[:space:]' < qa-browser-resilience.trigger)"
           case "$GROUP" in
-            ui|offline|full) ;;
+            ui|runtime|offline|full) ;;
             *)
               echo "Unsupported or inert browser resilience group: $GROUP"
               exit 1
@@ -129,6 +129,72 @@ jobs:
             echo "No mobile browser fixture remains to clean."
           fi
 
+      - name: Prepare runtime desktop fixture
+        if: ${{ success() && (env.QA_BROWSER_GROUP == 'runtime' || env.QA_BROWSER_GROUP == 'full') }}
+        env:
+          QA_BROWSER_FIXTURE_FILE: ${{ runner.temp }}/vaipizza-browser-runtime-desktop.json
+        shell: bash
+        run: |
+          NODE_ENV=test \
+          JWT_ACCESS_SECRET="$GITHUB_SHA" \
+          JWT_REFRESH_SECRET="${GITHUB_SHA}refresh" \
+          npm run qa:browser-fixture:prepare -w apps/api -- --session-file="$QA_BROWSER_FIXTURE_FILE"
+
+      - name: Run desktop runtime health audit
+        if: ${{ success() && (env.QA_BROWSER_GROUP == 'runtime' || env.QA_BROWSER_GROUP == 'full') }}
+        env:
+          QA_STAGING_RUNTIME: "1"
+          QA_BROWSER_FIXTURE_FILE: ${{ runner.temp }}/vaipizza-browser-runtime-desktop.json
+        run: npm run test:e2e -w apps/customer -- runtime-health.spec.ts --project=chromium-desktop
+
+      - name: Cleanup runtime desktop fixture
+        if: ${{ always() && (env.QA_BROWSER_GROUP == 'runtime' || env.QA_BROWSER_GROUP == 'full') }}
+        env:
+          QA_BROWSER_FIXTURE_FILE: ${{ runner.temp }}/vaipizza-browser-runtime-desktop.json
+        shell: bash
+        run: |
+          if [ -f "$QA_BROWSER_FIXTURE_FILE" ]; then
+            NODE_ENV=test \
+            JWT_ACCESS_SECRET="$GITHUB_SHA" \
+            JWT_REFRESH_SECRET="${GITHUB_SHA}refresh" \
+            npm run qa:browser-fixture:cleanup -w apps/api -- --session-file="$QA_BROWSER_FIXTURE_FILE"
+          else
+            echo "No runtime desktop fixture remains to clean."
+          fi
+
+      - name: Prepare runtime mobile fixture
+        if: ${{ success() && (env.QA_BROWSER_GROUP == 'runtime' || env.QA_BROWSER_GROUP == 'full') }}
+        env:
+          QA_BROWSER_FIXTURE_FILE: ${{ runner.temp }}/vaipizza-browser-runtime-mobile.json
+        shell: bash
+        run: |
+          NODE_ENV=test \
+          JWT_ACCESS_SECRET="$GITHUB_SHA" \
+          JWT_REFRESH_SECRET="${GITHUB_SHA}refresh" \
+          npm run qa:browser-fixture:prepare -w apps/api -- --session-file="$QA_BROWSER_FIXTURE_FILE"
+
+      - name: Run mobile runtime health audit
+        if: ${{ success() && (env.QA_BROWSER_GROUP == 'runtime' || env.QA_BROWSER_GROUP == 'full') }}
+        env:
+          QA_STAGING_RUNTIME: "1"
+          QA_BROWSER_FIXTURE_FILE: ${{ runner.temp }}/vaipizza-browser-runtime-mobile.json
+        run: npm run test:e2e -w apps/customer -- runtime-health.spec.ts --project=chromium-mobile
+
+      - name: Cleanup runtime mobile fixture
+        if: ${{ always() && (env.QA_BROWSER_GROUP == 'runtime' || env.QA_BROWSER_GROUP == 'full') }}
+        env:
+          QA_BROWSER_FIXTURE_FILE: ${{ runner.temp }}/vaipizza-browser-runtime-mobile.json
+        shell: bash
+        run: |
+          if [ -f "$QA_BROWSER_FIXTURE_FILE" ]; then
+            NODE_ENV=test \
+            JWT_ACCESS_SECRET="$GITHUB_SHA" \
+            JWT_REFRESH_SECRET="${GITHUB_SHA}refresh" \
+            npm run qa:browser-fixture:cleanup -w apps/api -- --session-file="$QA_BROWSER_FIXTURE_FILE"
+          else
+            echo "No runtime mobile fixture remains to clean."
+          fi
+
       - name: Prepare offline fixture
         if: ${{ success() && (env.QA_BROWSER_GROUP == 'offline' || env.QA_BROWSER_GROUP == 'full') }}
         env:
@@ -168,6 +234,13 @@ jobs:
         run: |
           mkdir -p qa-artifacts/browser-ui
           printf '%s\n' '{"status":"PASS","environment":"staging","projects":["chromium-desktop","chromium-mobile"],"surfaces":["customer","restaurant","kds","courier"],"authoritativeApiAudit":true}' > qa-artifacts/browser-ui/result.json
+
+      - name: Record runtime evidence
+        if: ${{ success() && (env.QA_BROWSER_GROUP == 'runtime' || env.QA_BROWSER_GROUP == 'full') }}
+        shell: bash
+        run: |
+          mkdir -p qa-artifacts/browser-runtime
+          printf '%s\n' '{"status":"PASS","environment":"staging","projects":["chromium-desktop","chromium-mobile"],"surfaces":["customer","restaurant","kds","courier"],"consoleErrors":0,"pageErrors":0,"criticalApiFailures":0,"criticalControlsReachable":true}' > qa-artifacts/browser-runtime/result.json
 
       - name: Record offline evidence
         if: ${{ success() && (env.QA_BROWSER_GROUP == 'offline' || env.QA_BROWSER_GROUP == 'full') }}
