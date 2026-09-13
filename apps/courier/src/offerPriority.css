@@ -1,0 +1,4 @@
+/* A timed delivery offer must not compete with the fixed bottom navigation for clicks. */
+.app-shell:has(.offer-card) .bottom-nav {
+  display: none;
+}

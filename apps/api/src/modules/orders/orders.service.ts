@@ -145,6 +145,20 @@ export async function checkout(userId: string, input: CheckoutInput) {
   }
 
   const order = await prisma.$transaction(async (tx) => {
+    // The initial cart read is intentionally outside the transaction because
+    // pricing/validation needs the full relational snapshot. Before creating
+    // an order, atomically consume exactly those cart-item rows. Concurrent
+    // checkouts for the same cart therefore contend here: only one can claim
+    // all rows; every loser aborts before order.create. If anything later in
+    // this transaction fails, the delete is rolled back with the order.
+    const claimedCartItems = await tx.cartItem.deleteMany({ where: { cartId: cart.id } });
+    if (claimedCartItems.count !== cart.items.length) {
+      throw badRequest(
+        "O carrinho já foi finalizado ou foi alterado. Atualize e tente novamente.",
+        "CART_ALREADY_CHECKED_OUT",
+      );
+    }
+
     const created = await tx.order.create({
       data: {
         userId,
@@ -186,7 +200,6 @@ export async function checkout(userId: string, input: CheckoutInput) {
     if (couponId) {
       await tx.couponRedemption.create({ data: { couponId, userId, orderId: created.id } });
     }
-    await tx.cartItem.deleteMany({ where: { cartId: cart.id } });
     await tx.cart.update({ where: { id: cart.id }, data: { restaurantId: null } });
 
     return created;
