@@ -28,6 +28,8 @@
     "qa:resilience:backend": "npm run qa:resilience:backend -w apps/api",
     "qa:resilience:transport": "npm run qa:resilience:transport -w apps/api",
     "qa:resilience:transport:full": "npm run qa:resilience:transport:full -w apps/api",
+    "qa:browser-fixture:prepare": "npm run qa:browser-fixture:prepare -w apps/api",
+    "qa:browser-fixture:cleanup": "npm run qa:browser-fixture:cleanup -w apps/api",
     "qa:cleanup": "npm run qa:cleanup -w apps/api",
     "db:generate": "npm run db:generate -w apps/api",
     "db:migrate": "npm run db:migrate -w apps/api",
