@@ -14,7 +14,7 @@ test.afterAll(async () => {
   await fixture.close();
 });
 
-test("customer reconciles the authoritative order state after socket reconnect", async ({ page, context }) => {
+test("customer reconciles the authoritative order state after socket reconnect", async ({ page }) => {
   await page.addInitScript(() => {
     localStorage.setItem("vaipizza_customer_access_token", "qa-access-token");
     localStorage.setItem("vaipizza_customer_refresh_token", "qa-refresh-token");
@@ -24,12 +24,10 @@ test("customer reconciles the authoritative order state after socket reconnect",
   await expect(page.getByText("Pedido efetuado", { exact: true })).toBeVisible();
   await fixture.waitForConnectedClients(1);
 
-  await context.setOffline(true);
+  fixture.dropClientTransports();
   await fixture.waitForConnectedClients(0);
 
   fixture.setStatus("PREPARING", true);
-
-  await context.setOffline(false);
   await fixture.waitForConnectedClients(1);
 
   await expect(page.getByText("Em preparação", { exact: true })).toBeVisible({ timeout: 3_000 });
