@@ -156,6 +156,8 @@ test.describe("live staging refresh/reopen recovery", () => {
   test.skip(process.env.QA_STAGING_REFRESH !== "1", "Live staging recovery only runs in the guarded transport workflow");
 
   test("restores customer, Gestão, KDS and Estafeta without replaying transitions", async ({ browser, request }) => {
+    test.setTimeout(120_000);
+
     const live = loadLiveFixture();
     const urls = {
       customer: requiredEnv("QA_CUSTOMER_URL"),
