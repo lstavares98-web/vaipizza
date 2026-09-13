@@ -13,6 +13,8 @@ export interface BrowserUiFixture {
   apiUrl: string;
   orderId: string;
   orderNumber: number;
+  productId: string;
+  addressId: string;
   credentials: Record<StagingSessionSurface, StagingCredentials>;
 }
 
@@ -42,6 +44,9 @@ export function loadBrowserUiFixture(filePath = process.env.QA_BROWSER_FIXTURE_F
   const fixture = JSON.parse(fs.readFileSync(approvedPath, "utf8")) as BrowserUiFixture;
   if (!fixture.runId?.startsWith("QA-") || !fixture.orderId || !Number.isInteger(fixture.orderNumber)) {
     throw new Error("Browser UI fixture is incomplete");
+  }
+  if (!fixture.productId || !fixture.addressId) {
+    throw new Error("Browser UI fixture is missing product/address cart recovery identifiers");
   }
   fixture.apiUrl = assertApprovedFixtureApiUrl(fixture.apiUrl);
   for (const surface of SURFACES) assertFixtureCredentials(surface, fixture.credentials?.[surface]);
