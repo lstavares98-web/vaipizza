@@ -26,7 +26,7 @@ jobs:
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22
           cache: npm
 
       - name: Install dependencies
@@ -39,10 +39,10 @@ jobs:
           npm run build -w apps/kds
 
       - name: Deploy customer staging
-        run: npx --yes netlify-cli@latest deploy --prod --auth "$NETLIFY_AUTH_TOKEN" --site 8f6a94ae-b550-47ac-88a0-d9ca28f79b65 --dir apps/customer/dist --message "QA verified staging release $GITHUB_SHA"
+        run: npx --yes netlify-cli@latest deploy --prod --auth "$NETLIFY_AUTH_TOKEN" --site 8f6a94ae-b550-47ac-88a0-d9ca28f79b65 --filter apps/customer --dir apps/customer/dist --message "QA verified staging release $GITHUB_SHA"
 
       - name: Deploy restaurant staging
-        run: npx --yes netlify-cli@latest deploy --prod --auth "$NETLIFY_AUTH_TOKEN" --site bfb4f12b-72a2-41ab-b528-aa896878d5eb --dir apps/restaurant/dist --message "QA verified staging release $GITHUB_SHA"
+        run: npx --yes netlify-cli@latest deploy --prod --auth "$NETLIFY_AUTH_TOKEN" --site bfb4f12b-72a2-41ab-b528-aa896878d5eb --filter apps/restaurant --dir apps/restaurant/dist --message "QA verified staging release $GITHUB_SHA"
 
       - name: Deploy KDS staging
-        run: npx --yes netlify-cli@latest deploy --prod --auth "$NETLIFY_AUTH_TOKEN" --site bad86175-249d-4306-be03-7221f4ce46ad --dir apps/kds/dist --message "QA verified staging release $GITHUB_SHA"
+        run: npx --yes netlify-cli@latest deploy --prod --auth "$NETLIFY_AUTH_TOKEN" --site bad86175-249d-4306-be03-7221f4ce46ad --filter apps/kds --dir apps/kds/dist --message "QA verified staging release $GITHUB_SHA"
