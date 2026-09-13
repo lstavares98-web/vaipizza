@@ -6,6 +6,8 @@ export {
   readBrowserRecoveryFixtureFile as readBrowserFixtureFile,
 } from "./browserRecoveryFixture.js";
 
+export type BrowserFixtureCommand = "prepare" | "cleanup";
+
 export interface BrowserFixtureArtifactView {
   runId: string;
   apiUrl: string;
@@ -18,6 +20,12 @@ export interface BrowserFixtureArtifactView {
     courier: string;
   };
   credentialsPersisted: false;
+}
+
+export function parseBrowserFixtureCommand(command: string | undefined): BrowserFixtureCommand | null {
+  if (command === "browser-fixture-prepare" || command === "browser-recovery-prepare") return "prepare";
+  if (command === "browser-fixture-cleanup" || command === "browser-recovery-cleanup") return "cleanup";
+  return null;
 }
 
 export function buildBrowserFixtureArtifactView(
