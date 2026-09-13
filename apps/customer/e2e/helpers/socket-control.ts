@@ -6,6 +6,7 @@ const ORDER_ID = "qa-socket-order-1";
 export interface SocketRecoveryFixture {
   orderId: string;
   setStatus(status: string, emit?: boolean): void;
+  dropClientTransports(): void;
   waitForConnectedClients(expected: number, timeoutMs?: number): Promise<void>;
   close(): Promise<void>;
 }
@@ -112,6 +113,11 @@ export async function startSocketRecoveryFixture(port = 4000): Promise<SocketRec
       status = nextStatus;
       history.push({ status: nextStatus, createdAt: new Date().toISOString() });
       if (emit) io.emit("order:status", { orderId: ORDER_ID, status: nextStatus });
+    },
+    dropClientTransports() {
+      for (const socket of io.sockets.sockets.values()) {
+        socket.conn.close();
+      }
     },
     async waitForConnectedClients(expected: number, timeoutMs = 5_000) {
       const deadline = Date.now() + timeoutMs;
