@@ -1,5 +1,7 @@
 import { defineConfig, devices } from "@playwright/test";
 
+const liveRefreshRecovery = process.env.QA_STAGING_REFRESH === "1";
+
 // Requires the API (with a seeded Postgres) and this app's dev server
 // both running — see README "Testar o fluxo principal". Playwright starts
 // the customer dev server itself; start `npm run dev:api` separately.
@@ -11,7 +13,8 @@ export default defineConfig({
   reporter: "list",
   use: {
     baseURL: "http://localhost:3000",
-    trace: "on-first-retry",
+    trace: liveRefreshRecovery ? "retain-on-failure" : "on-first-retry",
+    screenshot: liveRefreshRecovery ? "only-on-failure" : "off",
   },
   webServer: {
     command: "npm run dev",
