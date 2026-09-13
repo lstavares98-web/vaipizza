@@ -10,6 +10,8 @@ const fixture: BrowserRecoveryFixtureDocument = {
   apiUrl: "https://vaipizza-api-staging.onrender.com",
   orderId: "order-qa",
   orderNumber: 321,
+  productId: "product-qa",
+  addressId: "address-qa",
   credentials: {
     customer: { email: "qa+customer@vaipizza.test", password: "customer-password" },
     restaurant: { email: "qa+restaurant@vaipizza.test", password: "restaurant-password" },
