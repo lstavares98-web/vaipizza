@@ -32,6 +32,8 @@ export interface BrowserRecoveryFixtureDocument {
   apiUrl: string;
   orderId: string;
   orderNumber: number;
+  productId: string;
+  addressId: string;
   credentials: {
     customer: BrowserRecoveryCredentials;
     restaurant: BrowserRecoveryCredentials;
@@ -45,6 +47,8 @@ export interface BrowserRecoveryFixtureDocumentInput {
   apiUrl: string;
   orderId: string;
   orderNumber: number;
+  productId: string;
+  addressId: string;
   customer: QaCustomerSession;
   restaurant: QaOperatorSession;
   kds: QaOperatorSession;
@@ -92,6 +96,8 @@ export function buildBrowserRecoveryFixtureDocument(
     apiUrl: input.apiUrl,
     orderId: input.orderId,
     orderNumber: input.orderNumber,
+    productId: input.productId,
+    addressId: input.addressId,
     credentials: {
       customer: { email: input.customer.email, password: input.customer.password },
       restaurant: { email: input.restaurant.email, password: input.restaurant.password },
@@ -117,6 +123,9 @@ function validateBrowserRecoveryFixtureDocument(document: BrowserRecoveryFixture
   }
   if (!document.orderId || !Number.isInteger(document.orderNumber)) {
     throw new Error("Browser recovery fixture is missing order identifiers");
+  }
+  if (!document.productId || !document.addressId) {
+    throw new Error("Browser recovery fixture is missing cart recovery identifiers");
   }
   assertQaCredential("customer", document.credentials.customer);
   assertQaCredential("restaurant", document.credentials.restaurant);
@@ -252,6 +261,8 @@ export async function prepareBrowserRecoveryFixture(
       apiUrl: config.apiUrl,
       orderId: checkout.order.id,
       orderNumber: checkout.order.orderNumber,
+      productId: catalog.productId,
+      addressId,
       customer,
       restaurant,
       kds,
@@ -262,6 +273,8 @@ export async function prepareBrowserRecoveryFixture(
     await writeJsonArtifact(manifest.runId, "browser-fixture-observation", {
       orderId: checkout.order.id,
       orderNumber: checkout.order.orderNumber,
+      productId: catalog.productId,
+      addressId,
       surfaces: ["customer", "restaurant", "kds", "courier"],
       fixtureCredentialsPersistedToArtifacts: false,
     });
