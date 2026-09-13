@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 import type { BrowserRecoveryFixtureDocument } from "./browserRecoveryFixture.js";
-import { buildBrowserFixtureArtifactView } from "./browserFixtureRunner.js";
+import {
+  buildBrowserFixtureArtifactView,
+  parseBrowserFixtureCommand,
+} from "./browserFixtureRunner.js";
 
 const fixture: BrowserRecoveryFixtureDocument = {
   runId: "QA-20260913-150000-browser-refresh",
@@ -37,5 +40,13 @@ describe("browser fixture runner handoff", () => {
     expect(serialized).not.toContain("customer-password");
     expect(serialized).not.toContain("accessToken");
     expect(serialized).not.toContain("refreshToken");
+  });
+
+  it("accepts generic browser fixture commands while preserving recovery aliases", () => {
+    expect(parseBrowserFixtureCommand("browser-fixture-prepare")).toBe("prepare");
+    expect(parseBrowserFixtureCommand("browser-recovery-prepare")).toBe("prepare");
+    expect(parseBrowserFixtureCommand("browser-fixture-cleanup")).toBe("cleanup");
+    expect(parseBrowserFixtureCommand("browser-recovery-cleanup")).toBe("cleanup");
+    expect(parseBrowserFixtureCommand("unknown")).toBeNull();
   });
 });
