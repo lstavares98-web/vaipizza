@@ -3,6 +3,7 @@ import {
   assertBrowserRecoveryFixturePath,
   browserRecoveryRunId,
   buildBrowserRecoveryFixtureDocument,
+  mergeBrowserOwnedOrderIds,
 } from "./browserRecoveryFixture.js";
 
 describe("browser recovery fixture safety", () => {
@@ -66,5 +67,27 @@ describe("browser recovery fixture safety", () => {
     expect(document.credentials.restaurant.password).toBe("staff-password");
     expect(JSON.stringify(document)).not.toContain("access-secret");
     expect(JSON.stringify(document)).not.toContain("refresh-secret");
+  });
+
+  it("adopts browser-created orders only when they belong to the run customer", () => {
+    expect(
+      mergeBrowserOwnedOrderIds(
+        ["order-initial"],
+        ["customer-user"],
+        [
+          { id: "order-initial", userId: "customer-user" },
+          { id: "order-new", userId: "customer-user" },
+          { id: "order-new", userId: "customer-user" },
+        ],
+      ),
+    ).toEqual(["order-initial", "order-new"]);
+
+    expect(() =>
+      mergeBrowserOwnedOrderIds(
+        ["order-initial"],
+        ["customer-user"],
+        [{ id: "foreign-order", userId: "real-user" }],
+      ),
+    ).toThrow(/owned QA customer/i);
   });
 });
