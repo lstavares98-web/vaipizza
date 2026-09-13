@@ -6,11 +6,14 @@ on:
       - feature/qa-harness-safe
     paths:
       - apps/customer/e2e/resilience-refresh.spec.ts
+      - apps/customer/e2e/resilience-ui.spec.ts
       - apps/customer/e2e/helpers/socket-control.ts
       - apps/customer/e2e/helpers/staging-sessions.ts
       - apps/customer/e2e/helpers/qa-runtime.spec.ts
       - apps/customer/e2e/helpers/qa-runtime.ts
       - apps/customer/e2e/helpers/staging-urls.ts
+      - apps/customer/e2e/helpers/surface-login.ts
+      - apps/customer/e2e/helpers/api-audit.ts
       - apps/customer/src/pages/OrderDetail.tsx
       - apps/customer/playwright.config.ts
       - .github/workflows/qa-browser-refresh-recovery.yml
@@ -38,6 +41,9 @@ jobs:
 
       - name: Run staging runtime contract test
         run: npm run test:e2e -w apps/customer -- helpers/qa-runtime.spec.ts --project=chromium-desktop
+
+      - name: Discover UI state agreement spec
+        run: npm run test:e2e -w apps/customer -- resilience-ui.spec.ts --project=chromium-desktop
 
       - name: Run refresh and reopen recovery test
         run: npm run test:e2e -w apps/customer -- resilience-refresh.spec.ts
