@@ -19,6 +19,7 @@
     "qa:load": "tsx scripts/qa/cli.ts load",
     "qa:resilience:backend": "tsx scripts/qa/cli.ts resilience-backend",
     "qa:resilience:transport": "tsx scripts/qa/cli.ts resilience-transport",
+    "qa:resilience:transport:full": "tsx scripts/qa/cli.ts resilience-transport-full",
     "qa:browser-recovery:prepare": "tsx scripts/qa/cli.ts browser-recovery-prepare",
     "qa:browser-recovery:cleanup": "tsx scripts/qa/cli.ts browser-recovery-cleanup",
     "qa:cleanup": "tsx scripts/qa/cli.ts cleanup",
