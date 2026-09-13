@@ -59,8 +59,11 @@ jobs:
       - name: Build and start corrected feature-branch courier
         shell: bash
         run: |
-          VITE_API_URL="$QA_API_URL" npm run build -w apps/courier
-          npm run preview -w apps/courier -- --host 127.0.0.1 > "$RUNNER_TEMP/courier-preview.log" 2>&1 &
+          QA_COURIER_PROXY_TARGET="$QA_API_URL" \
+          VITE_API_URL="http://127.0.0.1:3003" \
+          npm run build:qa-proxy -w apps/courier
+          QA_COURIER_PROXY_TARGET="$QA_API_URL" \
+          npm run preview:qa-proxy -w apps/courier -- --host 127.0.0.1 > "$RUNNER_TEMP/courier-preview.log" 2>&1 &
           echo $! > "$RUNNER_TEMP/courier-preview.pid"
           for attempt in $(seq 1 30); do
             if curl -fsS http://127.0.0.1:3003/ >/dev/null; then
