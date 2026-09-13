@@ -43,8 +43,51 @@ export interface TransportRecoveryGroupSummary {
   cleanup: CleanupResult;
 }
 
+export interface TransportRecoveryWorkflowActions {
+  runApi: () => Promise<void>;
+  prepareBrowser: () => Promise<void>;
+  runSocketBrowser: () => Promise<void>;
+  runRefreshBrowser: () => Promise<void>;
+  cleanupBrowser: () => Promise<void>;
+}
+
 function asError(error: unknown): Error {
   return error instanceof Error ? error : new Error(String(error));
+}
+
+export async function runTransportRecoveryWorkflow(
+  actions: TransportRecoveryWorkflowActions,
+): Promise<void> {
+  await actions.runApi();
+
+  let browserPrepared = false;
+  let browserError: Error | null = null;
+  let cleanupError: Error | null = null;
+
+  try {
+    await actions.prepareBrowser();
+    browserPrepared = true;
+    await actions.runSocketBrowser();
+    await actions.runRefreshBrowser();
+  } catch (error) {
+    browserError = asError(error);
+  }
+
+  if (browserPrepared) {
+    try {
+      await actions.cleanupBrowser();
+    } catch (error) {
+      cleanupError = asError(error);
+    }
+  }
+
+  if (browserError && cleanupError) {
+    throw new Error(
+      `Browser transport recovery failed: ${browserError.message}; cleanup also failed: ${cleanupError.message}`,
+    );
+  }
+  if (browserError) throw browserError;
+  if (cleanupError) throw cleanupError;
 }
 
 export async function runTransportRecoverySequence<T>(
