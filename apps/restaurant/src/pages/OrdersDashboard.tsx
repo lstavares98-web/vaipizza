@@ -164,7 +164,7 @@ export default function OrdersDashboard() {
         </Column>
 
         <Column title="Concluídos (últimos 30)">
-          <ul className="compact-list">
+          <ul className="compact-list completed-orders-list">
             {done.map((o) => (
               <li key={o.id}>
                 <span>
