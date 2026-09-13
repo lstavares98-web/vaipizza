@@ -1,4 +1,5 @@
 import type { PrismaClient } from "@prisma/client";
+import { evaluateCourierGeoEligibility } from "../../../src/modules/dispatch/dispatch.policy.js";
 import type { QaConfig, QaRunManifest } from "../types.js";
 import {
   addQaProductToCart,
@@ -52,6 +53,22 @@ export interface DispatchModeResult {
   manualReassign: { orderCourierId: string | null; oldAssignmentStatus: string; newAssignmentStatus: string };
 }
 
+interface ExternalCourierIsolationArgs {
+  couriers: Array<{
+    id: string;
+    status: string;
+    lat: number | null;
+    lng: number | null;
+    locationUpdatedAt: Date | null;
+    locationAccuracyM: number | null;
+  }>;
+  qaCourierIds: string[];
+  restaurant: { lat: number; lng: number; courierDispatchRadiusKm: number };
+  now: Date;
+  maxLocationAgeSeconds: number;
+  maxAccuracyMeters: number;
+}
+
 export function dispatchEligibilityExpectation(input: DispatchEligibilityInput): { eligible: boolean; reason: DispatchEligibilityReason | null } {
   if (input.status === "OFFLINE") return { eligible: false, reason: "OFFLINE" };
   if (input.status !== "AVAILABLE") return { eligible: false, reason: "BUSY" };
@@ -64,6 +81,20 @@ export function dispatchEligibilityExpectation(input: DispatchEligibilityInput):
   if (input.accuracyM > input.maxAccuracyM) return { eligible: false, reason: "LOW_ACCURACY" };
   if (input.distanceKm > input.dispatchRadiusKm) return { eligible: false, reason: "OUTSIDE_DISPATCH_ZONE" };
   return { eligible: true, reason: null };
+}
+
+export function eligibleExternalCourierIds(args: ExternalCourierIsolationArgs): string[] {
+  const qaCourierIds = new Set(args.qaCourierIds);
+  return args.couriers
+    .filter((courier) => !qaCourierIds.has(courier.id) && courier.status === "AVAILABLE")
+    .filter((courier) => evaluateCourierGeoEligibility(
+      args.restaurant,
+      courier,
+      args.now,
+      args.maxLocationAgeSeconds,
+      args.maxAccuracyMeters,
+    ).eligible)
+    .map((courier) => courier.id);
 }
 
 export function validateRejectReassignment(observation: RejectReassignmentObservation): void {
@@ -84,14 +115,37 @@ export function validateRejectReassignment(observation: RejectReassignmentObserv
   }
 }
 
-async function assertNoNonQaAvailableCouriers(prisma: PrismaClient, manifest: QaRunManifest): Promise<void> {
-  const count = await prisma.courier.count({
-    where: {
-      status: "AVAILABLE",
-      ...(manifest.courierIds.length > 0 ? { id: { notIn: manifest.courierIds } } : {}),
+async function assertNoNonQaEligibleCouriers(
+  prisma: PrismaClient,
+  manifest: QaRunManifest,
+  options: DispatchModeOptions,
+): Promise<void> {
+  const couriers = await prisma.courier.findMany({
+    where: { status: "AVAILABLE" },
+    select: {
+      id: true,
+      status: true,
+      lat: true,
+      lng: true,
+      locationUpdatedAt: true,
+      locationAccuracyM: true,
     },
   });
-  if (count !== 0) throw new Error(`Dispatch resilience is blocked because ${count} non-QA AVAILABLE courier(s) exist`);
+  const eligibleIds = eligibleExternalCourierIds({
+    couriers,
+    qaCourierIds: manifest.courierIds,
+    restaurant: {
+      lat: options.restaurantLat,
+      lng: options.restaurantLng,
+      courierDispatchRadiusKm: options.dispatchRadiusKm,
+    },
+    now: new Date(),
+    maxLocationAgeSeconds: 120,
+    maxAccuracyMeters: 100,
+  });
+  if (eligibleIds.length !== 0) {
+    throw new Error(`Dispatch resilience is blocked because ${eligibleIds.length} non-QA eligible courier(s) exist`);
+  }
 }
 
 async function createOrderAndEnterDispatch(
@@ -101,7 +155,7 @@ async function createOrderAndEnterDispatch(
   options: DispatchModeOptions,
   input: { customerIndex: number; label: string },
 ): Promise<string> {
-  await assertNoNonQaAvailableCouriers(prisma, manifest);
+  await assertNoNonQaEligibleCouriers(prisma, manifest, options);
   const point = pointAtDistanceKm(options.restaurantLat, options.restaurantLng, 1, (input.customerIndex * 29) % 360);
   const customer = await createQaCustomer(config, manifest, input.customerIndex);
   const addressId = await createQaAddress(config, manifest, customer.accessToken, {
