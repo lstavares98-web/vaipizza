@@ -10,6 +10,10 @@ import { runFunctionalQa } from "./functional.js";
 import { runLoadStageQa } from "./loadStageRunner.js";
 import { parseBackendResilienceGroup, runBackendResilienceGroup } from "./resilienceRunner.js";
 import { parseTransportRecoveryGroup, runTransportRecoveryGroup } from "./transportRecoveryRunner.js";
+import {
+  cleanupBrowserRecoveryFixture,
+  prepareBrowserRecoveryFixture,
+} from "./browserRecoveryFixture.js";
 
 function snapshotRunId(now = new Date()) {
   const stamp = now.toISOString().replace(/[-:]/g, "").replace(/\.\d{3}Z$/, "Z");
@@ -26,6 +30,12 @@ function readOption(name: string): string | undefined {
 
 function hasFlag(name: string) {
   return process.argv.includes(name);
+}
+
+function requiredOption(name: string): string {
+  const value = readOption(name);
+  if (!value) throw new Error(`${name} is required`);
+  return value;
 }
 
 async function runSnapshot(prisma: PrismaClient) {
@@ -117,6 +127,20 @@ async function main() {
       const group = parseTransportRecoveryGroup(readOption("--group"));
       const result = await runTransportRecoveryGroup(prisma, config, group);
       console.log(`Transport recovery QA PASS: ${result.runId}; group=${result.group}; cleanup complete.`);
+      return;
+    }
+    if (command === "browser-recovery-prepare") {
+      assertMutationConfirmation(config);
+      const fixturePath = requiredOption("--session-file");
+      const result = await prepareBrowserRecoveryFixture(prisma, config, fixturePath);
+      console.log(`Browser recovery fixture ready: ${result.runId}; order=${result.orderId}; number=${result.orderNumber}.`);
+      return;
+    }
+    if (command === "browser-recovery-cleanup") {
+      assertMutationConfirmation(config);
+      const fixturePath = requiredOption("--session-file");
+      const result = await cleanupBrowserRecoveryFixture(prisma, config, fixturePath);
+      console.log(`Browser recovery cleanup completed safely for ${result.runId}; no QA credentials were persisted as artifacts.`);
       return;
     }
     if (command === "cleanup") {
