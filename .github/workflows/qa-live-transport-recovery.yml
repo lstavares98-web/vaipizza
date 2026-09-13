@@ -117,6 +117,9 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: qa-live-transport-recovery-${{ steps.group.outputs.group }}-evidence
-          path: qa-artifacts/
+          path: |
+            qa-artifacts/
+            apps/customer/test-results/
+            apps/customer/playwright-report/
           if-no-files-found: ignore
           retention-days: 14
