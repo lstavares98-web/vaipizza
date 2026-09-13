@@ -7,6 +7,7 @@ on:
     paths:
       - apps/customer/e2e/resilience-refresh.spec.ts
       - apps/customer/e2e/helpers/socket-control.ts
+      - apps/customer/e2e/helpers/staging-sessions.ts
       - apps/customer/src/pages/OrderDetail.tsx
       - apps/customer/playwright.config.ts
       - .github/workflows/qa-browser-refresh-recovery.yml
