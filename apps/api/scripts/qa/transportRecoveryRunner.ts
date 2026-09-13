@@ -1,6 +1,9 @@
 import type { SnapshotDiff } from "./types.js";
 
 export type TransportRecoveryStepKind = "backend" | "browser";
+export type TransportRecoveryGroup = "api";
+
+export const TRANSPORT_RECOVERY_GROUPS: TransportRecoveryGroup[] = ["api"];
 
 export interface TransportRecoveryStep<T = unknown> {
   name: string;
@@ -70,4 +73,11 @@ export function assertTransportCleanupAllowed(diff: SnapshotDiff[]): void {
         .join(", ")})`,
     );
   }
+}
+
+export function parseTransportRecoveryGroup(value: string | undefined): TransportRecoveryGroup {
+  if (!value || !TRANSPORT_RECOVERY_GROUPS.includes(value as TransportRecoveryGroup)) {
+    throw new Error(`Unknown transport recovery group: ${value ?? "<missing>"}`);
+  }
+  return value as TransportRecoveryGroup;
 }
