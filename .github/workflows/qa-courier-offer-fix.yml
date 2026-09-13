@@ -1,0 +1,169 @@
+name: QA Courier Offer Fix Validation
+
+on:
+  push:
+    branches:
+      - feature/qa-harness-safe
+    paths:
+      - qa-courier-offer-fix.trigger
+
+jobs:
+  courier-offer-fix:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      QA_ENV: staging
+      QA_API_URL: https://vaipizza-api-staging.onrender.com
+      QA_CONFIRM: VAIPIZZA_STAGING_ONLY
+      PRIMARY_RESTAURANT_SLUG: vaipizza
+      DATABASE_URL: ${{ secrets.DATABASE_URL }}
+      QA_CUSTOMER_URL: https://vaipizza-cliente-staging.netlify.app
+      QA_RESTAURANT_URL: https://vaipizza-gestao-staging.netlify.app
+      QA_KDS_URL: https://vaipizza-cozinha-staging.netlify.app
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Guard staging-only validation
+        shell: bash
+        run: |
+          if [ -z "${DATABASE_URL:-}" ]; then
+            echo "DATABASE_URL secret is not configured; validation will not run."
+            exit 1
+          fi
+          TRIGGER="$(tr -d '[:space:]' < qa-courier-offer-fix.trigger)"
+          if [ "$TRIGGER" != "run" ]; then
+            echo "Courier fix trigger is inert."
+            exit 1
+          fi
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Re-run QA safety checks
+        run: |
+          npm run qa:typecheck
+          npm run qa:test
+          npm run test -w apps/api
+
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
+
+      - name: Build and start corrected feature-branch courier
+        shell: bash
+        run: |
+          VITE_API_URL="$QA_API_URL" npm run build -w apps/courier
+          npm run preview -w apps/courier -- --host 127.0.0.1 > "$RUNNER_TEMP/courier-preview.log" 2>&1 &
+          echo $! > "$RUNNER_TEMP/courier-preview.pid"
+          for attempt in $(seq 1 30); do
+            if curl -fsS http://127.0.0.1:3003/ >/dev/null; then
+              echo "Corrected courier preview is ready."
+              exit 0
+            fi
+            sleep 1
+          done
+          cat "$RUNNER_TEMP/courier-preview.log"
+          exit 1
+
+      - name: Prepare desktop fixture
+        env:
+          QA_BROWSER_FIXTURE_FILE: ${{ runner.temp }}/vaipizza-courier-fix-desktop.json
+        shell: bash
+        run: |
+          NODE_ENV=test \
+          JWT_ACCESS_SECRET="$GITHUB_SHA" \
+          JWT_REFRESH_SECRET="${GITHUB_SHA}refresh" \
+          npm run qa:browser-fixture:prepare -w apps/api -- --session-file="$QA_BROWSER_FIXTURE_FILE"
+
+      - name: Validate corrected courier on desktop
+        env:
+          QA_STAGING_RUNTIME: "1"
+          QA_ALLOW_LOCAL_COURIER: "1"
+          QA_COURIER_URL: http://127.0.0.1:3003
+          QA_BROWSER_FIXTURE_FILE: ${{ runner.temp }}/vaipizza-courier-fix-desktop.json
+        run: npm run test:e2e -w apps/customer -- runtime-health.spec.ts --project=chromium-desktop
+
+      - name: Cleanup desktop fixture
+        if: always()
+        env:
+          QA_BROWSER_FIXTURE_FILE: ${{ runner.temp }}/vaipizza-courier-fix-desktop.json
+        shell: bash
+        run: |
+          if [ -f "$QA_BROWSER_FIXTURE_FILE" ]; then
+            NODE_ENV=test \
+            JWT_ACCESS_SECRET="$GITHUB_SHA" \
+            JWT_REFRESH_SECRET="${GITHUB_SHA}refresh" \
+            npm run qa:browser-fixture:cleanup -w apps/api -- --session-file="$QA_BROWSER_FIXTURE_FILE"
+          else
+            echo "No desktop fixture remains to clean."
+          fi
+
+      - name: Prepare mobile fixture
+        if: success()
+        env:
+          QA_BROWSER_FIXTURE_FILE: ${{ runner.temp }}/vaipizza-courier-fix-mobile.json
+        shell: bash
+        run: |
+          NODE_ENV=test \
+          JWT_ACCESS_SECRET="$GITHUB_SHA" \
+          JWT_REFRESH_SECRET="${GITHUB_SHA}refresh" \
+          npm run qa:browser-fixture:prepare -w apps/api -- --session-file="$QA_BROWSER_FIXTURE_FILE"
+
+      - name: Validate corrected courier on Pixel 5
+        if: success()
+        env:
+          QA_STAGING_RUNTIME: "1"
+          QA_ALLOW_LOCAL_COURIER: "1"
+          QA_COURIER_URL: http://127.0.0.1:3003
+          QA_BROWSER_FIXTURE_FILE: ${{ runner.temp }}/vaipizza-courier-fix-mobile.json
+        run: npm run test:e2e -w apps/customer -- runtime-health.spec.ts --project=chromium-mobile
+
+      - name: Cleanup mobile fixture
+        if: always()
+        env:
+          QA_BROWSER_FIXTURE_FILE: ${{ runner.temp }}/vaipizza-courier-fix-mobile.json
+        shell: bash
+        run: |
+          if [ -f "$QA_BROWSER_FIXTURE_FILE" ]; then
+            NODE_ENV=test \
+            JWT_ACCESS_SECRET="$GITHUB_SHA" \
+            JWT_REFRESH_SECRET="${GITHUB_SHA}refresh" \
+            npm run qa:browser-fixture:cleanup -w apps/api -- --session-file="$QA_BROWSER_FIXTURE_FILE"
+          else
+            echo "No mobile fixture remains to clean."
+          fi
+
+      - name: Stop corrected courier preview
+        if: always()
+        shell: bash
+        run: |
+          if [ -f "$RUNNER_TEMP/courier-preview.pid" ]; then
+            kill "$(cat "$RUNNER_TEMP/courier-preview.pid")" 2>/dev/null || true
+          fi
+
+      - name: Record fix evidence
+        if: success()
+        shell: bash
+        run: |
+          mkdir -p qa-artifacts/courier-offer-fix
+          printf '%s\n' '{"status":"PASS","environment":"staging-api-with-feature-branch-courier","projects":["chromium-desktop","chromium-mobile"],"bug":"bottom-nav-covered-accept-delivery","criticalControlsReachable":true,"authoritativeApiAudit":true}' > qa-artifacts/courier-offer-fix/result.json
+
+      - name: Upload validation evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: qa-courier-offer-fix-evidence
+          path: |
+            qa-artifacts/
+            apps/customer/test-results/
+            apps/customer/playwright-report/
+            ${{ runner.temp }}/courier-preview.log
+          if-no-files-found: ignore
+          retention-days: 14
