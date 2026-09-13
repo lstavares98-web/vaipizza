@@ -7,6 +7,7 @@ on:
     paths:
       - apps/customer/e2e/resilience-refresh.spec.ts
       - apps/customer/e2e/resilience-ui.spec.ts
+      - apps/customer/e2e/offline-customer.spec.ts
       - apps/customer/e2e/helpers/socket-control.ts
       - apps/customer/e2e/helpers/staging-sessions.ts
       - apps/customer/e2e/helpers/qa-runtime.spec.ts
@@ -48,6 +49,9 @@ jobs:
 
       - name: Discover UI state agreement spec
         run: npm run test:e2e -w apps/customer -- resilience-ui.spec.ts --project=chromium-desktop
+
+      - name: Discover offline customer spec
+        run: npm run test:e2e -w apps/customer -- offline-customer.spec.ts --project=chromium-desktop
 
       - name: Run refresh and reopen recovery test
         run: npm run test:e2e -w apps/customer -- resilience-refresh.spec.ts
