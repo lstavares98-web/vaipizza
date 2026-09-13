@@ -14,7 +14,7 @@ test.afterAll(async () => {
   await fixture.close();
 });
 
-test("customer reconciles the authoritative order state after socket reconnect", async ({ page }) => {
+test("customer reconciles authoritative order state after repeated socket reconnects", async ({ page }) => {
   await page.addInitScript(() => {
     localStorage.setItem("vaipizza_customer_access_token", "qa-access-token");
     localStorage.setItem("vaipizza_customer_refresh_token", "qa-refresh-token");
@@ -24,12 +24,25 @@ test("customer reconciles the authoritative order state after socket reconnect",
   await expect(page.getByText("Pedido efetuado", { exact: true })).toBeVisible();
   await fixture.waitForConnectedClients(1);
 
-  fixture.dropClientTransports();
-  await fixture.waitForConnectedClients(0);
+  const transitions = [
+    ["PREPARING", "Em preparação"],
+    ["WAITING_FOR_COURIER", "À procura de estafeta"],
+    ["COURIER_ASSIGNED", "Estafeta a caminho do restaurante"],
+    ["PICKED_UP", "Estafeta recolheu o pedido"],
+    ["OUT_FOR_DELIVERY", "A caminho da sua morada"],
+    ["DELIVERED", "Entregue"],
+  ] as const;
 
-  fixture.setStatus("PREPARING", true);
-  await fixture.waitForConnectedClients(1);
+  let previousLabel = "Pedido efetuado";
+  for (const [status, expectedLabel] of transitions) {
+    fixture.dropClientTransports();
+    await fixture.waitForConnectedClients(0);
 
-  await expect(page.getByText("Em preparação", { exact: true })).toBeVisible({ timeout: 3_000 });
-  await expect(page.getByText("Pedido efetuado", { exact: true })).not.toBeVisible();
+    fixture.setStatus(status, true);
+    await fixture.waitForConnectedClients(1);
+
+    await expect(page.getByText(expectedLabel, { exact: true })).toBeVisible({ timeout: 3_000 });
+    await expect(page.getByText(previousLabel, { exact: true })).not.toBeVisible();
+    previousLabel = expectedLabel;
+  }
 });
