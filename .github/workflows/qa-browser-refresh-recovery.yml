@@ -59,6 +59,9 @@ jobs:
       - name: Discover offline customer spec
         run: npm run test:e2e -w apps/customer -- offline-customer.spec.ts --project=chromium-desktop
 
+      - name: Discover runtime health spec
+        run: npm run test:e2e -w apps/customer -- runtime-health.spec.ts --project=chromium-desktop
+
       - name: Run refresh and reopen recovery test
         run: npm run test:e2e -w apps/customer -- resilience-refresh.spec.ts
 
