@@ -11,6 +11,7 @@ on:
       - apps/customer/e2e/runtime-health.spec.ts
       - apps/customer/e2e/csp-diagnostic.spec.ts
       - apps/customer/e2e/helpers/csp-policy.spec.ts
+      - apps/customer/e2e/helpers/restaurant-completed-list-policy.spec.ts
       - apps/customer/e2e/helpers/socket-control.ts
       - apps/customer/e2e/helpers/staging-sessions.ts
       - apps/customer/e2e/helpers/qa-runtime.spec.ts
@@ -24,6 +25,8 @@ on:
       - apps/customer/src/pages/OrderDetail.tsx
       - apps/customer/playwright.config.ts
       - apps/customer/public/_headers
+      - apps/restaurant/src/pages/OrdersDashboard.tsx
+      - apps/restaurant/src/index.css
       - apps/restaurant/public/_headers
       - apps/kds/public/_headers
       - apps/courier/public/_headers
@@ -61,6 +64,9 @@ jobs:
 
       - name: Run CSP policy contract test
         run: npm run test:e2e -w apps/customer -- helpers/csp-policy.spec.ts --project=chromium-desktop
+
+      - name: Run completed orders layout policy test
+        run: npm run test:e2e -w apps/customer -- helpers/restaurant-completed-list-policy.spec.ts --project=chromium-desktop
 
       - name: Inspect effective staging CSP
         run: npm run test:e2e -w apps/customer -- csp-diagnostic.spec.ts --project=chromium-desktop
