@@ -21,7 +21,6 @@ jobs:
       QA_RESTAURANT_URL: https://vaipizza-gestao-staging.netlify.app
       QA_KDS_URL: https://vaipizza-cozinha-staging.netlify.app
       QA_COURIER_URL: https://vaipizza-estafeta-staging.netlify.app
-      QA_BROWSER_FIXTURE_FILE: ${{ runner.temp }}/vaipizza-browser-recovery.json
 
     steps:
       - name: Checkout
@@ -78,6 +77,7 @@ jobs:
       - name: Run live staging refresh and reopen recovery
         env:
           QA_STAGING_REFRESH: "1"
+          QA_BROWSER_FIXTURE_FILE: ${{ runner.temp }}/vaipizza-browser-recovery.json
         run: npm run test:e2e -w apps/customer -- resilience-refresh.spec.ts --project=chromium-desktop
 
       - name: Upload QA evidence
