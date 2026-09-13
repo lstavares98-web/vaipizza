@@ -27,6 +27,26 @@ test("rejects a URL outside the approved staging host", () => {
   );
 });
 
+test("does not allow a loopback courier without an explicit QA override", () => {
+  expect(() => loadQaRuntime({ ...VALID_ENV, QA_COURIER_URL: "http://127.0.0.1:3003" })).toThrow(
+    "QA_COURIER_URL must use HTTPS",
+  );
+});
+
+test("allows only the courier surface to run on loopback when explicitly enabled", () => {
+  expect(loadQaRuntime({
+    ...VALID_ENV,
+    QA_COURIER_URL: "http://127.0.0.1:3003",
+    QA_ALLOW_LOCAL_COURIER: "1",
+  })).toEqual({
+    customerUrl: VALID_ENV.QA_CUSTOMER_URL,
+    restaurantUrl: VALID_ENV.QA_RESTAURANT_URL,
+    kdsUrl: VALID_ENV.QA_KDS_URL,
+    courierUrl: "http://127.0.0.1:3003",
+    apiUrl: VALID_ENV.QA_API_URL,
+  });
+});
+
 test("returns the five approved staging endpoints", () => {
   expect(loadQaRuntime(VALID_ENV)).toEqual({
     customerUrl: VALID_ENV.QA_CUSTOMER_URL,
