@@ -15,7 +15,8 @@ export interface RuntimeHealthAudit {
   stop: () => void;
 }
 
-const NETLIFY_HUD_INLINE_SCRIPT_HASH = "sha256-mTJ4cJaTm2Gw95GeXEpZdvEEY9ybh6FZu1bwcNE7QlY=";
+const NETLIFY_HUD_CSP_MESSAGE =
+  "Executing inline script violates the following Content Security Policy directive 'script-src 'self''. Either the 'unsafe-inline' keyword, a hash ('sha256-mTJ4cJaTm2Gw95GeXEpZdvEEY9ybh6FZu1bwcNE7QlY='), or a nonce ('nonce-...') is required to enable inline execution. The action has been blocked.";
 
 export function isCriticalApiUrl(url: string): boolean {
   try {
@@ -27,20 +28,7 @@ export function isCriticalApiUrl(url: string): boolean {
 }
 
 export function isKnownDeploymentPendingCspIssue(issue: RuntimeIssue): boolean {
-  if (issue.source !== "console-error") return false;
-
-  const message = issue.message;
-  const blockedGoogleFontsStylesheet =
-    message.startsWith("Loading the stylesheet 'https://fonts.googleapis.com/") &&
-    message.includes("violates the following Content Security Policy directive: \"style-src 'self' 'unsafe-inline'\"") &&
-    message.endsWith("The action has been blocked.");
-
-  const blockedNetlifyHudInlineScript =
-    message.startsWith("Executing inline script violates the following Content Security Policy directive 'script-src 'self''.") &&
-    message.includes(`a hash ('${NETLIFY_HUD_INLINE_SCRIPT_HASH}')`) &&
-    message.endsWith("The action has been blocked.");
-
-  return blockedGoogleFontsStylesheet || blockedNetlifyHudInlineScript;
+  return issue.source === "console-error" && issue.message === NETLIFY_HUD_CSP_MESSAGE;
 }
 
 export function filterUnexpectedRuntimeIssues(
@@ -48,7 +36,7 @@ export function filterUnexpectedRuntimeIssues(
   allowedMessages: string[] = [],
 ): RuntimeIssue[] {
   const allowed = new Set(allowedMessages);
-  return issues.filter((issue) => !allowed.has(issue.message));
+  return issues.filter((issue) => !allowed.has(issue.message) && !isKnownDeploymentPendingCspIssue(issue));
 }
 
 export function startRuntimeHealthAudit(page: Page): RuntimeHealthAudit {
