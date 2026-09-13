@@ -12,6 +12,7 @@ on:
       - apps/customer/e2e/helpers/qa-runtime.spec.ts
       - apps/customer/e2e/helpers/qa-runtime.ts
       - apps/customer/e2e/helpers/staging-urls.ts
+      - apps/customer/e2e/helpers/surface-login.spec.ts
       - apps/customer/e2e/helpers/surface-login.ts
       - apps/customer/e2e/helpers/api-audit.ts
       - apps/customer/src/pages/OrderDetail.tsx
@@ -41,6 +42,9 @@ jobs:
 
       - name: Run staging runtime contract test
         run: npm run test:e2e -w apps/customer -- helpers/qa-runtime.spec.ts --project=chromium-desktop
+
+      - name: Run browser fixture contract test
+        run: npm run test:e2e -w apps/customer -- helpers/surface-login.spec.ts --project=chromium-desktop
 
       - name: Discover UI state agreement spec
         run: npm run test:e2e -w apps/customer -- resilience-ui.spec.ts --project=chromium-desktop
