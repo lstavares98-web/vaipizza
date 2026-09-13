@@ -26,6 +26,7 @@ on:
       - apps/customer/public/_headers
       - apps/restaurant/public/_headers
       - apps/kds/public/_headers
+      - apps/courier/public/_headers
       - .github/workflows/qa-browser-refresh-recovery.yml
 
 jobs:
