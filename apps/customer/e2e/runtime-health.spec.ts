@@ -1,7 +1,12 @@
 import { expect, test, type Locator, type Page } from "@playwright/test";
 import { waitForOrderStatus } from "./helpers/api-audit";
 import { loadQaRuntime } from "./helpers/qa-runtime";
-import { startRuntimeHealthAudit, type RuntimeHealthAudit, type RuntimeIssue } from "./helpers/runtime-errors";
+import {
+  isKnownDeploymentPendingCspIssue,
+  startRuntimeHealthAudit,
+  type RuntimeHealthAudit,
+  type RuntimeIssue,
+} from "./helpers/runtime-errors";
 import { installBrowserSurfaceSessions, loadBrowserUiFixture } from "./helpers/surface-login";
 
 interface SurfaceAudit {
@@ -54,8 +59,12 @@ async function expectReachable(page: Page, locator: Locator, label: string): Pro
 }
 
 function assertNoUnexpectedRuntimeIssues(audits: SurfaceAudit[]): void {
+  const allowDeploymentPendingCsp = process.env.QA_ALLOW_DEPLOYMENT_PENDING_CSP === "1";
   const failures = audits.flatMap(({ surface, audit }) =>
-    audit.unexpected().map((issue): RuntimeIssue & { surface: SurfaceAudit["surface"] } => ({ surface, ...issue })),
+    audit
+      .unexpected()
+      .filter((issue) => !(allowDeploymentPendingCsp && isKnownDeploymentPendingCspIssue(issue)))
+      .map((issue): RuntimeIssue & { surface: SurfaceAudit["surface"] } => ({ surface, ...issue })),
   );
   for (const { audit } of audits) audit.stop();
   expect(failures, `Unexpected browser runtime issues:\n${JSON.stringify(failures, null, 2)}`).toEqual([]);
