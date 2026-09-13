@@ -1,0 +1,30 @@
+name: Deploy Gestão Staging Once
+
+on:
+  push:
+    branches:
+      - staging/deploy-gestao-compact-2026-09-13
+    paths:
+      - deploy-gestao-staging.trigger
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      NETLIFY_AUTH_TOKEN: ${{ secrets.NETLIFY_AUTH_TOKEN }}
+      VITE_API_URL: https://vaipizza-api-staging.onrender.com
+    steps:
+      - uses: actions/checkout@v4
+      - name: Guard staging token
+        shell: bash
+        run: test -n "${NETLIFY_AUTH_TOKEN:-}" || { echo "NETLIFY_AUTH_TOKEN missing"; exit 1; }
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Build Gestão
+        run: npm run build -w apps/restaurant
+      - name: Deploy Gestão staging
+        run: npx --yes netlify-cli@latest deploy --prod --auth "$NETLIFY_AUTH_TOKEN" --site bfb4f12b-72a2-41ab-b528-aa896878d5eb --filter apps/restaurant --dir apps/restaurant/dist --message "Compact completed orders staging $GITHUB_SHA"
