@@ -24,6 +24,8 @@ describe("browser recovery fixture safety", () => {
       apiUrl: "https://vaipizza-api-staging.onrender.com",
       orderId: "order-qa",
       orderNumber: 123,
+      productId: "product-qa",
+      addressId: "address-qa",
       customer: {
         userId: "customer-user",
         email: "qa+QA-20260913-123456-browser-refresh-0@vaipizza.test",
@@ -58,6 +60,8 @@ describe("browser recovery fixture safety", () => {
       },
     });
 
+    expect(document.productId).toBe("product-qa");
+    expect(document.addressId).toBe("address-qa");
     expect(document.credentials.customer.email).toContain("@vaipizza.test");
     expect(document.credentials.restaurant.password).toBe("staff-password");
     expect(JSON.stringify(document)).not.toContain("access-secret");
