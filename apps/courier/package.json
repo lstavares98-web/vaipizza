@@ -6,7 +6,9 @@
   "scripts": {
     "dev": "vite --port 3003",
     "build": "tsc -b && vite build",
+    "build:qa-proxy": "tsc -b && vite build --config vite.qa.config.ts",
     "preview": "vite preview --port 3003",
+    "preview:qa-proxy": "vite preview --config vite.qa.config.ts --port 3003",
     "lint": "eslint . --ext ts,tsx"
   },
   "dependencies": {
