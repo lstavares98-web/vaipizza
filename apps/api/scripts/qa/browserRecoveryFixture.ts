@@ -67,6 +67,11 @@ export interface BrowserRecoveryCleanupSummary {
   cleanup: CleanupResult;
 }
 
+export interface BrowserOwnedOrderRow {
+  id: string;
+  userId: string;
+}
+
 function asError(error: unknown): Error {
   return error instanceof Error ? error : new Error(String(error));
 }
@@ -105,6 +110,22 @@ export function buildBrowserRecoveryFixtureDocument(
       courier: { email: input.courier.email, password: input.courier.password },
     },
   };
+}
+
+export function mergeBrowserOwnedOrderIds(
+  existingOrderIds: string[],
+  customerUserIds: string[],
+  orders: BrowserOwnedOrderRow[],
+): string[] {
+  const ownedCustomers = new Set(customerUserIds);
+  const merged = new Set(existingOrderIds);
+  for (const order of orders) {
+    if (!ownedCustomers.has(order.userId)) {
+      throw new Error(`Browser-created order ${order.id} is not owned by an owned QA customer`);
+    }
+    merged.add(order.id);
+  }
+  return [...merged];
 }
 
 function assertQaCredential(label: string, credentials: BrowserRecoveryCredentials): void {
@@ -163,6 +184,21 @@ async function assertProtectedUnchanged(
   if (diff.length) {
     throw new Error(`Protected staging configuration changed during browser recovery (${artifactPrefix})`);
   }
+}
+
+async function adoptBrowserOwnedOrders(prisma: PrismaClient, manifest: QaRunManifest): Promise<void> {
+  if (!manifest.customerUserIds.length) return;
+  const orders = await prisma.order.findMany({
+    where: { userId: { in: manifest.customerUserIds } },
+    select: { id: true, userId: true },
+  });
+  const previousIds = new Set(manifest.orderIds);
+  const mergedIds = mergeBrowserOwnedOrderIds(manifest.orderIds, manifest.customerUserIds, orders);
+  const adoptedOrderIds = mergedIds.filter((id) => !previousIds.has(id));
+  if (!adoptedOrderIds.length) return;
+  manifest.orderIds = mergedIds;
+  await saveManifest(manifest);
+  await writeJsonArtifact(manifest.runId, "browser-adopted-orders", { adoptedOrderIds });
 }
 
 async function cleanupBrowserRecoveryManifest(
@@ -312,6 +348,7 @@ export async function cleanupBrowserRecoveryFixture(
   if (manifest.apiHost !== config.apiHostname || manifest.supabaseProjectRef !== config.supabaseProjectRef) {
     throw new Error("Browser recovery manifest target does not match the approved staging target");
   }
+  await adoptBrowserOwnedOrders(prisma, manifest);
   const protectedBefore = await readJsonArtifact<ProtectedSnapshot>(manifest.runId, "protected-before");
   const cleanup = await cleanupBrowserRecoveryManifest(prisma, config, manifest, protectedBefore);
   await rm(approvedPath, { force: true });
