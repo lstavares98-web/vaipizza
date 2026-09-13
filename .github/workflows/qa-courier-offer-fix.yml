@@ -89,6 +89,7 @@ jobs:
         env:
           QA_STAGING_RUNTIME: "1"
           QA_ALLOW_LOCAL_COURIER: "1"
+          QA_ALLOW_DEPLOYMENT_PENDING_CSP: "1"
           QA_COURIER_URL: http://127.0.0.1:3003
           QA_BROWSER_FIXTURE_FILE: ${{ runner.temp }}/vaipizza-courier-fix-desktop.json
         run: npm run test:e2e -w apps/customer -- runtime-health.spec.ts --project=chromium-desktop
@@ -124,6 +125,7 @@ jobs:
         env:
           QA_STAGING_RUNTIME: "1"
           QA_ALLOW_LOCAL_COURIER: "1"
+          QA_ALLOW_DEPLOYMENT_PENDING_CSP: "1"
           QA_COURIER_URL: http://127.0.0.1:3003
           QA_BROWSER_FIXTURE_FILE: ${{ runner.temp }}/vaipizza-courier-fix-mobile.json
         run: npm run test:e2e -w apps/customer -- runtime-health.spec.ts --project=chromium-mobile
@@ -156,7 +158,7 @@ jobs:
         shell: bash
         run: |
           mkdir -p qa-artifacts/courier-offer-fix
-          printf '%s\n' '{"status":"PASS","environment":"staging-api-with-feature-branch-courier","projects":["chromium-desktop","chromium-mobile"],"bug":"bottom-nav-covered-accept-delivery","criticalControlsReachable":true,"authoritativeApiAudit":true}' > qa-artifacts/courier-offer-fix/result.json
+          printf '%s\n' '{"status":"PASS","environment":"staging-api-with-feature-branch-courier","projects":["chromium-desktop","chromium-mobile"],"bug":"bottom-nav-covered-accept-delivery","criticalControlsReachable":true,"authoritativeApiAudit":true,"deploymentPendingCspAllowed":true,"deploymentPendingCspScope":"only diagnosed Google Fonts and Netlify HUD violations on older remote staging deploys"}' > qa-artifacts/courier-offer-fix/result.json
 
       - name: Upload validation evidence
         if: always()
