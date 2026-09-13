@@ -9,6 +9,7 @@ import { cleanupMode, executeCleanup, preflightCleanup } from "./cleanup.js";
 import { runFunctionalQa } from "./functional.js";
 import { runLoadStageQa } from "./loadStageRunner.js";
 import { parseBackendResilienceGroup, runBackendResilienceGroup } from "./resilienceRunner.js";
+import { parseTransportRecoveryGroup, runTransportRecoveryGroup } from "./transportRecoveryRunner.js";
 
 function snapshotRunId(now = new Date()) {
   const stamp = now.toISOString().replace(/[-:]/g, "").replace(/\.\d{3}Z$/, "Z");
@@ -109,6 +110,13 @@ async function main() {
       const group = parseBackendResilienceGroup(readOption("--group"));
       const result = await runBackendResilienceGroup(prisma, config, group);
       console.log(`Backend resilience QA PASS: ${result.runId}; group=${result.group}; cleanup complete.`);
+      return;
+    }
+    if (command === "resilience-transport") {
+      assertMutationConfirmation(config);
+      const group = parseTransportRecoveryGroup(readOption("--group"));
+      const result = await runTransportRecoveryGroup(prisma, config, group);
+      console.log(`Transport recovery QA PASS: ${result.runId}; group=${result.group}; cleanup complete.`);
       return;
     }
     if (command === "cleanup") {
