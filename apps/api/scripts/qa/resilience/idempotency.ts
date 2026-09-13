@@ -13,6 +13,7 @@ import { pointAtDistanceKm } from "../scenarios/geo.js";
 import { singleDeliveryCheckoutBody } from "../scenarios/singleDelivery.js";
 import { auditOrderConsistency } from "./audit.js";
 import { createStartBarrier } from "./concurrentCheckout.js";
+import { eligibleExternalCourierIds } from "./dispatchModes.js";
 
 export interface DuplicateActionObservation {
   label: string;
@@ -44,6 +45,12 @@ export interface DuplicateActionScenarioResult {
   observations: DuplicateActionObservation[];
   finalEffects: FinalDeliveryEffects;
   statusEventCounts: Record<string, number>;
+}
+
+export function duplicateActionBlockingExternalCourierIds(
+  args: Parameters<typeof eligibleExternalCourierIds>[0],
+): string[] {
+  return eligibleExternalCourierIds(args);
 }
 
 export function validateDuplicateActionObservation(observation: DuplicateActionObservation): void {
@@ -84,14 +91,42 @@ async function runDuplicateRequests(
   return Promise.all(pending);
 }
 
-async function assertNoNonQaAvailableCouriers(prisma: PrismaClient, manifest: QaRunManifest): Promise<void> {
-  const count = await prisma.courier.count({
-    where: {
-      status: "AVAILABLE",
-      ...(manifest.courierIds.length ? { id: { notIn: manifest.courierIds } } : {}),
-    },
+async function assertNoNonQaEligibleCouriers(prisma: PrismaClient, manifest: QaRunManifest): Promise<void> {
+  const restaurantSlug = process.env.PRIMARY_RESTAURANT_SLUG?.trim();
+  if (!restaurantSlug) throw new Error("Duplicate-action QA requires PRIMARY_RESTAURANT_SLUG");
+
+  const [couriers, restaurant] = await Promise.all([
+    prisma.courier.findMany({
+      where: { status: "AVAILABLE" },
+      select: {
+        id: true,
+        status: true,
+        lat: true,
+        lng: true,
+        locationUpdatedAt: true,
+        locationAccuracyM: true,
+      },
+    }),
+    prisma.restaurant.findUnique({
+      where: { slug: restaurantSlug },
+      select: { lat: true, lng: true, courierDispatchRadiusKm: true },
+    }),
+  ]);
+  if (!restaurant) throw new Error(`Duplicate-action QA restaurant ${restaurantSlug} was not found`);
+
+  const maxLocationAgeSeconds = Number(process.env.COURIER_LOCATION_MAX_AGE_SECONDS ?? 120);
+  const maxAccuracyMeters = Number(process.env.COURIER_MAX_ACCURACY_METERS ?? 100);
+  const blockingIds = duplicateActionBlockingExternalCourierIds({
+    couriers,
+    qaCourierIds: manifest.courierIds,
+    restaurant,
+    now: new Date(),
+    maxLocationAgeSeconds,
+    maxAccuracyMeters,
   });
-  if (count !== 0) throw new Error(`Duplicate-action QA is blocked because ${count} non-QA AVAILABLE courier(s) exist`);
+  if (blockingIds.length !== 0) {
+    throw new Error(`Duplicate-action QA is blocked because ${blockingIds.length} non-QA eligible courier(s) exist`);
+  }
 }
 
 async function readOrderStatus(prisma: PrismaClient, orderId: string): Promise<string> {
@@ -116,7 +151,7 @@ export async function runDuplicateActionScenario(
     locationUpdatedAt: new Date(),
   });
   const courierSession = await loginQaCourierSession(config, courier.email, courier.password);
-  await assertNoNonQaAvailableCouriers(prisma, manifest);
+  await assertNoNonQaEligibleCouriers(prisma, manifest);
 
   const courierBefore = await prisma.courier.findUnique({
     where: { id: courier.courierId },
