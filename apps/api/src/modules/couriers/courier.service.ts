@@ -87,6 +87,67 @@ export async function updateDeliveryStatus(
 
   assertTransitionAllowed(order.status, status, Role.COURIER);
 
+  if (status === "DELIVERED") {
+    const earning = computeDeliveryEarning(order.deliveryFee, courier.lifetimeDeliveries);
+    const deliveredAt = new Date();
+
+    const updated = await prisma.$transaction(async (tx) => {
+      // Claim the transition atomically. Concurrent DELIVERED requests may
+      // both have read OUT_FOR_DELIVERY above, but only one can change that
+      // exact state. The loser exits before any financial side effect.
+      const claimed = await tx.order.updateMany({
+        where: {
+          id: order.id,
+          courierId: courier.id,
+          status: "OUT_FOR_DELIVERY",
+        },
+        data: {
+          status: "DELIVERED",
+          deliveredAt,
+          ...(order.paymentMethod === "CASH" ? { paymentStatus: "PAID" } : {}),
+        },
+      });
+
+      if (claimed.count !== 1) {
+        throw badRequest("O estado do pedido já foi atualizado", "ORDER_STATUS_CONFLICT");
+      }
+
+      await tx.orderStatusEvent.create({
+        data: { orderId: order.id, status: "DELIVERED", actor: Role.COURIER },
+      });
+
+      await tx.courierEarning.create({
+        data: { courierId: courier.id, orderId: order.id, amount: earning.base, kind: "DELIVERY" },
+      });
+      if (earning.bonus > 0) {
+        await tx.courierEarning.create({
+          data: { courierId: courier.id, amount: earning.bonus, kind: "BONUS" },
+        });
+      }
+
+      await tx.courier.update({
+        where: { id: courier.id },
+        data: {
+          status: "AVAILABLE",
+          totalEarnings: { increment: earning.total },
+          lifetimeDeliveries: { increment: 1 },
+        },
+      });
+
+      const finalOrder = await tx.order.findUnique({ where: { id: order.id } });
+      if (!finalOrder) throw notFound("Order not found");
+      return finalOrder;
+    });
+
+    // Only the request that successfully claimed and committed DELIVERED can
+    // wake the next queued order.
+    await dispatchWaitingOrders();
+
+    getIO()?.to(rooms.restaurant(order.restaurantId)).emit("order:status", { orderId: order.id, status });
+    getIO()?.to(rooms.customer(order.userId)).emit("order:status", { orderId: order.id, status });
+    return updated;
+  }
+
   // Change (if any) was already worked out at checkout from what the
   // customer declared they'd pay with — the courier just hands it over,
   // nothing to enter here. See orders.service.ts checkout().
@@ -95,10 +156,6 @@ export async function updateDeliveryStatus(
     statusHistory: { create: { status, actor: Role.COURIER } },
   };
   if (status === "PICKED_UP") data.pickedUpAt = new Date();
-  if (status === "DELIVERED") {
-    data.deliveredAt = new Date();
-    if (order.paymentMethod === "CASH") data.paymentStatus = "PAID";
-  }
 
   const updated = await prisma.order.update({ where: { id: order.id }, data });
 
@@ -106,26 +163,6 @@ export async function updateDeliveryStatus(
     await prisma.courier.update({ where: { id: courier.id }, data: { status: "PICKED_UP" } });
   } else if (status === "OUT_FOR_DELIVERY") {
     await prisma.courier.update({ where: { id: courier.id }, data: { status: "DELIVERING" } });
-  } else if (status === "DELIVERED") {
-    const earning = computeDeliveryEarning(order.deliveryFee, courier.lifetimeDeliveries);
-    await prisma.$transaction([
-      prisma.courierEarning.create({
-        data: { courierId: courier.id, orderId: order.id, amount: earning.base, kind: "DELIVERY" },
-      }),
-      ...(earning.bonus > 0
-        ? [prisma.courierEarning.create({ data: { courierId: courier.id, amount: earning.bonus, kind: "BONUS" } })]
-        : []),
-      prisma.courier.update({
-        where: { id: courier.id },
-        data: {
-          status: "AVAILABLE",
-          totalEarnings: { increment: earning.total },
-          lifetimeDeliveries: { increment: 1 },
-        },
-      }),
-    ]);
-    // Finishing one delivery can immediately unlock the oldest queued order.
-    await dispatchWaitingOrders();
   }
 
   getIO()?.to(rooms.restaurant(order.restaurantId)).emit("order:status", { orderId: order.id, status });
