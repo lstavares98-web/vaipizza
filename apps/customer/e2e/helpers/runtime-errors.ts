@@ -15,6 +15,8 @@ export interface RuntimeHealthAudit {
   stop: () => void;
 }
 
+const NETLIFY_HUD_INLINE_SCRIPT_HASH = "sha256-mTJ4cJaTm2Gw95GeXEpZdvEEY9ybh6FZu1bwcNE7QlY=";
+
 export function isCriticalApiUrl(url: string): boolean {
   try {
     const parsed = new URL(url);
@@ -22,6 +24,23 @@ export function isCriticalApiUrl(url: string): boolean {
   } catch {
     return false;
   }
+}
+
+export function isKnownDeploymentPendingCspIssue(issue: RuntimeIssue): boolean {
+  if (issue.source !== "console-error") return false;
+
+  const message = issue.message;
+  const blockedGoogleFontsStylesheet =
+    message.startsWith("Loading the stylesheet 'https://fonts.googleapis.com/") &&
+    message.includes("violates the following Content Security Policy directive: \"style-src 'self' 'unsafe-inline'\"") &&
+    message.endsWith("The action has been blocked.");
+
+  const blockedNetlifyHudInlineScript =
+    message.startsWith("Executing inline script violates the following Content Security Policy directive 'script-src 'self''.") &&
+    message.includes(`a hash ('${NETLIFY_HUD_INLINE_SCRIPT_HASH}')`) &&
+    message.endsWith("The action has been blocked.");
+
+  return blockedGoogleFontsStylesheet || blockedNetlifyHudInlineScript;
 }
 
 export function filterUnexpectedRuntimeIssues(
