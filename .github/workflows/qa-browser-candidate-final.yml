@@ -1,0 +1,308 @@
+name: QA Browser Candidate Final
+
+on:
+  push:
+    branches:
+      - feature/qa-harness-safe
+    paths:
+      - qa-browser-candidate-final.trigger
+
+jobs:
+  browser-candidate-final:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    env:
+      QA_ENV: staging
+      QA_API_URL: https://vaipizza-api-staging.onrender.com
+      QA_CONFIRM: VAIPIZZA_STAGING_ONLY
+      PRIMARY_RESTAURANT_SLUG: vaipizza
+      DATABASE_URL: ${{ secrets.DATABASE_URL }}
+      QA_CUSTOMER_URL: https://vaipizza-cliente-staging.netlify.app
+      QA_RESTAURANT_URL: https://vaipizza-gestao-staging.netlify.app
+      QA_KDS_URL: https://vaipizza-cozinha-staging.netlify.app
+      QA_COURIER_URL: https://vaipizza-estafeta-staging.netlify.app
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Guard staging-only final validation
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ -z "${DATABASE_URL:-}" ]; then
+            echo "DATABASE_URL secret is not configured; candidate final QA will not run."
+            exit 1
+          fi
+          TRIGGER="$(tr -d '[:space:]' < qa-browser-candidate-final.trigger)"
+          if [ "$TRIGGER" != "run" ]; then
+            echo "Candidate final trigger is inert."
+            exit 1
+          fi
+          if [ "$QA_CONFIRM" != "VAIPIZZA_STAGING_ONLY" ]; then
+            echo "Staging confirmation mismatch."
+            exit 1
+          fi
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Re-run QA safety and API checks
+        run: |
+          npm run qa:typecheck
+          npm run qa:test
+          npm run test -w apps/api
+
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
+
+      - name: Verify candidate CSP contracts
+        run: npm run test:e2e -w apps/customer -- helpers/csp-policy.spec.ts --project=chromium-desktop
+
+      - name: Prepare UI desktop fixture
+        env:
+          QA_BROWSER_FIXTURE_FILE: ${{ runner.temp }}/candidate-ui-desktop.json
+        shell: bash
+        run: |
+          NODE_ENV=test JWT_ACCESS_SECRET="$GITHUB_SHA" JWT_REFRESH_SECRET="${GITHUB_SHA}refresh" \
+          npm run qa:browser-fixture:prepare -w apps/api -- --session-file="$QA_BROWSER_FIXTURE_FILE"
+
+      - name: Run UI agreement desktop
+        env:
+          QA_STAGING_UI: "1"
+          QA_STAGING_REFRESH: "1"
+          QA_BROWSER_FIXTURE_FILE: ${{ runner.temp }}/candidate-ui-desktop.json
+        run: npm run test:e2e -w apps/customer -- resilience-ui.spec.ts --project=chromium-desktop
+
+      - name: Cleanup UI desktop fixture
+        if: always()
+        env:
+          QA_BROWSER_FIXTURE_FILE: ${{ runner.temp }}/candidate-ui-desktop.json
+        shell: bash
+        run: |
+          if [ -f "$QA_BROWSER_FIXTURE_FILE" ]; then
+            NODE_ENV=test JWT_ACCESS_SECRET="$GITHUB_SHA" JWT_REFRESH_SECRET="${GITHUB_SHA}refresh" \
+            npm run qa:browser-fixture:cleanup -w apps/api -- --session-file="$QA_BROWSER_FIXTURE_FILE"
+          fi
+
+      - name: Prepare UI mobile fixture
+        if: success()
+        env:
+          QA_BROWSER_FIXTURE_FILE: ${{ runner.temp }}/candidate-ui-mobile.json
+        shell: bash
+        run: |
+          NODE_ENV=test JWT_ACCESS_SECRET="$GITHUB_SHA" JWT_REFRESH_SECRET="${GITHUB_SHA}refresh" \
+          npm run qa:browser-fixture:prepare -w apps/api -- --session-file="$QA_BROWSER_FIXTURE_FILE"
+
+      - name: Run UI agreement Pixel 5
+        if: success()
+        env:
+          QA_STAGING_UI: "1"
+          QA_STAGING_REFRESH: "1"
+          QA_BROWSER_FIXTURE_FILE: ${{ runner.temp }}/candidate-ui-mobile.json
+        run: npm run test:e2e -w apps/customer -- resilience-ui.spec.ts --project=chromium-mobile
+
+      - name: Cleanup UI mobile fixture
+        if: always()
+        env:
+          QA_BROWSER_FIXTURE_FILE: ${{ runner.temp }}/candidate-ui-mobile.json
+        shell: bash
+        run: |
+          if [ -f "$QA_BROWSER_FIXTURE_FILE" ]; then
+            NODE_ENV=test JWT_ACCESS_SECRET="$GITHUB_SHA" JWT_REFRESH_SECRET="${GITHUB_SHA}refresh" \
+            npm run qa:browser-fixture:cleanup -w apps/api -- --session-file="$QA_BROWSER_FIXTURE_FILE"
+          fi
+
+      - name: Prepare refresh desktop fixture
+        if: success()
+        env:
+          QA_BROWSER_FIXTURE_FILE: ${{ runner.temp }}/candidate-refresh-desktop.json
+        shell: bash
+        run: |
+          NODE_ENV=test JWT_ACCESS_SECRET="$GITHUB_SHA" JWT_REFRESH_SECRET="${GITHUB_SHA}refresh" \
+          npm run qa:browser-fixture:prepare -w apps/api -- --session-file="$QA_BROWSER_FIXTURE_FILE"
+
+      - name: Run refresh and reopen desktop
+        if: success()
+        env:
+          QA_STAGING_REFRESH: "1"
+          QA_BROWSER_FIXTURE_FILE: ${{ runner.temp }}/candidate-refresh-desktop.json
+        run: npm run test:e2e -w apps/customer -- resilience-refresh.spec.ts --project=chromium-desktop
+
+      - name: Cleanup refresh desktop fixture
+        if: always()
+        env:
+          QA_BROWSER_FIXTURE_FILE: ${{ runner.temp }}/candidate-refresh-desktop.json
+        shell: bash
+        run: |
+          if [ -f "$QA_BROWSER_FIXTURE_FILE" ]; then
+            NODE_ENV=test JWT_ACCESS_SECRET="$GITHUB_SHA" JWT_REFRESH_SECRET="${GITHUB_SHA}refresh" \
+            npm run qa:browser-fixture:cleanup -w apps/api -- --session-file="$QA_BROWSER_FIXTURE_FILE"
+          fi
+
+      - name: Prepare refresh mobile fixture
+        if: success()
+        env:
+          QA_BROWSER_FIXTURE_FILE: ${{ runner.temp }}/candidate-refresh-mobile.json
+        shell: bash
+        run: |
+          NODE_ENV=test JWT_ACCESS_SECRET="$GITHUB_SHA" JWT_REFRESH_SECRET="${GITHUB_SHA}refresh" \
+          npm run qa:browser-fixture:prepare -w apps/api -- --session-file="$QA_BROWSER_FIXTURE_FILE"
+
+      - name: Run refresh and reopen Pixel 5
+        if: success()
+        env:
+          QA_STAGING_REFRESH: "1"
+          QA_BROWSER_FIXTURE_FILE: ${{ runner.temp }}/candidate-refresh-mobile.json
+        run: npm run test:e2e -w apps/customer -- resilience-refresh.spec.ts --project=chromium-mobile
+
+      - name: Cleanup refresh mobile fixture
+        if: always()
+        env:
+          QA_BROWSER_FIXTURE_FILE: ${{ runner.temp }}/candidate-refresh-mobile.json
+        shell: bash
+        run: |
+          if [ -f "$QA_BROWSER_FIXTURE_FILE" ]; then
+            NODE_ENV=test JWT_ACCESS_SECRET="$GITHUB_SHA" JWT_REFRESH_SECRET="${GITHUB_SHA}refresh" \
+            npm run qa:browser-fixture:cleanup -w apps/api -- --session-file="$QA_BROWSER_FIXTURE_FILE"
+          fi
+
+      - name: Prepare offline fixture
+        if: success()
+        env:
+          QA_BROWSER_FIXTURE_FILE: ${{ runner.temp }}/candidate-offline.json
+        shell: bash
+        run: |
+          NODE_ENV=test JWT_ACCESS_SECRET="$GITHUB_SHA" JWT_REFRESH_SECRET="${GITHUB_SHA}refresh" \
+          npm run qa:browser-fixture:prepare -w apps/api -- --session-file="$QA_BROWSER_FIXTURE_FILE"
+
+      - name: Run offline and reconnect safety
+        if: success()
+        env:
+          QA_STAGING_OFFLINE: "1"
+          QA_BROWSER_FIXTURE_FILE: ${{ runner.temp }}/candidate-offline.json
+        run: npm run test:e2e -w apps/customer -- offline-customer.spec.ts --project=chromium-desktop
+
+      - name: Cleanup offline fixture
+        if: always()
+        env:
+          QA_BROWSER_FIXTURE_FILE: ${{ runner.temp }}/candidate-offline.json
+        shell: bash
+        run: |
+          if [ -f "$QA_BROWSER_FIXTURE_FILE" ]; then
+            NODE_ENV=test JWT_ACCESS_SECRET="$GITHUB_SHA" JWT_REFRESH_SECRET="${GITHUB_SHA}refresh" \
+            npm run qa:browser-fixture:cleanup -w apps/api -- --session-file="$QA_BROWSER_FIXTURE_FILE"
+          fi
+
+      - name: Build and start corrected candidate courier
+        if: success()
+        shell: bash
+        run: |
+          QA_COURIER_PROXY_TARGET="$QA_API_URL" VITE_API_URL="http://127.0.0.1:3003" \
+          npm run build:qa-proxy -w apps/courier
+          QA_COURIER_PROXY_TARGET="$QA_API_URL" \
+          npm run preview:qa-proxy -w apps/courier -- --host 127.0.0.1 > "$RUNNER_TEMP/candidate-courier.log" 2>&1 &
+          echo $! > "$RUNNER_TEMP/candidate-courier.pid"
+          for attempt in $(seq 1 30); do
+            if curl -fsS http://127.0.0.1:3003/ >/dev/null; then
+              echo "Corrected candidate courier is ready."
+              exit 0
+            fi
+            sleep 1
+          done
+          cat "$RUNNER_TEMP/candidate-courier.log"
+          exit 1
+
+      - name: Prepare runtime desktop fixture
+        if: success()
+        env:
+          QA_BROWSER_FIXTURE_FILE: ${{ runner.temp }}/candidate-runtime-desktop.json
+        shell: bash
+        run: |
+          NODE_ENV=test JWT_ACCESS_SECRET="$GITHUB_SHA" JWT_REFRESH_SECRET="${GITHUB_SHA}refresh" \
+          npm run qa:browser-fixture:prepare -w apps/api -- --session-file="$QA_BROWSER_FIXTURE_FILE"
+
+      - name: Run corrected runtime desktop
+        if: success()
+        env:
+          QA_STAGING_RUNTIME: "1"
+          QA_ALLOW_LOCAL_COURIER: "1"
+          QA_ALLOW_DEPLOYMENT_PENDING_CSP: "1"
+          QA_COURIER_URL: http://127.0.0.1:3003
+          QA_BROWSER_FIXTURE_FILE: ${{ runner.temp }}/candidate-runtime-desktop.json
+        run: npm run test:e2e -w apps/customer -- runtime-health.spec.ts --project=chromium-desktop
+
+      - name: Cleanup runtime desktop fixture
+        if: always()
+        env:
+          QA_BROWSER_FIXTURE_FILE: ${{ runner.temp }}/candidate-runtime-desktop.json
+        shell: bash
+        run: |
+          if [ -f "$QA_BROWSER_FIXTURE_FILE" ]; then
+            NODE_ENV=test JWT_ACCESS_SECRET="$GITHUB_SHA" JWT_REFRESH_SECRET="${GITHUB_SHA}refresh" \
+            npm run qa:browser-fixture:cleanup -w apps/api -- --session-file="$QA_BROWSER_FIXTURE_FILE"
+          fi
+
+      - name: Prepare runtime mobile fixture
+        if: success()
+        env:
+          QA_BROWSER_FIXTURE_FILE: ${{ runner.temp }}/candidate-runtime-mobile.json
+        shell: bash
+        run: |
+          NODE_ENV=test JWT_ACCESS_SECRET="$GITHUB_SHA" JWT_REFRESH_SECRET="${GITHUB_SHA}refresh" \
+          npm run qa:browser-fixture:prepare -w apps/api -- --session-file="$QA_BROWSER_FIXTURE_FILE"
+
+      - name: Run corrected runtime Pixel 5
+        if: success()
+        env:
+          QA_STAGING_RUNTIME: "1"
+          QA_ALLOW_LOCAL_COURIER: "1"
+          QA_ALLOW_DEPLOYMENT_PENDING_CSP: "1"
+          QA_COURIER_URL: http://127.0.0.1:3003
+          QA_BROWSER_FIXTURE_FILE: ${{ runner.temp }}/candidate-runtime-mobile.json
+        run: npm run test:e2e -w apps/customer -- runtime-health.spec.ts --project=chromium-mobile
+
+      - name: Cleanup runtime mobile fixture
+        if: always()
+        env:
+          QA_BROWSER_FIXTURE_FILE: ${{ runner.temp }}/candidate-runtime-mobile.json
+        shell: bash
+        run: |
+          if [ -f "$QA_BROWSER_FIXTURE_FILE" ]; then
+            NODE_ENV=test JWT_ACCESS_SECRET="$GITHUB_SHA" JWT_REFRESH_SECRET="${GITHUB_SHA}refresh" \
+            npm run qa:browser-fixture:cleanup -w apps/api -- --session-file="$QA_BROWSER_FIXTURE_FILE"
+          fi
+
+      - name: Stop corrected candidate courier
+        if: always()
+        shell: bash
+        run: |
+          if [ -f "$RUNNER_TEMP/candidate-courier.pid" ]; then
+            kill "$(cat "$RUNNER_TEMP/candidate-courier.pid")" 2>/dev/null || true
+          fi
+
+      - name: Record final candidate evidence
+        if: success()
+        shell: bash
+        run: |
+          mkdir -p qa-artifacts/browser-candidate-final
+          printf '%s\n' '{"status":"PASS","environment":"staging-api-plus-corrected-feature-candidate","projects":["chromium-desktop","chromium-mobile"],"coverage":["ui-state-agreement","refresh-reopen","offline-reconnect","runtime-console-api-errors","critical-control-hit-testing","candidate-csp-contracts"],"surfaces":["customer","restaurant","kds","courier"],"authoritativeApiAudit":true,"allFixtureCleanupRequired":true,"remoteStagingDeployPending":true,"deploymentPendingCspExceptionScope":"only diagnosed Google Fonts and Netlify HUD errors on older remote staging deploys"}' > qa-artifacts/browser-candidate-final/result.json
+
+      - name: Upload final QA evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: qa-browser-candidate-final-evidence
+          path: |
+            qa-artifacts/
+            apps/customer/test-results/
+            apps/customer/playwright-report/
+            ${{ runner.temp }}/candidate-courier.log
+          if-no-files-found: ignore
+          retention-days: 14
