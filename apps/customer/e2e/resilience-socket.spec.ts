@@ -14,7 +14,7 @@ test.afterAll(async () => {
   await fixture.close();
 });
 
-test("customer reconciles authoritative order state after repeated socket reconnects", async ({ page }) => {
+test("customer reconciles authoritative order state after repeated socket reconnects", async ({ page, request }) => {
   await page.addInitScript(() => {
     localStorage.setItem("vaipizza_customer_access_token", "qa-access-token");
     localStorage.setItem("vaipizza_customer_refresh_token", "qa-refresh-token");
@@ -40,6 +40,12 @@ test("customer reconciles authoritative order state after repeated socket reconn
 
     fixture.setStatus(status, true);
     await fixture.waitForConnectedClients(1);
+
+    const authoritativeResponse = await request.get(`http://127.0.0.1:4000/api/orders/${fixture.orderId}`);
+    expect(authoritativeResponse.ok()).toBeTruthy();
+    const authoritative = await authoritativeResponse.json() as { order?: { id?: string; status?: string } };
+    expect(authoritative.order?.id).toBe(fixture.orderId);
+    expect(authoritative.order?.status).toBe(status);
 
     await expect(page.getByText(expectedLabel, { exact: true })).toBeVisible({ timeout: 3_000 });
     await expect(page.getByText(previousLabel, { exact: true })).not.toBeVisible();
