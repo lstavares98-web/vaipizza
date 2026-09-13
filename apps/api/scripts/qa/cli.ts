@@ -1,4 +1,6 @@
 import "dotenv/config";
+import { spawn } from "node:child_process";
+import { fileURLToPath } from "node:url";
 import { PrismaClient } from "@prisma/client";
 import type { ProtectedSnapshot } from "./types.js";
 import { assertMutationConfirmation, assertSafeTarget, loadQaConfig } from "./config.js";
@@ -9,11 +11,17 @@ import { cleanupMode, executeCleanup, preflightCleanup } from "./cleanup.js";
 import { runFunctionalQa } from "./functional.js";
 import { runLoadStageQa } from "./loadStageRunner.js";
 import { parseBackendResilienceGroup, runBackendResilienceGroup } from "./resilienceRunner.js";
-import { parseTransportRecoveryGroup, runTransportRecoveryGroup } from "./transportRecoveryRunner.js";
+import {
+  parseTransportRecoveryGroup,
+  runTransportRecoveryGroup,
+  runTransportRecoveryWorkflow,
+} from "./transportRecoveryRunner.js";
 import {
   cleanupBrowserRecoveryFixture,
   prepareBrowserRecoveryFixture,
 } from "./browserRecoveryFixture.js";
+
+const REPOSITORY_ROOT = fileURLToPath(new URL("../../../../", import.meta.url));
 
 function snapshotRunId(now = new Date()) {
   const stamp = now.toISOString().replace(/[-:]/g, "").replace(/\.\d{3}Z$/, "Z");
@@ -36,6 +44,32 @@ function requiredOption(name: string): string {
   const value = readOption(name);
   if (!value) throw new Error(`${name} is required`);
   return value;
+}
+
+async function runNpm(args: string[], extraEnv: NodeJS.ProcessEnv = {}): Promise<void> {
+  const executable = process.platform === "win32" ? "npm.cmd" : "npm";
+  await new Promise<void>((resolve, reject) => {
+    const child = spawn(executable, args, {
+      cwd: REPOSITORY_ROOT,
+      env: { ...process.env, ...extraEnv },
+      stdio: "inherit",
+    });
+    child.once("error", reject);
+    child.once("exit", (code, signal) => {
+      if (code === 0) {
+        resolve();
+        return;
+      }
+      reject(new Error(`Command failed (${executable} ${args.join(" ")}): code=${code ?? "null"} signal=${signal ?? "none"}`));
+    });
+  });
+}
+
+async function runCustomerE2e(spec: string, extraEnv: NodeJS.ProcessEnv = {}): Promise<void> {
+  await runNpm(
+    ["run", "test:e2e", "-w", "apps/customer", "--", spec, "--project=chromium-desktop"],
+    extraEnv,
+  );
 }
 
 async function runSnapshot(prisma: PrismaClient) {
@@ -127,6 +161,32 @@ async function main() {
       const group = parseTransportRecoveryGroup(readOption("--group"));
       const result = await runTransportRecoveryGroup(prisma, config, group);
       console.log(`Transport recovery QA PASS: ${result.runId}; group=${result.group}; cleanup complete.`);
+      return;
+    }
+    if (command === "resilience-transport-full") {
+      assertMutationConfirmation(config);
+      const fixturePath = requiredOption("--session-file");
+      await runTransportRecoveryWorkflow({
+        runApi: async () => {
+          await runTransportRecoveryGroup(prisma, config, "api");
+        },
+        prepareBrowser: async () => {
+          await prepareBrowserRecoveryFixture(prisma, config, fixturePath);
+        },
+        runSocketBrowser: async () => {
+          await runCustomerE2e("resilience-socket.spec.ts");
+        },
+        runRefreshBrowser: async () => {
+          await runCustomerE2e("resilience-refresh.spec.ts", {
+            QA_STAGING_REFRESH: "1",
+            QA_BROWSER_FIXTURE_FILE: fixturePath,
+          });
+        },
+        cleanupBrowser: async () => {
+          await cleanupBrowserRecoveryFixture(prisma, config, fixturePath);
+        },
+      });
+      console.log("Full transport recovery QA PASS: API, socket, refresh/reopen and cleanup completed.");
       return;
     }
     if (command === "browser-recovery-prepare") {
