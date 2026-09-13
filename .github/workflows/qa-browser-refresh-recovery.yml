@@ -1,0 +1,47 @@
+name: QA Browser Refresh Recovery
+
+on:
+  push:
+    branches:
+      - feature/qa-harness-safe
+    paths:
+      - apps/customer/e2e/resilience-refresh.spec.ts
+      - apps/customer/e2e/helpers/socket-control.ts
+      - apps/customer/src/pages/OrderDetail.tsx
+      - apps/customer/playwright.config.ts
+      - .github/workflows/qa-browser-refresh-recovery.yml
+
+jobs:
+  refresh-recovery:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
+
+      - name: Run refresh and reopen recovery test
+        run: npm run test:e2e -w apps/customer -- resilience-refresh.spec.ts
+
+      - name: Upload Playwright evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: qa-browser-refresh-recovery-evidence
+          path: |
+            apps/customer/test-results/
+            apps/customer/playwright-report/
+          if-no-files-found: ignore
+          retention-days: 14
