@@ -1,0 +1,48 @@
+name: QA Browser Socket Recovery
+
+on:
+  push:
+    branches:
+      - feature/qa-harness-safe
+    paths:
+      - apps/customer/e2e/resilience-socket.spec.ts
+      - apps/customer/e2e/helpers/socket-control.ts
+      - apps/customer/src/pages/OrderDetail.tsx
+      - apps/customer/src/lib/socket.ts
+      - apps/customer/playwright.config.ts
+      - .github/workflows/qa-browser-socket-recovery.yml
+
+jobs:
+  socket-recovery:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
+
+      - name: Run socket recovery test
+        run: npm run test:e2e -w apps/customer -- resilience-socket.spec.ts
+
+      - name: Upload Playwright evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: qa-browser-socket-recovery-evidence
+          path: |
+            apps/customer/test-results/
+            apps/customer/playwright-report/
+          if-no-files-found: ignore
+          retention-days: 14
