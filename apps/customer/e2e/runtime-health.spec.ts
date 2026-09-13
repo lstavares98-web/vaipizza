@@ -28,9 +28,29 @@ async function expectReachable(page: Page, locator: Locator, label: string): Pro
     const x = Math.min(window.innerWidth - 1, Math.max(0, rect.left + rect.width / 2));
     const y = Math.min(window.innerHeight - 1, Math.max(0, rect.top + rect.height / 2));
     const target = document.elementFromPoint(x, y);
-    return Boolean(target && (target === element || element.contains(target)));
+    const targetElement = target instanceof HTMLElement ? target : null;
+    return {
+      reachable: Boolean(target && (target === element || element.contains(target))),
+      point: { x, y },
+      control: {
+        tag: element.tagName,
+        className: element.getAttribute("class") ?? "",
+        rect: { left: rect.left, top: rect.top, right: rect.right, bottom: rect.bottom, width: rect.width, height: rect.height },
+      },
+      covering: targetElement ? {
+        tag: targetElement.tagName,
+        className: targetElement.getAttribute("class") ?? "",
+        text: (targetElement.textContent ?? "").trim().slice(0, 120),
+        rect: (() => {
+          const targetRect = targetElement.getBoundingClientRect();
+          return { left: targetRect.left, top: targetRect.top, right: targetRect.right, bottom: targetRect.bottom, width: targetRect.width, height: targetRect.height };
+        })(),
+      } : null,
+      scrollY: window.scrollY,
+      viewport: { width: window.innerWidth, height: window.innerHeight },
+    };
   });
-  expect(hit, `${label} should not be covered by another element`).toBe(true);
+  expect(hit.reachable, `${label} should not be covered by another element. Hit-test: ${JSON.stringify(hit)}`).toBe(true);
 }
 
 function assertNoUnexpectedRuntimeIssues(audits: SurfaceAudit[]): void {
