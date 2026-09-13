@@ -10,13 +10,18 @@ on:
 jobs:
   transport-recovery:
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    timeout-minutes: 35
     env:
       QA_ENV: staging
       QA_API_URL: https://vaipizza-api-staging.onrender.com
       QA_CONFIRM: VAIPIZZA_STAGING_ONLY
       PRIMARY_RESTAURANT_SLUG: vaipizza
       DATABASE_URL: ${{ secrets.DATABASE_URL }}
+      QA_CUSTOMER_URL: https://vaipizza-cliente-staging.netlify.app
+      QA_RESTAURANT_URL: https://vaipizza-gestao-staging.netlify.app
+      QA_KDS_URL: https://vaipizza-cozinha-staging.netlify.app
+      QA_COURIER_URL: https://vaipizza-estafeta-staging.netlify.app
+      QA_BROWSER_FIXTURE_FILE: ${{ runner.temp }}/vaipizza-browser-recovery.json
 
     steps:
       - name: Checkout
@@ -66,6 +71,14 @@ jobs:
           JWT_ACCESS_SECRET="$GITHUB_SHA" \
           JWT_REFRESH_SECRET="${GITHUB_SHA}refresh" \
           npm run qa:resilience:transport -w apps/api -- --group=${{ steps.group.outputs.group }}
+
+      - name: Install Chromium for browser recovery
+        run: npx playwright install --with-deps chromium
+
+      - name: Run live staging refresh and reopen recovery
+        env:
+          QA_STAGING_REFRESH: "1"
+        run: npm run test:e2e -w apps/customer -- resilience-refresh.spec.ts --project=chromium-desktop
 
       - name: Upload QA evidence
         if: always()
