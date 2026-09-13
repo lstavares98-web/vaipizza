@@ -49,9 +49,12 @@ export default function OrderDetail() {
     const handler = (payload: { orderId: string }) => {
       if (payload.orderId === id) load();
     };
+    const reconcileAfterReconnect = () => load();
     socket.on("order:status", handler);
+    socket.on("connect", reconcileAfterReconnect);
     return () => {
       socket.off("order:status", handler);
+      socket.off("connect", reconcileAfterReconnect);
     };
   }, [id, load]);
 
