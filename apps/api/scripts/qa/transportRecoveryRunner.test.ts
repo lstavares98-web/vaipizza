@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   assertTransportCleanupAllowed,
+  parseTransportRecoveryGroup,
   runTransportRecoverySequence,
   type TransportRecoveryStep,
 } from "./transportRecoveryRunner.js";
@@ -55,5 +56,13 @@ describe("transport cleanup protected-state gate", () => {
     expect(() => assertTransportCleanupAllowed([
       { path: "restaurant.courierDispatchRadiusKm", before: 12, after: 15 },
     ])).toThrow(/protected|cleanup|blocked/i);
+  });
+});
+
+describe("transport recovery group parsing", () => {
+  it("accepts the API recovery group and rejects unknown groups", () => {
+    expect(parseTransportRecoveryGroup("api")).toBe("api");
+    expect(() => parseTransportRecoveryGroup(undefined)).toThrow(/unknown|missing/i);
+    expect(() => parseTransportRecoveryGroup("production")).toThrow(/unknown|production/i);
   });
 });
