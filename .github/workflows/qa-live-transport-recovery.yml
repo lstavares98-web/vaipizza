@@ -63,47 +63,35 @@ jobs:
           npm run qa:test
           npm run test -w apps/api
 
-      - name: Run live transport recovery group in staging
-        shell: bash
-        run: |
-          NODE_ENV=test \
-          JWT_ACCESS_SECRET="$GITHUB_SHA" \
-          JWT_REFRESH_SECRET="${GITHUB_SHA}refresh" \
-          npm run qa:resilience:transport -w apps/api -- --group=${{ steps.group.outputs.group }}
-
-      - name: Prepare ephemeral browser recovery fixture
-        env:
-          QA_BROWSER_FIXTURE_FILE: ${{ runner.temp }}/vaipizza-browser-recovery.json
-        shell: bash
-        run: |
-          NODE_ENV=test \
-          JWT_ACCESS_SECRET="$GITHUB_SHA" \
-          JWT_REFRESH_SECRET="${GITHUB_SHA}refresh" \
-          npm run qa:browser-recovery:prepare -w apps/api -- --session-file="$QA_BROWSER_FIXTURE_FILE"
-
       - name: Install Chromium for browser recovery
         run: npx playwright install --with-deps chromium
 
-      - name: Run live staging refresh and reopen recovery
+      - name: Run full transport recovery sequence in staging
         env:
-          QA_STAGING_REFRESH: "1"
           QA_BROWSER_FIXTURE_FILE: ${{ runner.temp }}/vaipizza-browser-recovery.json
-        run: npm run test:e2e -w apps/customer -- resilience-refresh.spec.ts --project=chromium-desktop
+        shell: bash
+        run: |
+          NODE_ENV=test \
+          JWT_ACCESS_SECRET="$GITHUB_SHA" \
+          JWT_REFRESH_SECRET="${GITHUB_SHA}refresh" \
+          npm run qa:resilience:transport:full -w apps/api -- --session-file="$QA_BROWSER_FIXTURE_FILE"
 
-      - name: Record browser recovery evidence
+      - name: Record full recovery evidence
         if: success()
         shell: bash
         run: |
-          mkdir -p qa-artifacts/browser-refresh
+          mkdir -p qa-artifacts/transport-full qa-artifacts/browser-refresh
+          printf '%s\n' '{"status":"PASS","sequence":["api","socket","refresh-reopen","cleanup"],"environment":"staging"}' > qa-artifacts/transport-full/result.json
           printf '%s\n' '{"status":"PASS","surfaces":["customer","restaurant","kds","courier"],"credentialsPersisted":false}' > qa-artifacts/browser-refresh/result.json
 
-      - name: Cleanup ephemeral browser recovery fixture
+      - name: Emergency cleanup for browser recovery fixture
         if: always()
         env:
           QA_BROWSER_FIXTURE_FILE: ${{ runner.temp }}/vaipizza-browser-recovery.json
         shell: bash
         run: |
           if [ -f "$QA_BROWSER_FIXTURE_FILE" ]; then
+            echo "Fixture file still exists; running emergency cleanup."
             NODE_ENV=test \
             JWT_ACCESS_SECRET="$GITHUB_SHA" \
             JWT_REFRESH_SECRET="${GITHUB_SHA}refresh" \
