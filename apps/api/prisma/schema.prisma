@@ -128,8 +128,9 @@ model Restaurant {
   status      RestaurantStatus @default(PENDING)
   rejectionReason String?
 
-  email   String @unique
-  phone   String
+  email      String @unique
+  phone      String
+  mbwayPhone String?
 
   address    String
   lat        Float
