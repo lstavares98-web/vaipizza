@@ -26,6 +26,7 @@ export interface OperationalCourier {
   eligibleForDispatch: boolean;
   ineligibilityReason: string | null;
   activeOrder: { id: string; orderNumber: number; status: string } | null;
+  nextOrder: { id: string; orderNumber: number; status: string } | null;
 }
 
 interface Feed {
@@ -67,9 +68,13 @@ export default function CourierOperationsPanel() {
     const refresh = () => void load();
     socket.on("order:status", refresh);
     socket.on("dispatch:attention", refresh);
+    socket.on("assignment:reserved", refresh);
+    socket.on("assignment:promoted", refresh);
     return () => {
       socket.off("order:status", refresh);
       socket.off("dispatch:attention", refresh);
+      socket.off("assignment:reserved", refresh);
+      socket.off("assignment:promoted", refresh);
     };
   }, [load]);
 
@@ -127,6 +132,8 @@ export default function CourierOperationsPanel() {
                     {courier.distanceKm !== null ? `${courier.distanceKm} km da pizzaria` : "Distância indisponível"}<br />
                     GPS {formatGpsAge(courier.locationAgeSeconds)}
                     {courier.locationAccuracyM !== null ? ` · ±${Math.round(courier.locationAccuracyM)} m` : ""}
+                    {courier.activeOrder ? <><br />Atual #{courier.activeOrder.orderNumber}</> : null}
+                    {courier.nextOrder ? <><br />Próxima #{courier.nextOrder.orderNumber}</> : null}
                   </Popup>
                 </Marker>
               </Fragment>
@@ -148,7 +155,8 @@ export default function CourierOperationsPanel() {
                   </span>
                 </div>
                 <p>{COURIER_STATUS_LABELS[courier.status] ?? courier.status}</p>
-                {courier.activeOrder && <p className="courier-active-order">Pedido #{courier.activeOrder.orderNumber}</p>}
+                {courier.activeOrder && <p className="courier-active-order">Atual #{courier.activeOrder.orderNumber}</p>}
+                {courier.nextOrder && <p className="courier-active-order">Próxima #{courier.nextOrder.orderNumber} · reservada</p>}
               </div>
               <div className="courier-ops-metrics">
                 <span>{courier.distanceKm === null ? "—" : `${courier.distanceKm} km`}</span>
