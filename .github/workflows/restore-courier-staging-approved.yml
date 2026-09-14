@@ -1,0 +1,31 @@
+name: Restore courier staging approved baseline
+
+on:
+  push:
+    branches:
+      - staging/restore-courier-approved-2026-09-14
+    paths:
+      - .github/workflows/restore-courier-staging-approved.yml
+
+jobs:
+  restore:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      NETLIFY_AUTH_TOKEN: ${{ secrets.NETLIFY_AUTH_TOKEN }}
+      VITE_API_URL: https://vaipizza-api-staging.onrender.com
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - name: Guard staging token
+        shell: bash
+        run: test -n "${NETLIFY_AUTH_TOKEN:-}" || { echo "NETLIFY_AUTH_TOKEN missing"; exit 1; }
+      - name: Install dependencies
+        run: npm ci
+      - name: Build approved Estafeta baseline
+        run: npm run build -w apps/courier
+      - name: Deploy approved Estafeta baseline to staging only
+        run: npx --yes netlify-cli@latest deploy --prod --auth "$NETLIFY_AUTH_TOKEN" --site b8dbc44d-390d-4027-834d-0250819f8c1e --filter apps/courier --dir apps/courier/dist --message "Restore approved courier staging baseline a8b1f3bd806d9deec25744f32e1fae62ba2fc108"
