@@ -45,6 +45,15 @@ restaurantOrdersRouter.post(
   }),
 );
 
+restaurantOrdersRouter.post(
+  "/:id/confirm-mbway-payment",
+  requireRole(Role.RESTAURANT_OWNER, Role.RESTAURANT_STAFF),
+  asyncHandler(async (req, res) => {
+    const order = await ordersService.confirmMbwayPayment(req.auth!.restaurantId!, req.params.id!);
+    res.json({ success: true, order });
+  }),
+);
+
 restaurantOrdersRouter.patch(
   "/:id/status",
   asyncHandler(async (req, res) => {
