@@ -1,0 +1,43 @@
+name: QA Live New Flows
+
+on:
+  push:
+    branches:
+      - staging/qa-pickup-mbway-queue-2026-09-14
+    paths:
+      - qa-live-new-flows.trigger
+
+jobs:
+  live-new-flows:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      DATABASE_URL: ${{ secrets.DATABASE_URL }}
+      QA_CONFIRM: VAIPIZZA_STAGING_ONLY
+    steps:
+      - uses: actions/checkout@v4
+      - name: Guard staging database
+        shell: bash
+        run: |
+          test -n "${DATABASE_URL:-}" || { echo "DATABASE_URL missing"; exit 1; }
+          test "$QA_CONFIRM" = "VAIPIZZA_STAGING_ONLY" || exit 1
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Product API tests
+        run: npm run test -w apps/api
+      - name: Live staging targeted QA
+        shell: bash
+        run: |
+          mkdir -p qa-artifacts/new-flows
+          node qa/live-new-flows.mjs | tee qa-artifacts/new-flows/result.json
+      - name: Upload targeted QA evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: qa-live-new-flows-evidence
+          path: qa-artifacts/new-flows/
+          if-no-files-found: ignore
+          retention-days: 14
