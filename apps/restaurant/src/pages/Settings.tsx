@@ -18,6 +18,7 @@ interface RestaurantSettings {
   lat: number;
   lng: number;
   phone: string;
+  mbwayPhone: string | null;
   deliveryFeeMode: "TIERED" | "BASE_PLUS_PER_KM";
   deliveryFeeBase: number;
   deliveryFeePerKm: number;
@@ -184,6 +185,15 @@ export default function Settings() {
         <label>
           Telefone (usado no botão de WhatsApp da app do cliente)
           <input value={settings.phone} onChange={(e) => set("phone", e.target.value)} placeholder="+351 912 345 678" required />
+        </label>
+        <label>
+          Número MB WAY
+          <input
+            value={settings.mbwayPhone ?? ""}
+            onChange={(e) => set("mbwayPhone", e.target.value || null)}
+            placeholder="+351 912 345 678"
+          />
+          <span className="hint">É este número que o cliente verá para fazer a transferência MB WAY. Pode ser diferente do WhatsApp do restaurante.</span>
         </label>
         <label className="checkbox">
           <input type="checkbox" checked={settings.acceptsDelivery} onChange={(e) => set("acceptsDelivery", e.target.checked)} />

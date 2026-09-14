@@ -22,6 +22,8 @@ interface OrderRow {
   status: string;
   fulfillmentType: "DELIVERY" | "PICKUP";
   paymentMethod: "CARD" | "CASH" | "MBWAY" | "TERMINAL";
+  paymentStatus: "PENDING" | "PAID" | "FAILED" | "REFUNDED";
+  user: { name: string; phone: string | null };
   amountTendered: number | null;
   changeDue: number | null;
   total: number;
@@ -78,8 +80,6 @@ export default function OrdersDashboard() {
   }, [orders]);
 
   async function accept(order: OrderRow) {
-    // Prep time is computed automatically server-side from the products in
-    // the order (or the restaurant's default) — no more typing it in.
     setBusyId(order.id);
     try {
       await api.patch(`/restaurant/orders/${order.id}/status`, { status: "ACCEPTED" });
@@ -99,6 +99,34 @@ export default function OrdersDashboard() {
     } finally {
       setBusyId(null);
     }
+  }
+
+  async function confirmMbway(order: OrderRow) {
+    setBusyId(order.id);
+    try {
+      await api.post(`/restaurant/orders/${order.id}/confirm-mbway-payment`);
+      load();
+    } finally {
+      setBusyId(null);
+    }
+  }
+
+  async function collect(order: OrderRow) {
+    setBusyId(order.id);
+    try {
+      await api.patch(`/restaurant/orders/${order.id}/status`, { status: "COLLECTED" });
+      load();
+    } finally {
+      setBusyId(null);
+    }
+  }
+
+  function pickupWhatsappHref(order: OrderRow) {
+    if (!order.user.phone) return null;
+    const raw = order.user.phone.replace(/\D/g, "");
+    const number = raw.length === 9 ? `351${raw}` : raw;
+    const message = encodeURIComponent(`Olá ${order.user.name}! O seu pedido #${order.orderNumber} está pronto para recolha.`);
+    return number ? `https://wa.me/${number}?text=${message}` : null;
   }
 
   return (
@@ -133,8 +161,20 @@ export default function OrdersDashboard() {
         <Column title={`Novos (${newOrders.length})`}>
           {newOrders.map((o) => (
             <OrderCard key={o.id} order={o}>
+              {o.paymentMethod === "MBWAY" && o.paymentStatus !== "PAID" && (
+                <p className="cash-warning">💳 MB WAY — A aguardar confirmação do pagamento</p>
+              )}
+              {o.paymentMethod === "MBWAY" && o.paymentStatus === "PAID" && (
+                <p className="hint">✅ MB WAY — pago</p>
+              )}
               <div className="card-actions">
-                <button disabled={busyId === o.id} onClick={() => accept(o)}>
+                {o.paymentMethod === "MBWAY" && o.paymentStatus !== "PAID" && (
+                  <button disabled={busyId === o.id} onClick={() => confirmMbway(o)}>Confirmar pagamento recebido</button>
+                )}
+                <button
+                  disabled={busyId === o.id || (o.paymentMethod === "MBWAY" && o.paymentStatus !== "PAID")}
+                  onClick={() => accept(o)}
+                >
                   Aceitar
                 </button>
                 <button className="danger" disabled={busyId === o.id} onClick={() => reject(o)}>
@@ -156,6 +196,14 @@ export default function OrdersDashboard() {
         <Column title={`Prontos / A caminho (${ready.length})`}>
           {ready.map((o) => (
             <OrderCard key={o.id} order={o}>
+              {o.fulfillmentType === "PICKUP" && o.status === "READY_FOR_PICKUP" && (
+                <div className="card-actions">
+                  {pickupWhatsappHref(o) && (
+                    <a href={pickupWhatsappHref(o)!} target="_blank" rel="noreferrer">Avisar cliente pelo WhatsApp</a>
+                  )}
+                  <button disabled={busyId === o.id} onClick={() => collect(o)}>Recolhido</button>
+                </div>
+              )}
               {o.fulfillmentType === "DELIVERY" && REASSIGNABLE_STAGE.includes(o.status) && (
                 <button onClick={() => setReassignOrder(o)}>Reatribuir estafeta</button>
               )}
@@ -211,6 +259,9 @@ function OrderCard({ order, children }: { order: OrderRow; children?: React.Reac
       <div className="order-chip-row">
         <span className={`badge fulfillment-${order.fulfillmentType.toLowerCase()}`}>{order.fulfillmentType === "DELIVERY" ? "Delivery" : "Takeaway"}</span>
         <span className="payment-badge">{order.paymentMethod === "CASH" ? "Dinheiro" : order.paymentMethod === "TERMINAL" ? "Terminal" : order.paymentMethod}</span>
+        {order.paymentMethod === "MBWAY" && (
+          <span className="payment-badge">{order.paymentStatus === "PAID" ? "Pago" : "Aguarda pagamento"}</span>
+        )}
       </div>
       <ul>
         {order.items.map((item) => (

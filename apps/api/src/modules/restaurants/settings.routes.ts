@@ -68,6 +68,10 @@ const settingsSchema = z.object({
   lat: z.number().min(-90).max(90).optional(),
   lng: z.number().min(-180).max(180).optional(),
   phone: z.string().min(6).max(20).optional(),
+  mbwayPhone: z.preprocess(
+    (value) => value === "" ? null : value,
+    z.string().min(6).max(30).nullable(),
+  ).optional(),
   deliveryFeeMode: z.enum(["TIERED", "BASE_PLUS_PER_KM"]).optional(),
   deliveryFeeBase: z.number().nonnegative().optional(),
   deliveryFeePerKm: z.number().nonnegative().optional(),

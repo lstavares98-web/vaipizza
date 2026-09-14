@@ -17,7 +17,7 @@ interface OrderDetailView {
   paymentStatus: string;
   amountTendered: number | null;
   changeDue: number | null;
-  restaurant: { name: string };
+  restaurant: { name: string; phone: string; mbwayPhone: string | null };
   courier: { user: { name: string; phone: string | null } } | null;
   items: {
     id: string;
@@ -51,14 +51,23 @@ export default function OrderDetail() {
     };
     const reconcileAfterReconnect = () => load();
     socket.on("order:status", handler);
+    socket.on("order:payment", handler);
     socket.on("connect", reconcileAfterReconnect);
     return () => {
       socket.off("order:status", handler);
+      socket.off("order:payment", handler);
       socket.off("connect", reconcileAfterReconnect);
     };
   }, [id, load]);
 
   if (!order) return <p className="page">A carregar pedido...</p>;
+
+  const rawWhatsapp = order.restaurant.phone.replace(/\D/g, "");
+  const whatsappNumber = rawWhatsapp.length === 9 ? `351${rawWhatsapp}` : rawWhatsapp;
+  const paymentProofText = encodeURIComponent(
+    `Olá! Enviei o comprovativo do pagamento MB WAY do pedido #${order.orderNumber}, no valor de ${order.total.toFixed(2)} €.`,
+  );
+  const paymentProofHref = whatsappNumber ? `https://wa.me/${whatsappNumber}?text=${paymentProofText}` : null;
 
   async function handleCancel() {
     setCancelling(true);
@@ -75,6 +84,33 @@ export default function OrderDetail() {
       <h1>Pedido #{order.orderNumber}</h1>
       <p className="muted">{order.restaurant.name}</p>
       <p className="badge">{ORDER_STATUS_LABELS[order.status] ?? order.status}</p>
+
+      {order.fulfillmentType === "PICKUP" && order.status === "READY_FOR_PICKUP" && (
+        <section className="modifier-group pickup-ready-notice">
+          <h2>✅ O seu pedido está pronto para recolha</h2>
+          <p>Pode dirigir-se ao restaurante para levantar o pedido.</p>
+        </section>
+      )}
+
+      {order.paymentMethod === "MBWAY" && (
+        <section className="modifier-group">
+          <h3>Pagamento MB WAY</h3>
+          {order.paymentStatus === "PAID" ? (
+            <p><strong>✅ Pagamento confirmado</strong></p>
+          ) : (
+            <>
+              <p>Envie <strong>{order.total.toFixed(2)} €</strong> por MB WAY para:</p>
+              <p><strong>{order.restaurant.mbwayPhone ?? "Número MB WAY indisponível"}</strong></p>
+              <p className="muted">Depois, envie o comprovativo pelo WhatsApp. O restaurante confirmará o pagamento antes de preparar o pedido.</p>
+              {paymentProofHref && (
+                <a className="add-to-cart-btn" href={paymentProofHref} target="_blank" rel="noreferrer">
+                  Enviar comprovativo pelo WhatsApp
+                </a>
+              )}
+            </>
+          )}
+        </section>
+      )}
 
       {order.courier && (
         <p>

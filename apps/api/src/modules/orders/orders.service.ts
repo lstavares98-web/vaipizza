@@ -14,6 +14,7 @@ import { tryAssignOrder } from "../dispatch/dispatch.service.js";
 import { computeChangeDue } from "../couriers/cash.js";
 import { comboInclude } from "../combos/combos.service.js";
 import { buildComboSelectionSnapshot, isComboScheduleAvailable, priceCombo, validateComboSelection, type ComboSelectionInput } from "../combos/combo.rules.js";
+import { canRestaurantStartOrder } from "./paymentPolicy.js";
 
 const stripe = env.STRIPE_SECRET_KEY ? new Stripe(env.STRIPE_SECRET_KEY) : null;
 
@@ -101,6 +102,9 @@ export async function checkout(userId: string, input: CheckoutInput) {
   }
   if (input.fulfillmentType === "PICKUP" && !restaurant.acceptsPickup) {
     throw badRequest("Este restaurante não aceita recolha no local");
+  }
+  if (input.paymentMethod === "MBWAY" && !restaurant.mbwayPhone) {
+    throw badRequest("O pagamento por MB WAY ainda não está configurado neste restaurante", "MBWAY_NOT_CONFIGURED");
   }
 
   const pricedItems = priceCartItems(cart.items, restaurant.combosEnabled);
@@ -231,6 +235,7 @@ export async function checkout(userId: string, input: CheckoutInput) {
 const orderInclude = {
   items: { include: { modifiers: true } },
   restaurant: true,
+  user: { select: { name: true, phone: true } },
   address: true,
   courier: { include: { user: true } },
   statusHistory: { orderBy: { createdAt: "asc" as const } },
@@ -271,6 +276,22 @@ export async function cancelOrderByCustomer(userId: string, orderId: string) {
 }
 
 // ---- Restaurant / kitchen side --------------------------------------
+
+export async function confirmMbwayPayment(restaurantId: string, orderId: string) {
+  const order = await prisma.order.findFirst({ where: { id: orderId, restaurantId } });
+  if (!order) throw notFound("Order not found");
+  if (order.paymentMethod !== "MBWAY") throw badRequest("Este pedido não usa MB WAY", "NOT_MBWAY_ORDER");
+  if (order.status === "CANCELLED") throw badRequest("Não é possível confirmar o pagamento de um pedido cancelado", "ORDER_CANCELLED");
+  if (order.paymentStatus === "PAID") return order;
+
+  const updated = await prisma.order.update({
+    where: { id: order.id },
+    data: { paymentStatus: "PAID" },
+  });
+  getIO()?.to(rooms.restaurant(restaurantId)).emit("order:payment", { orderId: order.id, paymentStatus: "PAID" });
+  getIO()?.to(rooms.customer(order.userId)).emit("order:payment", { orderId: order.id, paymentStatus: "PAID" });
+  return updated;
+}
 
 export async function listOrdersForRestaurant(restaurantId: string, statuses?: OrderStatus[]) {
   return prisma.order.findMany({
@@ -338,6 +359,9 @@ export async function updateOrderStatusByRestaurant(
   // computed automatically instead of asked via a prompt. The kitchen ticket
   // screen only ever sees orders already in PREPARING.
   if (order.status === "NEW" && input.status === "ACCEPTED") {
+    if (!canRestaurantStartOrder(order.paymentMethod, order.paymentStatus)) {
+      throw badRequest("Confirme primeiro o pagamento MB WAY antes de aceitar o pedido", "PAYMENT_PENDING");
+    }
     assertTransitionAllowed(order.status, "ACCEPTED", actorRole);
     const prepTimeMinutes = input.prepTimeMinutes ?? (await computeAutoPrepTime(order.id, restaurantId));
     const updated = await prisma.order.update({

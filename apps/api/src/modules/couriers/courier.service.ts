@@ -76,6 +76,29 @@ export async function getCurrentOrder(userId: string) {
   });
 }
 
+/**
+ * Returns the courier's single future slot. OFFERED means they still need to
+ * answer it; ACCEPTED means it is already reserved and will be promoted as
+ * soon as the active delivery is completed.
+ */
+export async function getNextReservedOrder(userId: string) {
+  const courier = await getCourierByUserId(userId);
+  const now = new Date();
+  return prisma.courierAssignment.findFirst({
+    where: {
+      courierId: courier.id,
+      isQueued: true,
+      order: { status: "WAITING_FOR_COURIER", courierId: null },
+      OR: [
+        { status: "ACCEPTED" },
+        { status: "OFFERED", expiresAt: { gt: now } },
+      ],
+    },
+    include: { order: { include: { restaurant: true, address: true, items: true } } },
+    orderBy: { offeredAt: "asc" },
+  });
+}
+
 export async function updateDeliveryStatus(
   userId: string,
   orderId: string,
@@ -91,7 +114,7 @@ export async function updateDeliveryStatus(
     const earning = computeDeliveryEarning(order.deliveryFee, courier.lifetimeDeliveries);
     const deliveredAt = new Date();
 
-    const updated = await prisma.$transaction(async (tx) => {
+    const result = await prisma.$transaction(async (tx) => {
       // Claim the transition atomically. Concurrent DELIVERED requests may
       // both have read OUT_FOR_DELIVERY above, but only one can change that
       // exact state. The loser exits before any financial side effect.
@@ -125,10 +148,52 @@ export async function updateDeliveryStatus(
         });
       }
 
+      // Promotion happens before the transaction commits. Other dispatch
+      // workers therefore never see this courier as AVAILABLE between jobs.
+      const reservation = await tx.courierAssignment.findFirst({
+        where: { courierId: courier.id, isQueued: true, status: "ACCEPTED" },
+        orderBy: { respondedAt: "asc" },
+      });
+
+      let promotedOrder = null;
+      if (reservation) {
+        const nextClaim = await tx.order.updateMany({
+          where: { id: reservation.orderId, status: "WAITING_FOR_COURIER", courierId: null },
+          data: { status: "COURIER_ASSIGNED", courierId: courier.id },
+        });
+
+        if (nextClaim.count === 1) {
+          await tx.courierAssignment.update({
+            where: { id: reservation.id },
+            data: { isQueued: false },
+          });
+          await tx.orderStatusEvent.create({
+            data: { orderId: reservation.orderId, status: "COURIER_ASSIGNED", actor: Role.COURIER },
+          });
+          promotedOrder = await tx.order.findUnique({ where: { id: reservation.orderId } });
+        } else {
+          // The reservation became stale (e.g. the order was cancelled).
+          await tx.courierAssignment.updateMany({
+            where: { id: reservation.id, isQueued: true, status: "ACCEPTED" },
+            data: { status: "CANCELLED", respondedAt: new Date() },
+          });
+        }
+      }
+
+      if (!promotedOrder) {
+        // If a queued offer was still unanswered when this delivery ended,
+        // cancel the queued form. The dispatcher will immediately offer the
+        // waiting order again using normal free-courier priority.
+        await tx.courierAssignment.updateMany({
+          where: { courierId: courier.id, isQueued: true, status: "OFFERED" },
+          data: { status: "CANCELLED", respondedAt: new Date() },
+        });
+      }
+
       await tx.courier.update({
         where: { id: courier.id },
         data: {
-          status: "AVAILABLE",
+          status: promotedOrder ? "GOING_TO_RESTAURANT" : "AVAILABLE",
           totalEarnings: { increment: earning.total },
           lifetimeDeliveries: { increment: 1 },
         },
@@ -136,16 +201,29 @@ export async function updateDeliveryStatus(
 
       const finalOrder = await tx.order.findUnique({ where: { id: order.id } });
       if (!finalOrder) throw notFound("Order not found");
-      return finalOrder;
+      return { finalOrder, promotedOrder };
     });
-
-    // Only the request that successfully claimed and committed DELIVERED can
-    // wake the next queued order.
-    await dispatchWaitingOrders();
 
     getIO()?.to(rooms.restaurant(order.restaurantId)).emit("order:status", { orderId: order.id, status });
     getIO()?.to(rooms.customer(order.userId)).emit("order:status", { orderId: order.id, status });
-    return updated;
+
+    if (result.promotedOrder) {
+      getIO()?.to(rooms.courier(courier.userId)).emit("assignment:promoted", { orderId: result.promotedOrder.id });
+      getIO()?.to(rooms.restaurant(result.promotedOrder.restaurantId)).emit("order:status", {
+        orderId: result.promotedOrder.id,
+        status: "COURIER_ASSIGNED",
+      });
+      getIO()?.to(rooms.customer(result.promotedOrder.userId)).emit("order:status", {
+        orderId: result.promotedOrder.id,
+        status: "COURIER_ASSIGNED",
+      });
+    }
+
+    // Whether a reservation was promoted or a free slot opened, run the
+    // queue now. After promotion this can fill the courier's newly-free
+    // "next" slot; without promotion it can use the courier normally.
+    await dispatchWaitingOrders();
+    return result.finalOrder;
   }
 
   // Change (if any) was already worked out at checkout from what the

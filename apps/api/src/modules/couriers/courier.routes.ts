@@ -76,6 +76,14 @@ courierRouter.get(
   }),
 );
 
+courierRouter.get(
+  "/orders/next",
+  asyncHandler(async (req, res) => {
+    const assignment = await courierService.getNextReservedOrder(req.auth!.sub);
+    res.json({ success: true, assignment });
+  }),
+);
+
 const statusSchema = z.object({
   status: z.enum(["PICKED_UP", "OUT_FOR_DELIVERY", "DELIVERED"]),
 });
