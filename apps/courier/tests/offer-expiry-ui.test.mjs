@@ -8,13 +8,13 @@ const activeDelivery = readFileSync(new URL("../src/pages/ActiveDelivery.tsx", i
 test("home removes an expired offer immediately instead of leaving a dead card", () => {
   assert.match(
     home,
-    /if \(assignment && secondsLeft === 0\) \{\s*setAssignment\(null\);\s*void load\(\);\s*\}/s,
+    /if \(assignment && secondsLeft === 0\) \{\s*setAssignment\(null\);\s*\}/s,
   );
 });
 
 test("active delivery removes an expired queued offer immediately instead of leaving a dead card", () => {
   assert.match(
     activeDelivery,
-    /if \(nextAssignment\?\.status === "OFFERED" && nextSecondsLeft === 0\) \{\s*setNextAssignment\(null\);\s*void loadNext\(\);\s*\}/s,
+    /if \(nextAssignment\?\.status === "OFFERED" && nextSecondsLeft === 0\) \{\s*setNextAssignment\(null\);\s*\}/s,
   );
 });
