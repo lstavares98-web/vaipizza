@@ -30,9 +30,7 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
-      - name: Install Playwright test runtime
-        run: npm install --no-save --package-lock=false --legacy-peer-deps playwright@1.55.0
-      - name: Install Chromium
+      - name: Install Chromium for repository Playwright version
         run: npx playwright install --with-deps chromium
       - name: Run MB WAY, pickup and queued-delivery live QA
         run: npx tsx scripts/qa/live-new-flows.ts
