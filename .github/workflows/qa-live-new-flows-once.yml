@@ -1,0 +1,38 @@
+name: QA Live New Flows Once
+
+on:
+  push:
+    branches:
+      - qa/live-new-flows-2026-09-14
+    paths:
+      - qa-live-new-flows.trigger
+
+jobs:
+  live-new-flows:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    env:
+      QA_CONFIRM: VAIPIZZA_STAGING_ONLY
+      QA_API_URL: https://vaipizza-api-staging.onrender.com
+      QA_CUSTOMER_URL: https://vaipizza-cliente-staging.netlify.app
+      QA_RESTAURANT_URL: https://vaipizza-gestao-staging.netlify.app
+      QA_COURIER_URL: https://vaipizza-estafeta-staging.netlify.app
+      DATABASE_URL: ${{ secrets.DATABASE_URL }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Guard staging database
+        shell: bash
+        run: |
+          test -n "${DATABASE_URL:-}" || { echo "DATABASE_URL missing"; exit 1; }
+          test "$QA_CONFIRM" = "VAIPIZZA_STAGING_ONLY"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Install Playwright test runtime
+        run: npm install --no-save --package-lock=false playwright@1.55.0
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
+      - name: Run MB WAY, pickup and queued-delivery live QA
+        run: npx tsx scripts/qa/live-new-flows.ts
