@@ -88,6 +88,12 @@ export default function ActiveDelivery() {
     : 0;
 
   useEffect(() => {
+    if (nextAssignment?.status === "OFFERED" && nextSecondsLeft === 0) {
+      setNextAssignment(null);
+    }
+  }, [nextAssignment?.id, nextAssignment?.status, nextSecondsLeft]);
+
+  useEffect(() => {
     if (nextAssignment?.status === "OFFERED" && nextSecondsLeft > 0) startOfferAlert();
     else stopOfferAlert();
     return () => stopOfferAlert();
