@@ -318,7 +318,6 @@ model CourierRating {
   @@index([courierId])
 }
 
-
 // ---------------------------------------------------------------------------
 // Combos
 // ---------------------------------------------------------------------------
@@ -452,7 +451,7 @@ model Coupon {
   minSubtotal  Float?
   expiresAt    DateTime?
   isActive     Boolean  @default(true)
-  createdAt    DateTime @default(now())
+  createdAt DateTime @default(now())
 
   redemptions CouponRedemption[]
 }
@@ -702,12 +701,14 @@ model CourierAssignment {
   courierId String
   courier   Courier  @relation(fields: [courierId], references: [id])
   status    CourierAssignmentStatus @default(OFFERED)
+  isQueued  Boolean  @default(false)
   offeredAt DateTime @default(now())
   respondedAt DateTime?
   expiresAt DateTime
 
   @@index([orderId])
   @@index([courierId])
+  @@index([courierId, isQueued, status])
 }
 
 model CourierEarning {
