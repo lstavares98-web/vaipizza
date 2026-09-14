@@ -9,6 +9,9 @@ const state = vi.hoisted(() => {
   const courierFindUnique = vi.fn();
   const courierUpdate = vi.fn();
   const courierEarningCreate = vi.fn();
+  const courierAssignmentFindFirst = vi.fn();
+  const courierAssignmentUpdate = vi.fn();
+  const courierAssignmentUpdateMany = vi.fn();
   const dispatchWaitingOrders = vi.fn();
 
   const tx = {
@@ -19,6 +22,11 @@ const state = vi.hoisted(() => {
     orderStatusEvent: { create: orderStatusEventCreate },
     courier: { update: courierUpdate },
     courierEarning: { create: courierEarningCreate },
+    courierAssignment: {
+      findFirst: courierAssignmentFindFirst,
+      update: courierAssignmentUpdate,
+      updateMany: courierAssignmentUpdateMany,
+    },
   };
 
   const prisma = {
@@ -29,6 +37,9 @@ const state = vi.hoisted(() => {
     order: {
       findFirst: orderFindFirst,
       update: orderUpdate,
+    },
+    courierAssignment: {
+      findFirst: courierAssignmentFindFirst,
     },
     courierEarning: { create: courierEarningCreate },
     $transaction: vi.fn(async (arg: unknown) => {
@@ -50,6 +61,9 @@ const state = vi.hoisted(() => {
     courierFindUnique,
     courierUpdate,
     courierEarningCreate,
+    courierAssignmentFindFirst,
+    courierAssignmentUpdate,
+    courierAssignmentUpdateMany,
     dispatchWaitingOrders,
   };
 });
@@ -64,6 +78,7 @@ vi.mock("../../config/env.js", () => ({
 vi.mock("../../sockets/io.js", () => ({
   getIO: () => undefined,
   rooms: {
+    courier: (id: string) => `courier:${id}`,
     restaurant: (id: string) => `restaurant:${id}`,
     customer: (id: string) => `customer:${id}`,
   },
@@ -122,6 +137,9 @@ describe("updateDeliveryStatus concurrent DELIVERED", () => {
     state.orderStatusEventCreate.mockResolvedValue({ id: "event-1" });
     state.courierUpdate.mockResolvedValue({ id: "c1", status: "AVAILABLE" });
     state.courierEarningCreate.mockResolvedValue({ id: "earning-1" });
+    state.courierAssignmentFindFirst.mockResolvedValue(null);
+    state.courierAssignmentUpdate.mockResolvedValue({});
+    state.courierAssignmentUpdateMany.mockResolvedValue({ count: 0 });
     state.dispatchWaitingOrders.mockResolvedValue(undefined);
   });
 
@@ -136,6 +154,43 @@ describe("updateDeliveryStatus concurrent DELIVERED", () => {
     expect(state.courierEarningCreate).toHaveBeenCalledTimes(1);
     expect(state.courierUpdate).toHaveBeenCalledTimes(1);
     expect(state.orderStatusEventCreate).toHaveBeenCalledTimes(1);
+    expect(state.dispatchWaitingOrders).toHaveBeenCalledTimes(1);
+  });
+
+  it("promotes one accepted queued delivery in the same transaction", async () => {
+    state.orderUpdateMany.mockReset()
+      .mockResolvedValueOnce({ count: 1 })
+      .mockResolvedValueOnce({ count: 1 });
+    state.courierAssignmentFindFirst.mockResolvedValue({ id: "a2", orderId: "o2" });
+    state.orderFindUnique.mockReset()
+      .mockResolvedValueOnce({
+        id: "o2",
+        courierId: "c1",
+        userId: "u-next-customer",
+        restaurantId: "r1",
+        status: "COURIER_ASSIGNED",
+      })
+      .mockResolvedValueOnce({
+        id: "o1",
+        courierId: "c1",
+        userId: "u-customer",
+        restaurantId: "r1",
+        status: "DELIVERED",
+        paymentStatus: "PAID",
+      });
+
+    const delivered = await updateDeliveryStatus("u-courier", "o1", "DELIVERED");
+
+    expect(delivered.id).toBe("o1");
+    expect(state.courierAssignmentUpdate).toHaveBeenCalledWith({
+      where: { id: "a2" },
+      data: { isQueued: false },
+    });
+    expect(state.orderStatusEventCreate).toHaveBeenCalledTimes(2);
+    expect(state.courierUpdate).toHaveBeenCalledWith(expect.objectContaining({
+      where: { id: "c1" },
+      data: expect.objectContaining({ status: "GOING_TO_RESTAURANT" }),
+    }));
     expect(state.dispatchWaitingOrders).toHaveBeenCalledTimes(1);
   });
 });
