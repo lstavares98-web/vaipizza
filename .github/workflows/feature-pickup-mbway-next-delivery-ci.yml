@@ -1,0 +1,34 @@
+name: Feature Pickup MBWAY Next Delivery CI
+
+on:
+  push:
+    branches:
+      - feature/pickup-mbway-next-delivery
+  workflow_dispatch:
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/vaipizza_test
+      JWT_SECRET: feature-test-secret-feature-test-secret
+      REFRESH_TOKEN_SECRET: feature-refresh-secret-feature-refresh-secret
+      CORS_ORIGINS: http://localhost:5173
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci --include=dev
+      - name: API tests
+        run: npm test -w apps/api
+      - name: API build
+        run: npm run build -w apps/api
+      - name: Customer build
+        run: npm run build -w apps/customer
+      - name: Restaurant build
+        run: npm run build -w apps/restaurant
+      - name: Courier build
+        run: npm run build -w apps/courier
