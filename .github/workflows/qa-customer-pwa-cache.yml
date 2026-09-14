@@ -1,0 +1,29 @@
+name: QA customer PWA cache fix
+
+on:
+  push:
+    branches:
+      - fix/customer-pwa-stale-cache
+    paths:
+      - qa-customer-pwa-cache.trigger
+
+jobs:
+  verify-and-deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      NETLIFY_AUTH_TOKEN: ${{ secrets.NETLIFY_AUTH_TOKEN }}
+      VITE_API_URL: https://vaipizza-api-staging.onrender.com
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: PWA cache regression test
+        run: node --test apps/customer/tests/pwa-cache-policy.test.mjs
+      - name: Build Cliente
+        run: npm run build -w apps/customer
+      - name: Deploy Cliente staging
+        run: npx --yes netlify-cli@latest deploy --prod --auth "$NETLIFY_AUTH_TOKEN" --site 8f6a94ae-b550-47ac-88a0-d9ca28f79b65 --filter apps/customer --dir apps/customer/dist --message "QA customer PWA cache fix $GITHUB_SHA"
