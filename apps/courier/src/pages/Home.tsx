@@ -78,6 +78,12 @@ export default function Home() {
   const offerExpired = !assignment || secondsLeft === 0;
 
   useEffect(() => {
+    if (assignment && secondsLeft === 0) {
+      setAssignment(null);
+    }
+  }, [assignment?.id, secondsLeft]);
+
+  useEffect(() => {
     if (assignment && !offerExpired) {
       const started = startOfferAlert();
       setAlertReady(isOfferAlertReady());
