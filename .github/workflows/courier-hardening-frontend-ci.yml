@@ -23,8 +23,10 @@ jobs:
         run: npm ci
       - name: Courier unit tests
         run: npx tsx --test apps/courier/tests/*.test.ts
-      - name: Restaurant frontend tests
-        run: npx tsx --test apps/restaurant/tests/*.test.ts
+      - name: Restaurant courier indicator tests
+        run: npx tsx --test apps/restaurant/tests/courierIndicator.test.ts
+      - name: Restaurant cancellation UI tests
+        run: npx tsx --test apps/restaurant/tests/orderCancellationUi.test.ts
       - name: Courier build
         run: npm run build -w apps/courier
       - name: Restaurant build
