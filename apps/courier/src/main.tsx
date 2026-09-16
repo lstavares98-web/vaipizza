@@ -4,6 +4,7 @@ import { registerSW } from "virtual:pwa-register";
 import App from "./App";
 import "./index.css";
 import "./offerPriority.css";
+import "./mobileViewport.css";
 
 if ("serviceWorker" in navigator) {
   const hadController = Boolean(navigator.serviceWorker.controller);
