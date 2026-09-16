@@ -4,6 +4,7 @@ import { resolvePrimaryRestaurant, VAIPIZZA } from "../config/vaipizza";
 import { useAuth } from "../context/AuthContext";
 import { useCart } from "../context/CartContext";
 import { api } from "../lib/api";
+import InstallAppButton from "./InstallAppButton";
 import { BagIcon, HomeIcon, LogoutIcon, PizzaIcon, ReceiptIcon, UserIcon } from "./NavIcons";
 
 interface StoreContact {
@@ -50,6 +51,7 @@ export default function Layout() {
           </nav>
 
           <div className="topbar-actions">
+            <InstallAppButton />
             {user ? (
               <>
                 <NavLink className="topbar-icon-btn" to="/cart" aria-label={`Carrinho${cartCount ? `, ${cartCount} itens` : ""}`}>
