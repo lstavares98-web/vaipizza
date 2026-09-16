@@ -1,5 +1,5 @@
 import { Role } from "@yummix/types";
-import type { OrderStatus, RestaurantStatus, VerificationStatus } from "@prisma/client";
+import type { CourierOperationalState, OrderStatus, RestaurantStatus, VerificationStatus } from "@prisma/client";
 import { prisma } from "../../config/prisma.js";
 import { env } from "../../config/env.js";
 import { badRequest, notFound } from "../../utils/AppError.js";
@@ -54,6 +54,59 @@ export async function approveCourier(id: string) {
 
 export async function rejectCourier(id: string) {
   return prisma.courier.update({ where: { id }, data: { verificationStatus: "REJECTED" } });
+}
+
+const ACTIVE_COURIER_ORDER_STATUSES = ["COURIER_ASSIGNED", "PICKED_UP", "OUT_FOR_DELIVERY"] as const;
+
+export async function setCourierOperationalState(id: string, state: CourierOperationalState) {
+  const now = new Date();
+  const updated = await prisma.$transaction(async (tx) => {
+    const courier = await tx.courier.findUnique({ where: { id } });
+    if (!courier) throw notFound("Courier not found");
+
+    const activeOrder = await tx.order.findFirst({
+      where: { courierId: id, status: { in: [...ACTIVE_COURIER_ORDER_STATUSES] } },
+      select: { id: true, status: true },
+    });
+    if (activeOrder) {
+      throw badRequest(
+        "Resolva ou reatribua a entrega ativa antes de alterar o estado deste estafeta",
+        "NOT_ALLOWED_WITH_ACTIVE_DELIVERY",
+      );
+    }
+
+    if (state === "ACTIVE") {
+      return tx.courier.update({
+        where: { id },
+        data: { operationalState: "ACTIVE", status: "OFFLINE" },
+        include: { user: true },
+      });
+    }
+
+    await tx.courierAssignment.updateMany({
+      where: { courierId: id, status: "OFFERED" },
+      data: { status: "CANCELLED", respondedAt: now },
+    });
+
+    return tx.courier.update({
+      where: { id },
+      data: {
+        operationalState: state,
+        status: "OFFLINE",
+        sessionVersion: { increment: 1 },
+      },
+      include: { user: true },
+    });
+  });
+
+  if (state !== "ACTIVE") {
+    const io = getIO();
+    const room = rooms.courier(updated.userId);
+    io?.to(room).emit("courier:operational-state", { state });
+    io?.in(room).disconnectSockets(true);
+  }
+
+  return updated;
 }
 
 // ---- Customers ----------------------------------------------------------
