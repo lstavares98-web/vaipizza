@@ -117,7 +117,7 @@ export async function getAdminOrderDetail(id: string) {
         orderBy: { id: "asc" },
       },
       statusHistory: { orderBy: { createdAt: "asc" } },
-      courierAssignments: { orderBy: { createdAt: "asc" } },
+      courierAssignments: { orderBy: { offeredAt: "asc" } },
       couponRedemption: { include: { coupon: true } },
       adminAlerts: { orderBy: { createdAt: "asc" } },
     },
