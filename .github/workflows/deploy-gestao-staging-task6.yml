@@ -1,0 +1,37 @@
+name: Deploy Gestao Staging Task6
+
+on:
+  push:
+    branches:
+      - feat/courier-operations-hardening
+    paths:
+      - .github/workflows/deploy-gestao-staging-task6.yml
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    env:
+      NETLIFY_SITE_ID: bfb4f12b-72a2-41ab-b528-aa896878d5eb
+      NETLIFY_AUTH_TOKEN: ${{ secrets.NETLIFY_AUTH_TOKEN }}
+      VITE_API_URL: https://vaipizza-api-staging.onrender.com
+    steps:
+      - name: Checkout staging branch
+        uses: actions/checkout@v4
+        with:
+          ref: redesign-vaipizza
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - name: Install dependencies
+        run: npm ci
+      - name: Build Gestao staging
+        run: npm run build -w apps/restaurant
+      - name: Require Netlify token
+        run: test -n "$NETLIFY_AUTH_TOKEN"
+      - name: Deploy only Gestao staging
+        run: npx --yes netlify-cli@latest deploy --dir=apps/restaurant/dist --prod --site="$NETLIFY_SITE_ID" --message="courier hardening task6 staging 11bc17dccf20777f2102981237b461060f8ef9a4"
