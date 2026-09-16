@@ -88,6 +88,11 @@ export async function setCourierOperationalState(id: string, state: CourierOpera
       data: { status: "CANCELLED", respondedAt: now },
     });
 
+    await tx.refreshToken.updateMany({
+      where: { userId: courier.userId, revokedAt: null },
+      data: { revokedAt: now },
+    });
+
     return tx.courier.update({
       where: { id },
       data: {
@@ -255,5 +260,5 @@ export async function listFranchiseLeads() {
 export async function updateFranchiseLeadStatus(id: string, status: "NEW" | "CONTACTED" | "ARCHIVED") {
   const existing = await prisma.franchiseLead.findUnique({ where: { id } });
   if (!existing) throw notFound("Contacto de franquia não encontrado");
-  return prisma.franchiseLead.update({ where: { id }, data: { status } });
+  return prisma.franchiseLead.update({ where: { id }, data: input });
 }
