@@ -3,9 +3,9 @@ import type { CourierOperationalState, OrderStatus, RestaurantStatus, Verificati
 import { prisma } from "../../config/prisma.js";
 import { env } from "../../config/env.js";
 import { badRequest, notFound } from "../../utils/AppError.js";
-import { attemptRefund } from "../../services/refund.service.js";
 import { getIO, rooms } from "../../sockets/io.js";
 import { computeFinancials } from "./financials.js";
+import { cancelOrderBeforeHandoff } from "../orders/cancelOrder.service.js";
 
 // ---- Restaurants ------------------------------------------------------
 
@@ -139,41 +139,13 @@ export async function listAllOrders(filters: { status?: OrderStatus; restaurantI
   });
 }
 
-const CANCELLABLE_BY_ADMIN = [
-  "NEW",
-  "ACCEPTED",
-  "PREPARING",
-  "READY_FOR_PICKUP",
-  "WAITING_FOR_COURIER",
-  "COURIER_ASSIGNED",
-];
-
 export async function forceCancelOrder(orderId: string, reason: string) {
-  const order = await prisma.order.findUnique({ where: { id: orderId } });
-  if (!order) throw notFound("Order not found");
-  if (!CANCELLABLE_BY_ADMIN.includes(order.status)) {
-    throw badRequest("This order can no longer be cancelled", "NOT_CANCELLABLE");
-  }
-
-  const updated = await prisma.order.update({
-    where: { id: order.id },
-    data: {
-      status: "CANCELLED",
-      cancelledBy: Role.SUPER_ADMIN,
-      cancelledAt: new Date(),
-      rejectionReason: reason,
-      statusHistory: { create: { status: "CANCELLED", actor: Role.SUPER_ADMIN } },
-    },
+  const result = await cancelOrderBeforeHandoff({
+    orderId,
+    actorRole: Role.SUPER_ADMIN,
+    reason,
   });
-  if (order.courierId) {
-    await prisma.courier.update({ where: { id: order.courierId }, data: { status: "AVAILABLE" } });
-  }
-  await attemptRefund(updated, Role.SUPER_ADMIN);
-
-  getIO()?.to(rooms.customer(order.userId)).emit("order:status", { orderId: order.id, status: "CANCELLED" });
-  getIO()?.to(rooms.restaurant(order.restaurantId)).emit("order:status", { orderId: order.id, status: "CANCELLED" });
-
-  return updated;
+  return result.order;
 }
 
 // ---- Refund alerts ----------------------------------------------------

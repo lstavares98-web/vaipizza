@@ -5,6 +5,7 @@ import { OrderStatus, Role } from "@yummix/types";
 import { asyncHandler } from "../../middleware/errorHandler.js";
 import { requireAuth, requireOwnRestaurant, requireRole } from "../../middleware/auth.js";
 import * as ordersService from "./orders.service.js";
+import { cancelOrderBeforeHandoff } from "./cancelOrder.service.js";
 import { forceReassignCourier, listNearbyCouriers } from "../dispatch/dispatch.service.js";
 
 export const restaurantOrdersRouter = Router();
@@ -51,6 +52,21 @@ restaurantOrdersRouter.post(
   asyncHandler(async (req, res) => {
     const order = await ordersService.confirmMbwayPayment(req.auth!.restaurantId!, req.params.id!);
     res.json({ success: true, order });
+  }),
+);
+
+restaurantOrdersRouter.post(
+  "/:id/cancel",
+  requireRole(Role.RESTAURANT_OWNER, Role.RESTAURANT_STAFF),
+  asyncHandler(async (req, res) => {
+    const { reason } = z.object({ reason: z.string().trim().min(1).max(500) }).parse(req.body);
+    const result = await cancelOrderBeforeHandoff({
+      orderId: req.params.id!,
+      actorRole: req.auth!.role,
+      actorRestaurantId: req.auth!.restaurantId!,
+      reason,
+    });
+    res.json({ success: true, ...result });
   }),
 );
 

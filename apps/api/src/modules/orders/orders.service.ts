@@ -15,6 +15,7 @@ import { computeChangeDue } from "../couriers/cash.js";
 import { comboInclude } from "../combos/combos.service.js";
 import { buildComboSelectionSnapshot, isComboScheduleAvailable, priceCombo, validateComboSelection, type ComboSelectionInput } from "../combos/combo.rules.js";
 import { canRestaurantStartOrder } from "./paymentPolicy.js";
+import { cancelOrderBeforeHandoff } from "./cancelOrder.service.js";
 
 const stripe = env.STRIPE_SECRET_KEY ? new Stripe(env.STRIPE_SECRET_KEY) : null;
 
@@ -338,19 +339,15 @@ export async function updateOrderStatusByRestaurant(
   // terminal "cancelled" branch instead of two.
   if (order.status === "NEW" && input.status === "CANCELLED") {
     assertTransitionAllowed(order.status, "CANCELLED", actorRole);
-    const updated = await prisma.order.update({
-      where: { id: order.id },
-      data: {
-        status: "CANCELLED",
-        cancelledBy: actorRole,
-        cancelledAt: new Date(),
-        rejectionReason: input.rejectionReason,
-        statusHistory: { create: { status: "CANCELLED", actor: actorRole } },
-      },
+    const reason = input.rejectionReason?.trim();
+    if (!reason) throw badRequest("Indique o motivo do cancelamento", "CANCELLATION_REASON_REQUIRED");
+    const result = await cancelOrderBeforeHandoff({
+      orderId: order.id,
+      actorRole,
+      actorRestaurantId: restaurantId,
+      reason,
     });
-    await attemptRefund(updated, actorRole);
-    getIO()?.to(rooms.customer(order.userId)).emit("order:status", { orderId: order.id, status: "CANCELLED" });
-    return updated;
+    return result.order;
   }
 
   // "Aceitar" is now a single click for the counter: it folds NEW->ACCEPTED
