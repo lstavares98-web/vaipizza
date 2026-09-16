@@ -1,0 +1,121 @@
+name: Apply Courier Hardening Task 1
+
+on:
+  push:
+    branches:
+      - feat/courier-operations-hardening
+    paths:
+      - .github/workflows/apply-courier-hardening-task1.yml
+
+permissions:
+  contents: write
+
+jobs:
+  apply-and-verify:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: feat/courier-operations-hardening
+          fetch-depth: 0
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - name: Install dependencies
+        run: npm ci
+      - name: Apply Task 1 changes
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          schema_path = Path('apps/api/prisma/schema.prisma')
+          schema = schema_path.read_text()
+          old = '''enum VerificationStatus {
+            PENDING
+            APPROVED
+            REJECTED
+          }
+
+          model Courier {'''
+          new = '''enum VerificationStatus {
+            PENDING
+            APPROVED
+            REJECTED
+          }
+
+          enum CourierOperationalState {
+            ACTIVE
+            SUSPENDED
+            DEACTIVATED
+          }
+
+          model Courier {'''
+          if old not in schema:
+              raise SystemExit('schema enum anchor not found')
+          schema = schema.replace(old, new, 1)
+
+          old = '''  verificationStatus VerificationStatus @default(PENDING)
+
+            status    CourierStatus @default(OFFLINE)'''
+          new = '''  verificationStatus VerificationStatus @default(PENDING)
+            operationalState  CourierOperationalState @default(ACTIVE)
+            sessionVersion    Int                     @default(0)
+
+            status    CourierStatus @default(OFFLINE)'''
+          if old not in schema:
+              raise SystemExit('courier field anchor not found')
+          schema = schema.replace(old, new, 1)
+          schema_path.write_text(schema)
+
+          types_path = Path('packages/types/src/index.ts')
+          types = types_path.read_text()
+          old = '''export interface JwtPayload {
+            sub: string;
+            role: Role;
+            restaurantId?: string;
+          }'''
+          new = '''export interface JwtPayload {
+            sub: string;
+            role: Role;
+            restaurantId?: string;
+            courierSessionVersion?: number;
+          }'''
+          if old not in types:
+              raise SystemExit('JwtPayload anchor not found')
+          types_path.write_text(types.replace(old, new, 1))
+
+          migration = Path('apps/api/prisma/migrations/20260916163000_courier_operational_state_and_session')
+          migration.mkdir(parents=True, exist_ok=True)
+          (migration / 'migration.sql').write_text('''CREATE TYPE "CourierOperationalState" AS ENUM ('ACTIVE', 'SUSPENDED', 'DEACTIVATED');
+          ALTER TABLE "Courier"
+            ADD COLUMN "operationalState" "CourierOperationalState" NOT NULL DEFAULT 'ACTIVE',
+            ADD COLUMN "sessionVersion" INTEGER NOT NULL DEFAULT 0;
+          ''')
+
+          Path('apps/api/src/modules/auth/courierSession.policy.ts').write_text('''export function isCurrentCourierSession(tokenVersion: number | undefined, currentVersion: number) {
+            return Number.isInteger(tokenVersion) && tokenVersion === currentVersion;
+          }
+          ''')
+          PY
+      - name: Generate Prisma client
+        run: npm run db:generate
+      - name: Focused session policy test
+        run: npm test -w apps/api -- courierSession.policy.test.ts
+      - name: API regression tests
+        run: npm test -w apps/api
+      - name: API build
+        run: npm run build -w apps/api
+      - name: Commit verified Task 1
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add apps/api/prisma/schema.prisma \
+                  apps/api/prisma/migrations/20260916163000_courier_operational_state_and_session/migration.sql \
+                  packages/types/src/index.ts \
+                  apps/api/src/modules/auth/courierSession.policy.ts
+          git commit -m "feat: add courier operational session state"
+          git push origin HEAD:feat/courier-operations-hardening
