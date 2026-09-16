@@ -26,6 +26,11 @@ const envSchema = z.object({
   COURIER_LOCATION_MAX_AGE_SECONDS: z.coerce.number().int().positive().default(120),
   COURIER_MAX_ACCURACY_METERS: z.coerce.number().positive().default(100),
   DISPATCH_FAIRNESS_WINDOW_MINUTES: z.coerce.number().int().positive().default(30),
+  REVERSE_GEOCODE_URL: z.string().optional().default(""),
+  CUSTOMER_APP_URL: z.string().url().optional().default("http://localhost:3000"),
+  EMAIL_API_URL: z.string().optional().default(""),
+  EMAIL_API_KEY: z.string().optional().default(""),
+  EMAIL_FROM: z.string().optional().default(""),
   ALLOW_PUBLIC_COURIER_REGISTRATION: z.enum(["true", "false"]).default("false").transform((value) => value === "true"),
   PASSWORD_RESET_DEBUG_LOG: z.enum(["true", "false"]).default("false").transform((value) => value === "true"),
 }).superRefine((value, ctx) => {
