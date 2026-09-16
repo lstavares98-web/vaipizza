@@ -5,6 +5,7 @@ import { api } from "../lib/api";
 import { getSocket } from "../lib/socket";
 import { fixLeafletIcons } from "../lib/leafletIcons";
 import { COURIER_INELIGIBILITY_LABELS, COURIER_STATUS_LABELS, formatGpsAge } from "../lib/courierPresentation";
+import { getCourierIndicatorStyle } from "../lib/courierIndicator";
 
 fixLeafletIcons();
 
@@ -148,7 +149,7 @@ export default function CourierOperationsPanel() {
             <article className={`courier-ops-row ${courier.eligibleForDispatch ? "is-eligible" : ""}`} key={courier.id}>
               <div className="courier-ops-main">
                 <div className="courier-name-line">
-                  <span className={`courier-state-dot state-${courier.status.toLowerCase()}`} />
+                  <span className="courier-state-dot" style={getCourierIndicatorStyle(courier.status, courier.eligibleForDispatch)} />
                   <strong>{courier.name}</strong>
                   <span className={`courier-eligibility ${courier.eligibleForDispatch ? "ok" : "blocked"}`}>
                     {courier.eligibleForDispatch ? "Elegível" : "Não elegível"}
