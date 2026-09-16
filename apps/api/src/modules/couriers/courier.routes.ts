@@ -2,13 +2,13 @@ import { Router } from "express";
 import { z } from "zod";
 import { Role } from "@yummix/types";
 import { asyncHandler } from "../../middleware/errorHandler.js";
-import { requireAuth, requireRole } from "../../middleware/auth.js";
+import { requireAuth, requireCurrentCourierSession, requireRole } from "../../middleware/auth.js";
 import * as courierService from "./courier.service.js";
 import { rejectAssignment } from "../dispatch/dispatch.service.js";
 import { acceptAssignmentAndFinalize } from "../dispatch/dispatch.acceptance.js";
 
 export const courierRouter = Router();
-courierRouter.use(requireAuth, requireRole(Role.COURIER));
+courierRouter.use(requireAuth, requireRole(Role.COURIER), requireCurrentCourierSession);
 
 courierRouter.get(
   "/me",
