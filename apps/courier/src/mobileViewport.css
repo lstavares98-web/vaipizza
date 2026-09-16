@@ -1,0 +1,75 @@
+html, body, #root {
+  min-height: 100%;
+}
+
+html {
+  background: var(--bg);
+  overscroll-behavior-y: none;
+}
+
+body {
+  min-height: 100vh;
+  min-height: 100dvh;
+  overflow-x: hidden;
+  overscroll-behavior-y: none;
+}
+
+.app-shell {
+  min-height: 100vh;
+  min-height: 100dvh;
+}
+
+.top-bar {
+  padding-top: calc(.65rem + env(safe-area-inset-top));
+  flex: 0 0 auto;
+}
+
+.app-shell.delivery-mode {
+  height: 100vh;
+  height: 100svh;
+  min-height: 0;
+  overflow: hidden;
+}
+
+@supports (height: 100dvh) {
+  @media (display-mode: standalone) {
+    .app-shell.delivery-mode {
+      height: 100dvh;
+    }
+  }
+}
+
+.app-shell.delivery-mode .courier-main {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  overflow: hidden;
+}
+
+.app-shell.delivery-mode .delivery-page {
+  flex: 1 1 auto;
+  width: min(100%, 720px);
+  height: auto;
+  min-height: 0;
+  max-height: none;
+  overflow: hidden;
+}
+
+.delivery-info {
+  overscroll-behavior-y: contain;
+}
+
+.delivery-action-dock {
+  flex: 0 0 auto;
+  padding-bottom: calc(.75rem + env(safe-area-inset-bottom));
+}
+
+@media (max-width: 699px) {
+  .top-bar {
+    min-height: 64px;
+  }
+
+  .delivery-info {
+    padding-bottom: .75rem;
+  }
+}
