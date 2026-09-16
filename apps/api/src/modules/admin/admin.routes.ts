@@ -4,6 +4,7 @@ import { Role } from "@yummix/types";
 import { asyncHandler } from "../../middleware/errorHandler.js";
 import { requireAuth, requireRole } from "../../middleware/auth.js";
 import * as adminService from "./admin.service.js";
+import { getAdminDashboard } from "./adminDashboard.js";
 import { getAdminOrderDetail, listAdminOrders } from "./adminOrders.js";
 
 export const adminRouter = Router();
@@ -11,6 +12,7 @@ adminRouter.use(requireAuth, requireRole(Role.SUPER_ADMIN));
 
 const restaurantStatusSchema = z.enum(["PENDING", "APPROVED", "SUSPENDED", "REJECTED"]).optional();
 const courierStatusSchema = z.enum(["PENDING", "APPROVED", "REJECTED"]).optional();
+const dashboardPeriodSchema = z.enum(["today", "7d", "15d", "30d"]).default("today");
 const dateOnlySchema = z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional();
 const orderStatusSchema = z
   .enum([
@@ -30,8 +32,9 @@ const orderStatusSchema = z
 
 adminRouter.get(
   "/dashboard",
-  asyncHandler(async (_req, res) => {
-    const dashboard = await adminService.getDashboard();
+  asyncHandler(async (req, res) => {
+    const period = dashboardPeriodSchema.parse(req.query.period);
+    const dashboard = await getAdminDashboard(period);
     res.json({ success: true, ...dashboard });
   }),
 );
