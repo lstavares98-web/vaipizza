@@ -2,6 +2,8 @@ import type { NextFunction, Request, Response } from "express";
 import type { JwtPayload, Role } from "@yummix/types";
 import { unauthorized, forbidden } from "../utils/AppError.js";
 import { verifyAccessToken } from "../modules/auth/tokens.js";
+import { prisma } from "../config/prisma.js";
+import { isCurrentCourierSession } from "../modules/auth/courierSession.policy.js";
 
 declare global {
   // eslint-disable-next-line @typescript-eslint/no-namespace
@@ -39,4 +41,21 @@ export const requireRole =
 export const requireOwnRestaurant = (req: Request, _res: Response, next: NextFunction) => {
   if (!req.auth?.restaurantId) return next(forbidden("No restaurant associated with this account"));
   next();
+};
+
+
+export const requireCurrentCourierSession = async (req: Request, _res: Response, next: NextFunction) => {
+  if (!req.auth) return next(unauthorized());
+  try {
+    const courier = await prisma.courier.findUnique({
+      where: { userId: req.auth.sub },
+      select: { sessionVersion: true },
+    });
+    if (!courier || !isCurrentCourierSession(req.auth.courierSessionVersion, courier.sessionVersion)) {
+      return next(unauthorized("A sua conta foi iniciada noutro dispositivo.", "COURIER_SESSION_REPLACED"));
+    }
+    next();
+  } catch (error) {
+    next(error);
+  }
 };

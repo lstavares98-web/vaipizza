@@ -83,6 +83,7 @@ async function getAvailableGeoEligibleCouriers(restaurantId: string, excludeCour
     where: {
       status: "AVAILABLE",
       verificationStatus: "APPROVED",
+      operationalState: "ACTIVE",
       lat: { not: null },
       lng: { not: null },
       locationUpdatedAt: { gte: locationCutoff },
@@ -131,6 +132,7 @@ export async function findNearestBusyCourier(restaurantId: string, excludeCourie
     where: {
       status: { in: [...BUSY_COURIER_STATUSES] },
       verificationStatus: "APPROVED",
+      operationalState: "ACTIVE",
       lat: { not: null },
       lng: { not: null },
       locationUpdatedAt: { gte: locationCutoff },
@@ -208,6 +210,7 @@ async function createAvailableOffer(order: { id: string; restaurantId: string },
         id: courier.id,
         status: "AVAILABLE",
         verificationStatus: "APPROVED",
+        operationalState: "ACTIVE",
         locationUpdatedAt: { gte: new Date(Date.now() - env.COURIER_LOCATION_MAX_AGE_SECONDS * 1000) },
         locationAccuracyM: { not: null, lte: env.COURIER_MAX_ACCURACY_METERS },
       },
@@ -258,7 +261,7 @@ async function createQueuedOffer(order: { id: string; restaurantId: string }, co
     const now = new Date();
     const restaurant = await tx.restaurant.findUnique({ where: { id: order.restaurantId } });
     const claimedCourier = await tx.courier.findUnique({ where: { id: courier.id } });
-    if (!restaurant || !claimedCourier || claimedCourier.verificationStatus !== "APPROVED") return false;
+    if (!restaurant || !claimedCourier || claimedCourier.verificationStatus !== "APPROVED" || claimedCourier.operationalState !== "ACTIVE") return false;
 
     const geo = evaluateCourierGeoEligibility(
       restaurantDispatchPoint(restaurant),
@@ -443,7 +446,7 @@ export async function acceptAssignment(courierId: string, assignmentId: string) 
           include: { restaurant: true },
         });
         const claimedCourier = await tx.courier.findUnique({ where: { id: courierId } });
-        if (!targetOrder || !claimedCourier || targetOrder.status !== "WAITING_FOR_COURIER") {
+        if (!targetOrder || !claimedCourier || claimedCourier.operationalState !== "ACTIVE" || targetOrder.status !== "WAITING_FOR_COURIER") {
           throw new DispatchClaimConflict();
         }
 
@@ -479,7 +482,7 @@ export async function acceptAssignment(courierId: string, assignmentId: string) 
       }
 
       const courierClaim = await tx.courier.updateMany({
-        where: { id: courierId, status: "ASSIGNED" },
+        where: { id: courierId, status: "ASSIGNED", verificationStatus: "APPROVED", operationalState: "ACTIVE" },
         data: { status: "GOING_TO_RESTAURANT" },
       });
       if (courierClaim.count !== 1) throw new DispatchClaimConflict();
@@ -523,7 +526,9 @@ function reasonMessage(reason: CourierGeoEligibilityReason) {
   }
 }
 
-function operationalReason(status: string, geoReasons: CourierGeoEligibilityReason[]) {
+function operationalReason(status: string, operationalState: string, geoReasons: CourierGeoEligibilityReason[]) {
+  if (operationalState === "SUSPENDED") return "SUSPENDED";
+  if (operationalState === "DEACTIVATED") return "DEACTIVATED";
   if (status === "OFFLINE") return "OFFLINE";
   if (status === "ASSIGNED") return "OFFER_PENDING";
   if (status !== "AVAILABLE") return "BUSY";
@@ -567,7 +572,7 @@ export async function listNearbyCouriers(restaurantId: string) {
       env.COURIER_LOCATION_MAX_AGE_SECONDS,
       env.COURIER_MAX_ACCURACY_METERS,
     );
-    const eligibleForDispatch = courier.status === "AVAILABLE" && geo.eligible;
+    const eligibleForDispatch = courier.operationalState === "ACTIVE" && courier.status === "AVAILABLE" && geo.eligible;
     const ageSeconds = courier.locationUpdatedAt
       ? Math.max(0, Math.round((now.getTime() - courier.locationUpdatedAt.getTime()) / 1000))
       : null;
@@ -578,6 +583,7 @@ export async function listNearbyCouriers(restaurantId: string) {
       name: courier.user.name,
       vehicleType: courier.vehicleType,
       status: courier.status,
+      operationalState: courier.operationalState,
       lat: courier.lat,
       lng: courier.lng,
       locationUpdatedAt: courier.locationUpdatedAt,
@@ -589,7 +595,7 @@ export async function listNearbyCouriers(restaurantId: string) {
       inDispatchZone: geo.inDispatchZone,
       tooFar: !geo.inDispatchZone && geo.distanceKm !== null,
       eligibleForDispatch,
-      ineligibilityReason: eligibleForDispatch ? null : operationalReason(courier.status, geo.reasons),
+      ineligibilityReason: eligibleForDispatch ? null : operationalReason(courier.status, courier.operationalState, geo.reasons),
       activeOrder: courier.orders[0] ?? null,
       nextOrder,
     };
@@ -624,7 +630,7 @@ export async function forceReassignCourier(restaurantId: string, orderId: string
   if (!["WAITING_FOR_COURIER", "COURIER_ASSIGNED"].includes(order.status)) {
     throw badRequest("Este pedido não está à espera de estafeta", "NOT_AWAITING_COURIER");
   }
-  if (!newCourier || newCourier.status !== "AVAILABLE" || newCourier.verificationStatus !== "APPROVED") {
+  if (!newCourier || newCourier.status !== "AVAILABLE" || newCourier.verificationStatus !== "APPROVED" || newCourier.operationalState !== "ACTIVE") {
     throw badRequest("Este estafeta já não está disponível", "COURIER_UNAVAILABLE");
   }
 

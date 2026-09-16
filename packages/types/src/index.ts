@@ -129,4 +129,5 @@ export interface JwtPayload {
   sub: string;
   role: Role;
   restaurantId?: string;
+  courierSessionVersion?: number;
 }

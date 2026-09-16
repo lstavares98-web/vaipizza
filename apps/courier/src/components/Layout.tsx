@@ -17,6 +17,15 @@ export default function Layout() {
   const location = useLocation();
   const deliveryMode = isDeliveryRoute(location.pathname);
   const showBottomNav = shouldShowBottomNav(Boolean(user), location.pathname);
+
+  async function handleLogout() {
+    try {
+      await logout();
+    } catch (err: any) {
+      window.alert(err?.response?.data?.message ?? "Não foi possível terminar sessão.");
+    }
+  }
+
   return (
     <div className={`app-shell ${deliveryMode ? "delivery-mode" : ""}`}>
       <header className="top-bar">
@@ -27,7 +36,15 @@ export default function Layout() {
             <small>Estafeta</small>
           </span>
         </NavLink>
-        {user && <button className="link-btn logout-btn" onClick={logout}>Sair</button>}
+        {user && (
+          <div style={{ display: "flex", alignItems: "center", gap: ".55rem", minWidth: 0 }}>
+            <span style={{ display: "flex", flexDirection: "column", textAlign: "right", minWidth: 0 }}>
+              <strong style={{ fontSize: ".78rem", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", maxWidth: "135px" }}>{user.name}</strong>
+              <small style={{ color: "var(--muted)", fontSize: ".62rem", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", maxWidth: "135px" }}>{user.email}</small>
+            </span>
+            <button className="link-btn logout-btn" onClick={() => void handleLogout()}>Sair</button>
+          </div>
+        )}
       </header>
       <main className="courier-main"><Outlet /></main>
       {showBottomNav && (

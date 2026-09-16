@@ -2,10 +2,12 @@ import { createContext, useCallback, useContext, useEffect, useState, type React
 import { useAuth } from "./AuthContext";
 import { api } from "../lib/api";
 import { useLocationReporting, type LocationReportingState } from "../hooks/useLocationReporting";
+import type { CourierOperationalState, CourierWorkStatus } from "../lib/courierUiState";
 
 export interface CourierProfile {
   id: string;
-  status: "OFFLINE" | "AVAILABLE" | "ASSIGNED" | "GOING_TO_RESTAURANT" | "AT_RESTAURANT" | "PICKED_UP" | "DELIVERING";
+  status: CourierWorkStatus;
+  operationalState: CourierOperationalState;
   verificationStatus: string;
   totalEarnings: number;
   lifetimeDeliveries: number;
@@ -54,7 +56,9 @@ export function CourierRuntimeProvider({ children }: { children: ReactNode }) {
     return () => window.clearInterval(timer);
   }, [user, refreshCourier]);
 
-  const trackingEnabled = Boolean(user && courier && courier.status !== "OFFLINE");
+  const trackingEnabled = Boolean(
+    user && courier && courier.operationalState === "ACTIVE" && courier.status !== "OFFLINE",
+  );
   const location = useLocationReporting(trackingEnabled);
 
   return (

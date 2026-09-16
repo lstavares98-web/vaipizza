@@ -21,6 +21,12 @@ export async function setOnline(userId: string, online: boolean) {
   if (courier.verificationStatus !== "APPROVED") {
     throw badRequest("A sua conta ainda não foi aprovada", "COURIER_NOT_APPROVED");
   }
+  if (courier.operationalState === "SUSPENDED") {
+    throw badRequest("A sua conta está temporariamente suspensa", "COURIER_SUSPENDED");
+  }
+  if (courier.operationalState === "DEACTIVATED") {
+    throw badRequest("A sua conta está desativada", "COURIER_DEACTIVATED");
+  }
 
   if (!online) {
     if (!["OFFLINE", "AVAILABLE"].includes(courier.status)) {

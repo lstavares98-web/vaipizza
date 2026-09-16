@@ -1,11 +1,11 @@
 import { Role } from "@yummix/types";
-import type { OrderStatus, RestaurantStatus, VerificationStatus } from "@prisma/client";
+import type { CourierOperationalState, OrderStatus, RestaurantStatus, VerificationStatus } from "@prisma/client";
 import { prisma } from "../../config/prisma.js";
 import { env } from "../../config/env.js";
 import { badRequest, notFound } from "../../utils/AppError.js";
-import { attemptRefund } from "../../services/refund.service.js";
 import { getIO, rooms } from "../../sockets/io.js";
 import { computeFinancials } from "./financials.js";
+import { cancelOrderBeforeHandoff } from "../orders/cancelOrder.service.js";
 
 // ---- Restaurants ------------------------------------------------------
 
@@ -56,6 +56,59 @@ export async function rejectCourier(id: string) {
   return prisma.courier.update({ where: { id }, data: { verificationStatus: "REJECTED" } });
 }
 
+const ACTIVE_COURIER_ORDER_STATUSES = ["COURIER_ASSIGNED", "PICKED_UP", "OUT_FOR_DELIVERY"] as const;
+
+export async function setCourierOperationalState(id: string, state: CourierOperationalState) {
+  const now = new Date();
+  const updated = await prisma.$transaction(async (tx) => {
+    const courier = await tx.courier.findUnique({ where: { id } });
+    if (!courier) throw notFound("Courier not found");
+
+    const activeOrder = await tx.order.findFirst({
+      where: { courierId: id, status: { in: [...ACTIVE_COURIER_ORDER_STATUSES] } },
+      select: { id: true, status: true },
+    });
+    if (activeOrder) {
+      throw badRequest(
+        "Resolva ou reatribua a entrega ativa antes de alterar o estado deste estafeta",
+        "NOT_ALLOWED_WITH_ACTIVE_DELIVERY",
+      );
+    }
+
+    if (state === "ACTIVE") {
+      return tx.courier.update({
+        where: { id },
+        data: { operationalState: "ACTIVE", status: "OFFLINE" },
+        include: { user: true },
+      });
+    }
+
+    await tx.courierAssignment.updateMany({
+      where: { courierId: id, status: "OFFERED" },
+      data: { status: "CANCELLED", respondedAt: now },
+    });
+
+    return tx.courier.update({
+      where: { id },
+      data: {
+        operationalState: state,
+        status: "OFFLINE",
+        sessionVersion: { increment: 1 },
+      },
+      include: { user: true },
+    });
+  });
+
+  if (state !== "ACTIVE") {
+    const io = getIO();
+    const room = rooms.courier(updated.userId);
+    io?.to(room).emit("courier:operational-state", { state });
+    io?.in(room).disconnectSockets(true);
+  }
+
+  return updated;
+}
+
 // ---- Customers ----------------------------------------------------------
 
 export async function listCustomers() {
@@ -86,41 +139,13 @@ export async function listAllOrders(filters: { status?: OrderStatus; restaurantI
   });
 }
 
-const CANCELLABLE_BY_ADMIN = [
-  "NEW",
-  "ACCEPTED",
-  "PREPARING",
-  "READY_FOR_PICKUP",
-  "WAITING_FOR_COURIER",
-  "COURIER_ASSIGNED",
-];
-
 export async function forceCancelOrder(orderId: string, reason: string) {
-  const order = await prisma.order.findUnique({ where: { id: orderId } });
-  if (!order) throw notFound("Order not found");
-  if (!CANCELLABLE_BY_ADMIN.includes(order.status)) {
-    throw badRequest("This order can no longer be cancelled", "NOT_CANCELLABLE");
-  }
-
-  const updated = await prisma.order.update({
-    where: { id: order.id },
-    data: {
-      status: "CANCELLED",
-      cancelledBy: Role.SUPER_ADMIN,
-      cancelledAt: new Date(),
-      rejectionReason: reason,
-      statusHistory: { create: { status: "CANCELLED", actor: Role.SUPER_ADMIN } },
-    },
+  const result = await cancelOrderBeforeHandoff({
+    orderId,
+    actorRole: Role.SUPER_ADMIN,
+    reason,
   });
-  if (order.courierId) {
-    await prisma.courier.update({ where: { id: order.courierId }, data: { status: "AVAILABLE" } });
-  }
-  await attemptRefund(updated, Role.SUPER_ADMIN);
-
-  getIO()?.to(rooms.customer(order.userId)).emit("order:status", { orderId: order.id, status: "CANCELLED" });
-  getIO()?.to(rooms.restaurant(order.restaurantId)).emit("order:status", { orderId: order.id, status: "CANCELLED" });
-
-  return updated;
+  return result.order;
 }
 
 // ---- Refund alerts ----------------------------------------------------

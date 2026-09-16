@@ -128,6 +128,15 @@ adminRouter.post(
   }),
 );
 
+adminRouter.patch(
+  "/couriers/:id/operational-state",
+  asyncHandler(async (req, res) => {
+    const { state } = z.object({ state: z.enum(["ACTIVE", "SUSPENDED", "DEACTIVATED"]) }).parse(req.body);
+    const courier = await adminService.setCourierOperationalState(req.params.id!, state);
+    res.json({ success: true, courier });
+  }),
+);
+
 // ---- Customers --------------------------------------------------------
 
 adminRouter.get(
