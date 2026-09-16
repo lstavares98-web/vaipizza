@@ -1,0 +1,332 @@
+name: Apply Courier Hardening Task 2
+
+on:
+  push:
+    branches:
+      - feat/courier-operations-hardening
+    paths:
+      - .github/workflows/apply-courier-hardening-task2.yml
+
+permissions:
+  contents: write
+
+jobs:
+  apply-and-verify:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: feat/courier-operations-hardening
+          fetch-depth: 0
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - name: Install dependencies
+        run: npm ci
+      - name: Apply Task 2 changes
+        shell: bash
+        run: |
+          cat > apps/api/src/modules/couriers/courierAvailability.policy.ts <<'EOF'
+          import type { CourierStatus } from "@prisma/client";
+
+          export function normalizeCourierStatusOnLogin(status: CourierStatus): CourierStatus {
+            return status === "AVAILABLE" ? "OFFLINE" : status;
+          }
+          EOF
+
+          cat > apps/api/src/modules/auth/auth.service.ts <<'EOF'
+          import bcrypt from "bcryptjs";
+          import { Role } from "@yummix/types";
+          import type { LoginInput, RegisterCourierInput, RegisterCustomerInput } from "@yummix/validation";
+          import { prisma } from "../../config/prisma.js";
+          import { badRequest, conflict, unauthorized } from "../../utils/AppError.js";
+          import { getIO, rooms } from "../../sockets/io.js";
+          import { normalizeCourierStatusOnLogin } from "../couriers/courierAvailability.policy.js";
+          import {
+            generateOpaqueToken,
+            hashToken,
+            refreshTtlToDate,
+            signAccessToken,
+          } from "./tokens.js";
+
+          const BCRYPT_ROUNDS = 12;
+          const ACTIVE_COURIER_STATUSES = ["ASSIGNED", "GOING_TO_RESTAURANT", "AT_RESTAURANT", "PICKED_UP", "DELIVERING"] as const;
+
+          type SessionUser = { id: string; role: Role; restaurantId: string | null };
+
+          function createSessionMaterial(user: SessionUser, courierSessionVersion?: number) {
+            const accessToken = signAccessToken({
+              sub: user.id,
+              role: user.role,
+              restaurantId: user.restaurantId ?? undefined,
+              ...(courierSessionVersion === undefined ? {} : { courierSessionVersion }),
+            });
+            const refreshToken = generateOpaqueToken();
+            return {
+              accessToken,
+              refreshToken,
+              refreshData: {
+                userId: user.id,
+                tokenHash: hashToken(refreshToken),
+                expiresAt: refreshTtlToDate(),
+              },
+            };
+          }
+
+          async function issueSession(user: SessionUser, courierSessionVersion?: number) {
+            const material = createSessionMaterial(user, courierSessionVersion);
+            await prisma.refreshToken.create({ data: material.refreshData });
+            return { accessToken: material.accessToken, refreshToken: material.refreshToken };
+          }
+
+          export async function registerCustomer(input: RegisterCustomerInput) {
+            const existing = await prisma.user.findUnique({ where: { email: input.email } });
+            if (existing) throw conflict("An account with this email already exists");
+
+            const passwordHash = await bcrypt.hash(input.password, BCRYPT_ROUNDS);
+            const user = await prisma.user.create({
+              data: {
+                email: input.email,
+                passwordHash,
+                name: input.name,
+                phone: input.phone,
+                role: Role.CUSTOMER,
+              },
+            });
+            const session = await issueSession(user);
+            return { user, ...session };
+          }
+
+          export async function registerCourier(input: RegisterCourierInput) {
+            const existing = await prisma.user.findUnique({ where: { email: input.email } });
+            if (existing) throw conflict("An account with this email already exists");
+
+            const passwordHash = await bcrypt.hash(input.password, BCRYPT_ROUNDS);
+            const user = await prisma.user.create({
+              data: {
+                email: input.email,
+                passwordHash,
+                name: input.name,
+                phone: input.phone,
+                role: Role.COURIER,
+                courier: {
+                  create: {
+                    vehicleType: input.vehicleType,
+                    vehicleNumber: input.vehicleNumber,
+                    documentIdUrl: input.documentIdUrl,
+                    documentLicenseUrl: input.documentLicenseUrl,
+                  },
+                },
+              },
+            });
+            const session = await issueSession(user, 0);
+            return { user, ...session };
+          }
+
+          export async function login(input: LoginInput, allowedRoles: Role[]) {
+            const user = await prisma.user.findUnique({ where: { email: input.email } });
+            if (!user) throw unauthorized("Invalid email or password");
+            if (user.isBlocked) throw unauthorized("This account has been blocked");
+            if (!allowedRoles.includes(user.role as Role)) {
+              throw unauthorized("This account cannot sign in through this app");
+            }
+
+            const valid = await bcrypt.compare(input.password, user.passwordHash);
+            if (!valid) throw unauthorized("Invalid email or password");
+
+            if (user.role !== Role.COURIER) {
+              const session = await issueSession(user);
+              return { user, ...session };
+            }
+
+            const courier = await prisma.courier.findUnique({ where: { userId: user.id } });
+            if (!courier) throw unauthorized("Courier profile unavailable");
+            if (courier.operationalState === "DEACTIVATED") {
+              throw unauthorized("Esta conta de estafeta está desativada", "COURIER_DEACTIVATED");
+            }
+
+            const nextStatus = normalizeCourierStatusOnLogin(courier.status);
+            const session = await prisma.$transaction(async (tx) => {
+              // Updating the courier row first serializes concurrent logins for
+              // the same account before older refresh sessions are revoked.
+              const updatedCourier = await tx.courier.update({
+                where: { id: courier.id },
+                data: { sessionVersion: { increment: 1 }, status: nextStatus },
+              });
+
+              await tx.refreshToken.updateMany({
+                where: { userId: user.id, revokedAt: null },
+                data: { revokedAt: new Date() },
+              });
+
+              const material = createSessionMaterial(user, updatedCourier.sessionVersion);
+              await tx.refreshToken.create({ data: material.refreshData });
+              return { accessToken: material.accessToken, refreshToken: material.refreshToken };
+            });
+
+            // Any already-connected courier device is the previous session.
+            // The new device has not opened its socket yet, so it is safe to
+            // notify and disconnect this room immediately after commit.
+            const room = rooms.courier(user.id);
+            getIO()?.to(room).emit("session:replaced", { message: "A sua conta foi iniciada noutro dispositivo." });
+            getIO()?.in(room).disconnectSockets(true);
+
+            return { user, ...session };
+          }
+
+          export async function refreshSession(rawRefreshToken: string) {
+            const tokenHash = hashToken(rawRefreshToken);
+            const stored = await prisma.refreshToken.findUnique({ where: { tokenHash } });
+            if (!stored || stored.revokedAt || stored.expiresAt < new Date()) {
+              throw unauthorized("Refresh token invalid or expired");
+            }
+
+            const user = await prisma.user.findUnique({ where: { id: stored.userId } });
+            if (!user || user.isBlocked) throw unauthorized("Account unavailable");
+
+            let courierSessionVersion: number | undefined;
+            if (user.role === Role.COURIER) {
+              const courier = await prisma.courier.findUnique({ where: { userId: user.id } });
+              if (!courier || courier.operationalState === "DEACTIVATED") throw unauthorized("Account unavailable");
+              courierSessionVersion = courier.sessionVersion;
+            }
+
+            const material = createSessionMaterial(user, courierSessionVersion);
+            await prisma.$transaction([
+              prisma.refreshToken.update({
+                where: { id: stored.id },
+                data: { revokedAt: new Date() },
+              }),
+              prisma.refreshToken.create({ data: material.refreshData }),
+            ]);
+            return { accessToken: material.accessToken, refreshToken: material.refreshToken };
+          }
+
+          export async function logout(rawRefreshToken: string) {
+            const tokenHash = hashToken(rawRefreshToken);
+            const stored = await prisma.refreshToken.findUnique({ where: { tokenHash } });
+            if (!stored || stored.revokedAt) return;
+
+            const user = await prisma.user.findUnique({ where: { id: stored.userId } });
+            if (!user) return;
+
+            if (user.role !== Role.COURIER) {
+              await prisma.refreshToken.updateMany({
+                where: { tokenHash, revokedAt: null },
+                data: { revokedAt: new Date() },
+              });
+              return;
+            }
+
+            const courier = await prisma.courier.findUnique({ where: { userId: user.id } });
+            if (!courier) return;
+            if ((ACTIVE_COURIER_STATUSES as readonly string[]).includes(courier.status)) {
+              throw badRequest("Não pode terminar sessão a meio de uma entrega", "COURIER_MID_DELIVERY");
+            }
+
+            await prisma.$transaction([
+              prisma.courier.update({
+                where: { id: courier.id },
+                data: {
+                  sessionVersion: { increment: 1 },
+                  ...(courier.status === "AVAILABLE" ? { status: "OFFLINE" as const } : {}),
+                },
+              }),
+              prisma.refreshToken.updateMany({
+                where: { userId: user.id, revokedAt: null },
+                data: { revokedAt: new Date() },
+              }),
+            ]);
+          }
+
+          export async function requestPasswordReset(email: string) {
+            const user = await prisma.user.findUnique({ where: { email } });
+            if (!user) return null;
+
+            const rawToken = generateOpaqueToken();
+            await prisma.passwordResetToken.create({
+              data: {
+                userId: user.id,
+                tokenHash: hashToken(rawToken),
+                expiresAt: new Date(Date.now() + 60 * 60 * 1000),
+              },
+            });
+            return { user, rawToken };
+          }
+
+          export async function resetPassword(rawToken: string, newPassword: string) {
+            const tokenHash = hashToken(rawToken);
+            const record = await prisma.passwordResetToken.findUnique({ where: { tokenHash } });
+            if (!record || record.usedAt || record.expiresAt < new Date()) {
+              throw badRequest("Reset link is invalid or has expired");
+            }
+
+            const passwordHash = await bcrypt.hash(newPassword, BCRYPT_ROUNDS);
+            await prisma.$transaction([
+              prisma.user.update({ where: { id: record.userId }, data: { passwordHash } }),
+              prisma.passwordResetToken.update({ where: { id: record.id }, data: { usedAt: new Date() } }),
+              prisma.refreshToken.updateMany({
+                where: { userId: record.userId, revokedAt: null },
+                data: { revokedAt: new Date() },
+              }),
+            ]);
+          }
+          EOF
+
+          python - <<'PY'
+          from pathlib import Path
+
+          p = Path('apps/api/src/utils/AppError.ts')
+          s = p.read_text()
+          old = 'export const unauthorized = (message = "Unauthorized") => new AppError(401, message, "UNAUTHORIZED");'
+          new = 'export const unauthorized = (message = "Unauthorized", code = "UNAUTHORIZED") => new AppError(401, message, code);'
+          if old not in s:
+              raise SystemExit('unauthorized anchor not found')
+          p.write_text(s.replace(old, new, 1))
+
+          p = Path('apps/api/src/middleware/auth.ts')
+          s = p.read_text()
+          s = s.replace('import { unauthorized, forbidden } from "../utils/AppError.js";\nimport { verifyAccessToken } from "../modules/auth/tokens.js";', 'import { unauthorized, forbidden } from "../utils/AppError.js";\nimport { verifyAccessToken } from "../modules/auth/tokens.js";\nimport { prisma } from "../config/prisma.js";\nimport { isCurrentCourierSession } from "../modules/auth/courierSession.policy.js";')
+          addition = '''\n\nexport const requireCurrentCourierSession = async (req: Request, _res: Response, next: NextFunction) => {\n  if (!req.auth) return next(unauthorized());\n  try {\n    const courier = await prisma.courier.findUnique({\n      where: { userId: req.auth.sub },\n      select: { sessionVersion: true },\n    });\n    if (!courier || !isCurrentCourierSession(req.auth.courierSessionVersion, courier.sessionVersion)) {\n      return next(unauthorized("A sua conta foi iniciada noutro dispositivo.", "COURIER_SESSION_REPLACED"));\n    }\n    next();\n  } catch (error) {\n    next(error);\n  }\n};\n'''
+          if 'export const requireCurrentCourierSession' not in s:
+              s += addition
+          p.write_text(s)
+
+          p = Path('apps/api/src/modules/couriers/courier.routes.ts')
+          s = p.read_text()
+          s = s.replace('import { requireAuth, requireRole } from "../../middleware/auth.js";', 'import { requireAuth, requireCurrentCourierSession, requireRole } from "../../middleware/auth.js";')
+          s = s.replace('courierRouter.use(requireAuth, requireRole(Role.COURIER));', 'courierRouter.use(requireAuth, requireRole(Role.COURIER), requireCurrentCourierSession);')
+          p.write_text(s)
+
+          p = Path('apps/api/src/server.ts')
+          s = p.read_text()
+          s = s.replace('import { env } from "./config/env.js";\nimport { verifyAccessToken } from "./modules/auth/tokens.js";', 'import { env } from "./config/env.js";\nimport { prisma } from "./config/prisma.js";\nimport { verifyAccessToken } from "./modules/auth/tokens.js";\nimport { isCurrentCourierSession } from "./modules/auth/courierSession.policy.js";')
+          old = '''io.use((socket, next) => {\n  const token = socket.handshake.auth?.token as string | undefined;\n  if (!token) return next(new Error("Missing auth token"));\n  try {\n    socket.data.auth = verifyAccessToken(token);\n    next();\n  } catch {\n    next(new Error("Invalid or expired token"));\n  }\n});'''
+          new = '''io.use(async (socket, next) => {\n  const token = socket.handshake.auth?.token as string | undefined;\n  if (!token) return next(new Error("Missing auth token"));\n  try {\n    const auth = verifyAccessToken(token);\n    if (auth.role === Role.COURIER) {\n      const courier = await prisma.courier.findUnique({\n        where: { userId: auth.sub },\n        select: { sessionVersion: true },\n      });\n      if (!courier || !isCurrentCourierSession(auth.courierSessionVersion, courier.sessionVersion)) {\n        return next(new Error("COURIER_SESSION_REPLACED"));\n      }\n    }\n    socket.data.auth = auth;\n    next();\n  } catch {\n    next(new Error("Invalid or expired token"));\n  }\n});'''
+          if old not in s:
+              raise SystemExit('server socket auth anchor not found')
+          p.write_text(s.replace(old, new, 1))
+          PY
+      - name: Generate Prisma client
+        run: npm run db:generate
+      - name: Focused Task 2 tests
+        run: npm test -w apps/api -- courierExclusiveSession.test.ts courierAvailability.policy.test.ts courierSession.policy.test.ts tokens.test.ts
+      - name: API regression tests
+        run: npm test -w apps/api
+      - name: API build
+        run: npm run build -w apps/api
+      - name: Commit verified Task 2
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add apps/api/src/modules/auth/auth.service.ts \
+                  apps/api/src/modules/couriers/courierAvailability.policy.ts \
+                  apps/api/src/utils/AppError.ts \
+                  apps/api/src/middleware/auth.ts \
+                  apps/api/src/modules/couriers/courier.routes.ts \
+                  apps/api/src/server.ts
+          git commit -m "feat: enforce exclusive courier sessions"
+          git push origin HEAD:feat/courier-operations-hardening
