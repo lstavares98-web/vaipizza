@@ -260,5 +260,5 @@ export async function listFranchiseLeads() {
 export async function updateFranchiseLeadStatus(id: string, status: "NEW" | "CONTACTED" | "ARCHIVED") {
   const existing = await prisma.franchiseLead.findUnique({ where: { id } });
   if (!existing) throw notFound("Contacto de franquia não encontrado");
-  return prisma.franchiseLead.update({ where: { id }, data: input });
+  return prisma.franchiseLead.update({ where: { id }, data: { status } });
 }
