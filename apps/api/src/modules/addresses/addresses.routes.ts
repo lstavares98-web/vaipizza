@@ -1,13 +1,27 @@
 import { Router } from "express";
+import { z } from "zod";
 import { addressSchema } from "@yummix/validation";
 import { Role } from "@yummix/types";
 import { asyncHandler } from "../../middleware/errorHandler.js";
 import { requireAuth, requireRole } from "../../middleware/auth.js";
 import { prisma } from "../../config/prisma.js";
 import { notFound } from "../../utils/AppError.js";
+import { reverseGeocodeCoordinates } from "./reverseGeocode.js";
 
 export const addressesRouter = Router();
 addressesRouter.use(requireAuth, requireRole(Role.CUSTOMER));
+
+addressesRouter.get(
+  "/reverse-geocode",
+  asyncHandler(async (req, res) => {
+    const query = z.object({
+      lat: z.coerce.number().min(-90).max(90),
+      lng: z.coerce.number().min(-180).max(180),
+    }).parse(req.query);
+    const suggestion = await reverseGeocodeCoordinates(query.lat, query.lng);
+    res.json({ success: true, suggestion });
+  }),
+);
 
 addressesRouter.get(
   "/",
