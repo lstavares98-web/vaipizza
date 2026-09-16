@@ -1,0 +1,13 @@
+.install-app-btn { display: inline-flex; align-items: center; justify-content: center; gap: .35rem; border: 1px solid currentColor; border-radius: 999px; font-weight: 800; white-space: nowrap; }
+.install-app-btn span { font-size: .95em; line-height: 1; }
+.install-app-btn-topbar { min-height: 38px; padding: .45rem .75rem; background: transparent; color: var(--green-dark); font-size: .72rem; }
+.install-app-btn-cinema { min-height: 40px; padding: .5rem .8rem; border-color: rgba(255,255,255,.38); background: rgba(10,18,14,.24); color: white; backdrop-filter: blur(8px); font-size: .72rem; }
+.install-guide-backdrop { position: fixed; inset: 0; z-index: 250; display: grid; place-items: end center; padding: 1rem; background: rgba(5,12,8,.56); backdrop-filter: blur(4px); }
+.install-guide { position: relative; width: min(440px, 100%); padding: 1.25rem; border-radius: 22px; background: #fffdf8; color: #171713; box-shadow: 0 24px 70px rgba(0,0,0,.24); }
+.install-guide-icon { display: grid; place-items: center; width: 46px; height: 46px; border-radius: 50%; background: #f7e8c8; color: #0b4d2b; font-size: 1.25rem; font-weight: 900; }
+.install-guide h2 { margin: .85rem 0 .4rem; color: #073219; font-size: 1.55rem; }
+.install-guide p { margin: .35rem 0; line-height: 1.5; font-size: .9rem; }
+.install-guide-hint { color: #746d62; }
+.install-guide-close { position: absolute; top: .75rem; right: .75rem; width: 36px; height: 36px; border: 0; border-radius: 50%; background: #f4eee2; color: #5d574e; font-size: 1.2rem; }
+.install-guide-ok { width: 100%; margin-top: 1rem; min-height: 48px; border: 0; border-radius: 14px; background: #073219; color: white; font-weight: 900; }
+@media (max-width: 640px) { .install-app-btn-topbar { padding-inline: .6rem; font-size: .66rem; } .install-guide-backdrop { padding: .6rem; } }
