@@ -88,6 +88,11 @@ export async function setCourierOperationalState(id: string, state: CourierOpera
       data: { status: "CANCELLED", respondedAt: now },
     });
 
+    await tx.refreshToken.updateMany({
+      where: { userId: courier.userId, revokedAt: null },
+      data: { revokedAt: now },
+    });
+
     return tx.courier.update({
       where: { id },
       data: {
