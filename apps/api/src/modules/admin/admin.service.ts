@@ -5,6 +5,7 @@ import { env } from "../../config/env.js";
 import { badRequest, notFound } from "../../utils/AppError.js";
 import { getIO, rooms } from "../../sockets/io.js";
 import { computeFinancials } from "./financials.js";
+import { getPendingCourierCashSummary } from "./adminAnalytics.js";
 import { cancelOrderBeforeHandoff } from "../orders/cancelOrder.service.js";
 
 // ---- Restaurants ------------------------------------------------------
@@ -176,7 +177,7 @@ export async function listFeedback() {
 // ---- Dashboard / financials --------------------------------------------
 
 export async function getDashboard() {
-  const [orders, restaurantCount, customerCount, courierCount, pendingRestaurants, pendingCouriers, unresolvedAlerts] =
+  const [orders, restaurantCount, customerCount, courierCount, pendingRestaurants, pendingCouriers, unresolvedAlerts, pendingCash] =
     await Promise.all([
       prisma.order.findMany({ include: { restaurant: { select: { commissionPercent: true } } } }),
       prisma.restaurant.count({ where: { status: "APPROVED" } }),
@@ -185,6 +186,7 @@ export async function getDashboard() {
       prisma.restaurant.count({ where: { status: "PENDING" } }),
       prisma.courier.count({ where: { verificationStatus: "PENDING" } }),
       prisma.adminAlert.count({ where: { resolved: false } }),
+      getPendingCourierCashSummary(),
     ]);
 
   const financials = computeFinancials(orders);
@@ -213,6 +215,7 @@ export async function getDashboard() {
     pendingRestaurants,
     pendingCouriers,
     unresolvedAlerts,
+    pendingCash,
     installation,
     revenueByDay,
   };
