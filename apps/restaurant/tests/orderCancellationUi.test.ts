@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
 
+// Source-policy coverage keeps the role/status contract visible without adding UI test dependencies.
 const source = readFileSync(new URL("../src/pages/OrdersDashboard.tsx", import.meta.url), "utf8");
 
 test("restaurant order UI uses the shared cancellation endpoint with a required reason", () => {
