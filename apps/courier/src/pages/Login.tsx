@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 
 export default function Login() {
-  const { login } = useAuth();
+  const { login, sessionMessage } = useAuth();
   const navigate = useNavigate();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -27,6 +27,7 @@ export default function Login() {
   return (
     <div className="auth-page">
       <h1>VaiPizza Estafeta</h1>
+      {sessionMessage && <p className="form-error notice-error">{sessionMessage}</p>}
       <form onSubmit={handleSubmit} className="auth-form">
         <label>
           Email

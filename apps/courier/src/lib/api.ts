@@ -1,4 +1,5 @@
 import axios from "axios";
+import { COURIER_SESSION_TERMINATED_EVENT, courierSessionTerminationMessage } from "./sessionError";
 
 const API_URL = import.meta.env.VITE_API_URL ?? "http://localhost:4000";
 
@@ -48,14 +49,25 @@ async function refreshAccessToken(): Promise<string | null> {
 api.interceptors.response.use(
   (res) => res,
   async (error) => {
+    const code = error.response?.data?.code as string | undefined;
+    const terminationMessage = courierSessionTerminationMessage(code);
+    if (terminationMessage) {
+      tokenStore.clear();
+      if (typeof window !== "undefined") {
+        window.dispatchEvent(new CustomEvent(COURIER_SESSION_TERMINATED_EVENT, { detail: terminationMessage }));
+      }
+      return Promise.reject(error);
+    }
+
     const original = error.config;
-    if (error.response?.status === 401 && !original._retry && tokenStore.refresh) {
+    if (error.response?.status === 401 && original && !original._retry && tokenStore.refresh) {
       original._retry = true;
       refreshPromise ??= refreshAccessToken().finally(() => {
         refreshPromise = null;
       });
       const newToken = await refreshPromise;
       if (newToken) {
+        original.headers = original.headers ?? {};
         original.headers.Authorization = `Bearer ${newToken}`;
         return api(original);
       }

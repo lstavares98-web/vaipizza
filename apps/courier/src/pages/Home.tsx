@@ -5,6 +5,7 @@ import { getSocket } from "../lib/socket";
 import { captureAndReportCurrentLocation } from "../hooks/useLocationReporting";
 import { useCourierRuntime } from "../context/CourierRuntimeContext";
 import { isOfferAlertReady, primeOfferAlert, startOfferAlert, stopOfferAlert } from "../lib/offerAlert";
+import { getCourierUiState } from "../lib/courierUiState";
 
 interface Assignment {
   id: string;
@@ -32,8 +33,9 @@ export default function Home() {
   const [error, setError] = useState<string | null>(null);
   const [alertReady, setAlertReady] = useState(() => isOfferAlertReady());
 
-  const online = Boolean(courier && courier.status !== "OFFLINE");
-  const canToggleAvailability = courier?.status === "OFFLINE" || courier?.status === "AVAILABLE";
+  const uiState = courier ? getCourierUiState(courier.operationalState, courier.status) : null;
+  const online = uiState?.online ?? false;
+  const canToggleAvailability = uiState?.canToggleAvailability ?? false;
 
   const load = useCallback(async () => {
     const { data: current } = await api.get("/courier/orders/current");
@@ -105,11 +107,8 @@ export default function Home() {
     setError(null);
     try {
       if (!online) {
-        // Prime Web Audio while this click still counts as a user gesture (important on iPhone/Safari).
         const ready = await primeOfferAlert();
         setAlertReady(ready);
-        // The backend will refuse online status without a fresh/accurate point.
-        // Capture it first so there is no OFFLINE -> AVAILABLE race.
         await captureAndReportCurrentLocation();
       }
       await api.post("/courier/online", { online: !online });
@@ -157,7 +156,7 @@ export default function Home() {
     }
   }
 
-  if (!courier) return <p className="page loading-copy">A carregar...</p>;
+  if (!courier || !uiState) return <p className="page loading-copy">A carregar...</p>;
 
   if (courier.verificationStatus !== "APPROVED") {
     return (
@@ -174,7 +173,11 @@ export default function Home() {
     ? `GPS atualizado · precisão ±${Math.round(location.accuracyM ?? 0)} m`
     : online
       ? "A obter localização GPS…"
-      : "O GPS só é partilhado enquanto estiver online.";
+      : courier.operationalState === "ACTIVE"
+        ? "O GPS só é partilhado enquanto estiver online."
+        : "GPS pausado enquanto a conta não está ativa.";
+
+  const operationDisabled = courier.operationalState !== "ACTIVE";
 
   return (
     <div className="page courier-home">
@@ -183,25 +186,27 @@ export default function Home() {
           <p className="page-eyebrow">Estado de trabalho</p>
           <div className="availability-title">
             <span className="status-dot" />
-            <h1>{online ? "Online" : "Offline"}</h1>
+            <h1>{uiState.title}</h1>
           </div>
-          <p>{online ? "Está ligado à operação de entregas." : "Fique online quando estiver pronto para começar."}</p>
+          <p>{uiState.description}</p>
           <small className="gps-runtime-copy">{gpsCopy}</small>
-          <button
-            type="button"
-            className={`offer-alert-toggle ${alertReady ? "is-ready" : ""}`}
-            onClick={enableAlerts}
-            disabled={alertReady}
-          >
-            {alertReady ? "🔔 Alertas ativos" : "🔕 Ativar alertas"}
-          </button>
+          {!operationDisabled && (
+            <button
+              type="button"
+              className={`offer-alert-toggle ${alertReady ? "is-ready" : ""}`}
+              onClick={enableAlerts}
+              disabled={alertReady}
+            >
+              {alertReady ? "🔔 Alertas ativos" : "🔕 Ativar alertas"}
+            </button>
+          )}
         </div>
         <button
           className={`availability-toggle ${online ? "on" : ""}`}
           onClick={toggleOnline}
           disabled={busy || !canToggleAvailability}
         >
-          {busy ? "A atualizar..." : online ? "Ficar offline" : "Ficar online"}
+          {busy ? "A atualizar..." : canToggleAvailability ? (online ? "Ficar offline" : "Ficar online") : "Indisponível"}
         </button>
       </section>
 
@@ -236,9 +241,9 @@ export default function Home() {
       ) : (
         <section className="waiting-card">
           <span className="waiting-pulse" />
-          <p className="page-eyebrow">{online ? "À procura" : "Pausado"}</p>
-          <h2>{online ? "À espera da próxima entrega" : "Está offline"}</h2>
-          <p>{online ? "Pode navegar dentro da aplicação; o GPS continua ativo enquanto estiver online." : "Quando quiser receber entregas, toque em Ficar online."}</p>
+          <p className="page-eyebrow">{operationDisabled ? "Conta" : online ? "À procura" : "Pausado"}</p>
+          <h2>{operationDisabled ? uiState.title : online ? "À espera da próxima entrega" : "Está offline"}</h2>
+          <p>{operationDisabled ? uiState.description : online ? "Pode navegar dentro da aplicação; o GPS continua ativo enquanto estiver online." : "Quando quiser receber entregas, toque em Ficar online."}</p>
         </section>
       )}
     </div>
