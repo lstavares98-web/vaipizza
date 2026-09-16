@@ -651,6 +651,12 @@ enum VerificationStatus {
   REJECTED
 }
 
+enum CourierOperationalState {
+  ACTIVE
+  SUSPENDED
+  DEACTIVATED
+}
+
 model Courier {
   id     String @id @default(cuid())
   userId String @unique
@@ -662,6 +668,8 @@ model Courier {
   documentIdUrl      String?
   documentLicenseUrl String?
   verificationStatus VerificationStatus @default(PENDING)
+  operationalState  CourierOperationalState @default(ACTIVE)
+  sessionVersion    Int                     @default(0)
 
   status    CourierStatus @default(OFFLINE)
   lat       Float?
