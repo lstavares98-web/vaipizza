@@ -9,7 +9,7 @@ on:
 jobs:
   verify:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 25
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -34,3 +34,9 @@ jobs:
 
       - name: Restaurant build
         run: npm run build -w apps/restaurant
+
+      - name: Customer build
+        run: npm run build -w apps/customer
+
+      - name: Courier build
+        run: npm run build -w apps/courier
