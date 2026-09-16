@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
+import InstallAppButton from "../components/InstallAppButton";
 import { BikeIcon, PinIcon } from "../components/NavIcons";
 import FranchiseModal from "../components/FranchiseModal";
 import { resolvePrimaryRestaurant, VAIPIZZA } from "../config/vaipizza";
@@ -62,6 +63,7 @@ export default function Home() {
             </span>
           </Link>
           <div className="cinema-nav-actions">
+            <InstallAppButton variant="cinema" />
             <Link className="cinema-nav-link" to={user ? "/orders" : "/login"}>
               {user ? "Pedidos" : "Entrar"}
             </Link>
