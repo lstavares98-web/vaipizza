@@ -1,7 +1,10 @@
 import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from "react";
 import { api, tokenStore } from "../lib/api";
 import { disconnectSocket, getSocket } from "../lib/socket";
-import { COURIER_SESSION_TERMINATED_EVENT } from "../lib/sessionError";
+import {
+  COURIER_SESSION_TERMINATED_EVENT,
+  courierSessionTerminationMessage,
+} from "../lib/sessionError";
 
 interface AuthUser {
   id: string;
@@ -69,12 +72,28 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         terminateSession("A sua conta foi desativada.");
       }
     };
+    const connectError = (error: Error) => {
+      const message = courierSessionTerminationMessage(error?.message);
+      if (message) terminateSession(message);
+    };
+    const disconnected = (reason: string) => {
+      // A mobile browser may suspend the page and miss the final socket event.
+      // If the server explicitly disconnected this socket, validate the REST session
+      // immediately when execution resumes; the API interceptor handles replacement.
+      if (reason === "io server disconnect" && tokenStore.access) {
+        void api.get("/courier/me").catch(() => undefined);
+      }
+    };
 
     socket.on("session:replaced", replaced);
     socket.on("courier:operational-state", operationalState);
+    socket.on("connect_error", connectError);
+    socket.on("disconnect", disconnected);
     return () => {
       socket.off("session:replaced", replaced);
       socket.off("courier:operational-state", operationalState);
+      socket.off("connect_error", connectError);
+      socket.off("disconnect", disconnected);
     };
   }, [terminateSession, user]);
 
