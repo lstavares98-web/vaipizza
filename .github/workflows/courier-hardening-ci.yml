@@ -1,0 +1,29 @@
+name: Courier Hardening CI
+
+on:
+  push:
+    branches:
+      - feat/courier-operations-hardening
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - name: Install dependencies
+        run: npm ci
+      - name: Generate Prisma client
+        run: npm run db:generate
+      - name: API tests
+        run: npm test -w apps/api
+      - name: Build workspaces
+        run: npm run build
