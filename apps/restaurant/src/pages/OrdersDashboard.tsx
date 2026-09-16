@@ -5,6 +5,7 @@ import { playNewOrderChime } from "../lib/sound";
 import { ORDER_STATUS_LABELS } from "../lib/orderLabels";
 import CourierOperationsPanel from "../components/CourierOperationsPanel";
 import { COURIER_INELIGIBILITY_LABELS, COURIER_STATUS_LABELS, formatGpsAge } from "../lib/courierPresentation";
+import { useAuth } from "../context/AuthContext";
 
 interface OrderItem {
   id: string;
@@ -34,11 +35,15 @@ interface OrderRow {
 
 const READY_STAGE = ["READY_FOR_PICKUP", "WAITING_FOR_COURIER", "COURIER_ASSIGNED", "PICKED_UP", "OUT_FOR_DELIVERY"];
 const REASSIGNABLE_STAGE = ["WAITING_FOR_COURIER", "COURIER_ASSIGNED"];
+const CANCELLABLE_STAGE = ["NEW", "ACCEPTED", "PREPARING", "READY_FOR_PICKUP", "WAITING_FOR_COURIER", "COURIER_ASSIGNED"];
 
 export default function OrdersDashboard() {
+  const { user } = useAuth();
   const [orders, setOrders] = useState<OrderRow[]>([]);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [reassignOrder, setReassignOrder] = useState<OrderRow | null>(null);
+  const [cancelOrder, setCancelOrder] = useState<OrderRow | null>(null);
+  const canCancelOrders = user?.role === "RESTAURANT_OWNER" || user?.role === "RESTAURANT_STAFF";
 
   const load = useCallback(() => {
     api.get("/restaurant/orders").then(({ data }) => setOrders(data.orders));
@@ -83,18 +88,6 @@ export default function OrdersDashboard() {
     setBusyId(order.id);
     try {
       await api.patch(`/restaurant/orders/${order.id}/status`, { status: "ACCEPTED" });
-      load();
-    } finally {
-      setBusyId(null);
-    }
-  }
-
-  async function reject(order: OrderRow) {
-    const rejectionReason = window.prompt("Motivo da rejeição?") ?? "";
-    if (!rejectionReason.trim()) return;
-    setBusyId(order.id);
-    try {
-      await api.patch(`/restaurant/orders/${order.id}/status`, { status: "CANCELLED", rejectionReason });
       load();
     } finally {
       setBusyId(null);
@@ -177,9 +170,11 @@ export default function OrdersDashboard() {
                 >
                   Aceitar
                 </button>
-                <button className="danger" disabled={busyId === o.id} onClick={() => reject(o)}>
-                  Rejeitar
-                </button>
+                {canCancelOrders && CANCELLABLE_STAGE.includes(o.status) && (
+                  <button className="danger" disabled={busyId === o.id} onClick={() => setCancelOrder(o)}>
+                    Cancelar pedido
+                  </button>
+                )}
               </div>
             </OrderCard>
           ))}
@@ -189,6 +184,11 @@ export default function OrdersDashboard() {
           {preparing.map((o) => (
             <OrderCard key={o.id} order={o}>
               <p className="hint">Na cozinha (KDS)</p>
+              {canCancelOrders && CANCELLABLE_STAGE.includes(o.status) && (
+                <div className="card-actions">
+                  <button className="danger" disabled={busyId === o.id} onClick={() => setCancelOrder(o)}>Cancelar pedido</button>
+                </div>
+              )}
             </OrderCard>
           ))}
         </Column>
@@ -206,6 +206,11 @@ export default function OrdersDashboard() {
               )}
               {o.fulfillmentType === "DELIVERY" && REASSIGNABLE_STAGE.includes(o.status) && (
                 <button onClick={() => setReassignOrder(o)}>Reatribuir estafeta</button>
+              )}
+              {canCancelOrders && CANCELLABLE_STAGE.includes(o.status) && (
+                <div className="card-actions">
+                  <button className="danger" disabled={busyId === o.id} onClick={() => setCancelOrder(o)}>Cancelar pedido</button>
+                </div>
               )}
             </OrderCard>
           ))}
@@ -231,6 +236,17 @@ export default function OrdersDashboard() {
           onClose={() => setReassignOrder(null)}
           onDone={() => {
             setReassignOrder(null);
+            load();
+          }}
+        />
+      )}
+
+      {cancelOrder && (
+        <CancelOrderModal
+          order={cancelOrder}
+          onClose={() => setCancelOrder(null)}
+          onDone={() => {
+            setCancelOrder(null);
             load();
           }}
         />
@@ -294,6 +310,60 @@ function OrderCard({ order, children }: { order: OrderRow; children?: React.Reac
       {order.paymentMethod === "CASH" && order.changeDue == null && <p className="hint">💶 Dinheiro na entrega</p>}
       <p className="hint">{ORDER_STATUS_LABELS[order.status] ?? order.status}</p>
       {children}
+    </div>
+  );
+}
+
+function CancelOrderModal({ order, onClose, onDone }: { order: OrderRow; onClose: () => void; onDone: () => void }) {
+  const [reason, setReason] = useState("");
+  const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+
+  async function submit(event: React.FormEvent) {
+    event.preventDefault();
+    const trimmedReason = reason.trim();
+    if (!trimmedReason) {
+      setError("Indique o motivo do cancelamento.");
+      return;
+    }
+
+    setBusy(true);
+    setError(null);
+    try {
+      await api.post(`/restaurant/orders/${order.id}/cancel`, { reason: trimmedReason });
+      onDone();
+    } catch (err: any) {
+      setError(err?.response?.data?.message ?? "Não foi possível cancelar este pedido.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="modal-backdrop" onClick={() => !busy && onClose()}>
+      <form className="modal" onSubmit={submit} onClick={(event) => event.stopPropagation()}>
+        <p className="page-eyebrow">Cancelamento operacional</p>
+        <h2>Cancelar pedido #{order.orderNumber}</h2>
+        <p className="hint">Indique o motivo. O cancelamento fica registado no histórico do pedido.</p>
+        <label>
+          Motivo do cancelamento
+          <textarea
+            value={reason}
+            onChange={(event) => setReason(event.target.value)}
+            maxLength={500}
+            rows={4}
+            autoFocus
+            disabled={busy}
+          />
+        </label>
+        {error && <p className="form-error">{error}</p>}
+        <div className="modal-actions">
+          <button type="button" className="link-btn" onClick={onClose} disabled={busy}>Voltar</button>
+          <button type="submit" className="danger" disabled={busy || !reason.trim()}>
+            {busy ? "A cancelar..." : "Confirmar cancelamento"}
+          </button>
+        </div>
+      </form>
     </div>
   );
 }
