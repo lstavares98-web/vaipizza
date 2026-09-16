@@ -5,21 +5,24 @@ const state = vi.hoisted(() => {
   const orderFindFirst = vi.fn();
   const courierUpdate = vi.fn();
   const assignmentUpdateMany = vi.fn();
+  const refreshTokenUpdateMany = vi.fn();
 
   const tx = {
     courier: { findUnique: courierFindUnique, update: courierUpdate },
     order: { findFirst: orderFindFirst },
     courierAssignment: { updateMany: assignmentUpdateMany },
+    refreshToken: { updateMany: refreshTokenUpdateMany },
   };
 
   const prisma = {
     courier: { findUnique: courierFindUnique, update: courierUpdate },
     order: { findFirst: orderFindFirst },
     courierAssignment: { updateMany: assignmentUpdateMany },
+    refreshToken: { updateMany: refreshTokenUpdateMany },
     $transaction: vi.fn(async (callback: (client: typeof tx) => Promise<unknown>) => callback(tx)),
   };
 
-  return { prisma, tx, courierFindUnique, orderFindFirst, courierUpdate, assignmentUpdateMany };
+  return { prisma, tx, courierFindUnique, orderFindFirst, courierUpdate, assignmentUpdateMany, refreshTokenUpdateMany };
 });
 
 vi.mock("../../config/prisma.js", () => ({ prisma: state.prisma }));
@@ -47,6 +50,7 @@ describe("setCourierOperationalState", () => {
     });
     state.orderFindFirst.mockResolvedValue(null);
     state.assignmentUpdateMany.mockResolvedValue({ count: 0 });
+    state.refreshTokenUpdateMany.mockResolvedValue({ count: 1 });
     state.courierUpdate.mockResolvedValue({
       id: "c1",
       userId: "u1",
@@ -63,6 +67,7 @@ describe("setCourierOperationalState", () => {
       code: "NOT_ALLOWED_WITH_ACTIVE_DELIVERY",
     });
     expect(state.courierUpdate).not.toHaveBeenCalled();
+    expect(state.refreshTokenUpdateMany).not.toHaveBeenCalled();
   });
 
   it("suspends an idle courier, invalidates the session and cancels outstanding offers", async () => {
@@ -80,6 +85,10 @@ describe("setCourierOperationalState", () => {
     expect(state.assignmentUpdateMany).toHaveBeenCalledWith({
       where: { courierId: "c1", status: "OFFERED" },
       data: { status: "CANCELLED", respondedAt: expect.any(Date) },
+    });
+    expect(state.refreshTokenUpdateMany).toHaveBeenCalledWith({
+      where: { userId: "u1", revokedAt: null },
+      data: { revokedAt: expect.any(Date) },
     });
   });
 
@@ -106,6 +115,7 @@ describe("setCourierOperationalState", () => {
       data: { operationalState: "ACTIVE", status: "OFFLINE" },
       include: { user: true },
     });
+    expect(state.refreshTokenUpdateMany).not.toHaveBeenCalled();
     expect(result.status).toBe("OFFLINE");
   });
 });
