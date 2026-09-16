@@ -4,12 +4,14 @@ import { Role } from "@yummix/types";
 import { asyncHandler } from "../../middleware/errorHandler.js";
 import { requireAuth, requireRole } from "../../middleware/auth.js";
 import * as adminService from "./admin.service.js";
+import { getAdminOrderDetail, listAdminOrders } from "./adminOrders.js";
 
 export const adminRouter = Router();
 adminRouter.use(requireAuth, requireRole(Role.SUPER_ADMIN));
 
 const restaurantStatusSchema = z.enum(["PENDING", "APPROVED", "SUSPENDED", "REJECTED"]).optional();
 const courierStatusSchema = z.enum(["PENDING", "APPROVED", "REJECTED"]).optional();
+const dateOnlySchema = z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional();
 const orderStatusSchema = z
   .enum([
     "NEW",
@@ -33,7 +35,6 @@ adminRouter.get(
     res.json({ success: true, ...dashboard });
   }),
 );
-
 
 // ---- Single-installation features --------------------------------------
 
@@ -170,8 +171,23 @@ adminRouter.get(
   asyncHandler(async (req, res) => {
     const status = orderStatusSchema.parse(req.query.status);
     const restaurantId = typeof req.query.restaurantId === "string" ? req.query.restaurantId : undefined;
-    const orders = await adminService.listAllOrders({ status, restaurantId });
+    const date = dateOnlySchema.parse(req.query.date);
+    const from = dateOnlySchema.parse(req.query.from);
+    const to = dateOnlySchema.parse(req.query.to);
+    const orderNumber =
+      typeof req.query.orderNumber === "string"
+        ? z.coerce.number().int().positive().parse(req.query.orderNumber)
+        : undefined;
+    const orders = await listAdminOrders({ status, restaurantId, orderNumber, date, from, to });
     res.json({ success: true, orders });
+  }),
+);
+
+adminRouter.get(
+  "/orders/:id",
+  asyncHandler(async (req, res) => {
+    const order = await getAdminOrderDetail(req.params.id!);
+    res.json({ success: true, order });
   }),
 );
 
