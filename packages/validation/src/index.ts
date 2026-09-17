@@ -7,6 +7,8 @@ export const registerCustomerSchema = z.object({
   // Required — every order must carry a phone number for the restaurant/
   // courier to reach the customer.
   phone: z.string().min(6).max(20),
+  addressLine1: z.string().trim().min(3).max(160),
+  postalCode: z.string().trim().regex(/^\d{4}-\d{3}$/, "Use 0000-000"),
 });
 export type RegisterCustomerInput = z.infer<typeof registerCustomerSchema>;
 
