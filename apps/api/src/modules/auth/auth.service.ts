@@ -47,6 +47,18 @@ function normalizePostalCode(value: string) {
   return value.trim().replace(/\s+/g, "").toUpperCase();
 }
 
+function forcedPasswordMarkerHash(userId: string) {
+  return hashToken(`forced-password-change:${userId}`);
+}
+
+export async function customerMustChangePassword(userId: string) {
+  const marker = await prisma.passwordResetToken.findUnique({
+    where: { tokenHash: forcedPasswordMarkerHash(userId) },
+    select: { usedAt: true },
+  });
+  return Boolean(marker && !marker.usedAt);
+}
+
 export async function registerCustomer(input: RegisterCustomerInput) {
   const existing = await prisma.user.findUnique({ where: { email: input.email } });
   if (existing) throw conflict("An account with this email already exists");
@@ -81,7 +93,7 @@ export async function registerCustomer(input: RegisterCustomerInput) {
     },
   });
   const session = await issueSession(user);
-  return { user, ...session };
+  return { user: { ...user, mustChangePassword: false }, ...session };
 }
 
 export async function registerCourier(input: RegisterCourierInput) {
@@ -107,7 +119,7 @@ export async function registerCourier(input: RegisterCourierInput) {
     },
   });
   const session = await issueSession(user, 0);
-  return { user, ...session };
+  return { user: { ...user, mustChangePassword: false }, ...session };
 }
 
 export async function login(input: LoginInput, allowedRoles: Role[]) {
@@ -123,7 +135,8 @@ export async function login(input: LoginInput, allowedRoles: Role[]) {
 
   if (user.role !== Role.COURIER) {
     const session = await issueSession(user);
-    return { user, ...session };
+    const mustChangePassword = user.role === Role.CUSTOMER ? await customerMustChangePassword(user.id) : false;
+    return { user: { ...user, mustChangePassword }, ...session };
   }
 
   const courier = await prisma.courier.findUnique({ where: { userId: user.id } });
@@ -158,7 +171,7 @@ export async function login(input: LoginInput, allowedRoles: Role[]) {
   getIO()?.to(room).emit("session:replaced", { message: "A sua conta foi iniciada noutro dispositivo." });
   getIO()?.in(room).disconnectSockets(true);
 
-  return { user, ...session };
+  return { user: { ...user, mustChangePassword: false }, ...session };
 }
 
 export async function refreshSession(rawRefreshToken: string) {
@@ -226,6 +239,25 @@ export async function logout(rawRefreshToken: string) {
   ]);
 }
 
+export async function changeOwnPassword(userId: string, newPassword: string) {
+  const user = await prisma.user.findUnique({ where: { id: userId } });
+  if (!user || user.role !== Role.CUSTOMER) throw unauthorized("Account unavailable");
+
+  const passwordHash = await bcrypt.hash(newPassword, BCRYPT_ROUNDS);
+  const now = new Date();
+  await prisma.$transaction(async (tx) => {
+    await tx.user.update({ where: { id: userId }, data: { passwordHash } });
+    await tx.passwordResetToken.updateMany({
+      where: { tokenHash: forcedPasswordMarkerHash(userId), usedAt: null },
+      data: { usedAt: now },
+    });
+    await tx.refreshToken.updateMany({
+      where: { userId, revokedAt: null },
+      data: { revokedAt: now },
+    });
+  });
+}
+
 export async function requestPasswordReset(email: string) {
   const user = await prisma.user.findUnique({ where: { email } });
   if (!user) return null;
@@ -252,6 +284,10 @@ export async function resetPassword(rawToken: string, newPassword: string) {
   await prisma.$transaction([
     prisma.user.update({ where: { id: record.userId }, data: { passwordHash } }),
     prisma.passwordResetToken.update({ where: { id: record.id }, data: { usedAt: new Date() } }),
+    prisma.passwordResetToken.updateMany({
+      where: { tokenHash: forcedPasswordMarkerHash(record.userId), usedAt: null },
+      data: { usedAt: new Date() },
+    }),
     prisma.refreshToken.updateMany({
       where: { userId: record.userId, revokedAt: null },
       data: { revokedAt: new Date() },
