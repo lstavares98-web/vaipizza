@@ -4,11 +4,15 @@
   "private": true,
   "type": "module",
   "scripts": {
+    "generate:pwa-icons": "node scripts/generate-pwa-icons.mjs",
+    "predev": "npm run generate:pwa-icons",
     "dev": "vite --port 3000",
+    "prebuild": "npm run generate:pwa-icons",
     "build": "tsc -b && vite build",
     "preview": "vite preview --port 3000",
     "lint": "eslint . --ext ts,tsx",
-    "test": "vitest run src/components/installAppPolicy.test.ts src/lib/postalCode.test.ts",
+    "pretest": "npm run generate:pwa-icons",
+    "test": "vitest run src/components/installAppPolicy.test.ts src/lib/pwaAssets.test.ts src/lib/postalCode.test.ts",
     "test:e2e": "playwright test"
   },
   "dependencies": {

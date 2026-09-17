@@ -25,3 +25,8 @@ dist-ssr
 *.sw?
 .netlify
 *.tsbuildinfo
+
+# Generated customer PWA assets
+apps/customer/public/pwa-192x192.png
+apps/customer/public/pwa-512x512.png
+apps/customer/public/pwa-maskable-512x512.png
