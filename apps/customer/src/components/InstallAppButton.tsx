@@ -21,7 +21,7 @@ function isIosDevice() {
 export default function InstallAppButton({ variant = "topbar" }: { variant?: "topbar" | "cinema" }) {
   const [installPrompt, setInstallPrompt] = useState<BeforeInstallPromptEvent | null>(null);
   const [installed, setInstalled] = useState(isStandaloneMode);
-  const [showIosGuide, setShowIosGuide] = useState(false);
+  const [guide, setGuide] = useState<"ios" | "browser" | null>(null);
   const ios = useMemo(isIosDevice, []);
 
   useEffect(() => {
@@ -32,7 +32,7 @@ export default function InstallAppButton({ variant = "topbar" }: { variant?: "to
     const onInstalled = () => {
       setInstalled(true);
       setInstallPrompt(null);
-      setShowIosGuide(false);
+      setGuide(null);
     };
     const media = window.matchMedia("(display-mode: standalone)");
     const onDisplayModeChange = () => setInstalled(isStandaloneMode());
@@ -47,18 +47,16 @@ export default function InstallAppButton({ variant = "topbar" }: { variant?: "to
     };
   }, []);
 
-  if (installed || (!installPrompt && !ios)) return null;
+  if (installed) return null;
 
   async function install() {
     if (installPrompt) {
       await installPrompt.prompt();
       const choice = await installPrompt.userChoice;
-      if (choice.outcome === "accepted") {
-        setInstallPrompt(null);
-      }
+      if (choice.outcome === "accepted") setInstallPrompt(null);
       return;
     }
-    if (ios) setShowIosGuide(true);
+    setGuide(ios ? "ios" : "browser");
   }
 
   return (
@@ -68,15 +66,24 @@ export default function InstallAppButton({ variant = "topbar" }: { variant?: "to
         Instalar app
       </button>
 
-      {showIosGuide && (
-        <div className="install-guide-backdrop" onMouseDown={() => setShowIosGuide(false)}>
+      {guide && (
+        <div className="install-guide-backdrop" onMouseDown={() => setGuide(null)}>
           <div className="install-guide" role="dialog" aria-modal="true" aria-labelledby="install-guide-title" onMouseDown={(event) => event.stopPropagation()}>
-            <button className="install-guide-close" type="button" aria-label="Fechar" onClick={() => setShowIosGuide(false)}>×</button>
+            <button className="install-guide-close" type="button" aria-label="Fechar" onClick={() => setGuide(null)}>×</button>
             <span className="install-guide-icon" aria-hidden="true">↥</span>
             <h2 id="install-guide-title">Instalar a VaiPizza</h2>
-            <p>No Safari, toque em <strong>Partilhar</strong> e depois escolha <strong>Adicionar ao ecrã principal</strong>.</p>
-            <p className="install-guide-hint">Depois, a VaiPizza abre como aplicação, sem a barra normal do navegador.</p>
-            <button type="button" className="install-guide-ok" onClick={() => setShowIosGuide(false)}>Entendi</button>
+            {guide === "ios" ? (
+              <>
+                <p>No Safari, toque em <strong>Partilhar</strong> e depois escolha <strong>Adicionar ao ecrã principal</strong>.</p>
+                <p className="install-guide-hint">Depois, a VaiPizza abre como aplicação, sem a barra normal do navegador.</p>
+              </>
+            ) : (
+              <>
+                <p>Abra o menu do navegador e escolha <strong>Instalar aplicação</strong>, <strong>Adicionar ao ecrã principal</strong> ou opção equivalente.</p>
+                <p className="install-guide-hint">Se essa opção ainda não aparecer, pode continuar a usar o site normalmente e tentar novamente mais tarde.</p>
+              </>
+            )}
+            <button type="button" className="install-guide-ok" onClick={() => setGuide(null)}>Entendi</button>
           </div>
         </div>
       )}
