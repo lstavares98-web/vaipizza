@@ -4,6 +4,7 @@ import type { LoginInput, RegisterCourierInput, RegisterCustomerInput } from "@y
 import { prisma } from "../../config/prisma.js";
 import { badRequest, conflict, unauthorized } from "../../utils/AppError.js";
 import { getIO, rooms } from "../../sockets/io.js";
+import { composeAddressSearchQuery, searchAddressCoordinates } from "../addresses/forwardGeocode.js";
 import { normalizeCourierStatusOnLogin } from "../couriers/courierAvailability.policy.js";
 import {
   generateOpaqueToken,
@@ -42,9 +43,21 @@ async function issueSession(user: SessionUser, courierSessionVersion?: number) {
   return { accessToken: material.accessToken, refreshToken: material.refreshToken };
 }
 
+function normalizePostalCode(value: string) {
+  return value.trim().replace(/\s+/g, "").toUpperCase();
+}
+
 export async function registerCustomer(input: RegisterCustomerInput) {
   const existing = await prisma.user.findUnique({ where: { email: input.email } });
   if (existing) throw conflict("An account with this email already exists");
+
+  const query = composeAddressSearchQuery({ line1: input.addressLine1, postalCode: input.postalCode });
+  const suggestions = await searchAddressCoordinates(query);
+  const requestedPostalCode = normalizePostalCode(input.postalCode);
+  const address = suggestions.find((suggestion) => normalizePostalCode(suggestion.postalCode) === requestedPostalCode);
+  if (!address?.city) {
+    throw badRequest("Não foi possível confirmar esta morada. Verifique a morada e o código postal.");
+  }
 
   const passwordHash = await bcrypt.hash(input.password, BCRYPT_ROUNDS);
   const user = await prisma.user.create({
@@ -54,6 +67,17 @@ export async function registerCustomer(input: RegisterCustomerInput) {
       name: input.name,
       phone: input.phone,
       role: Role.CUSTOMER,
+      addresses: {
+        create: {
+          label: "Casa",
+          line1: input.addressLine1,
+          city: address.city,
+          postalCode: input.postalCode,
+          lat: address.lat,
+          lng: address.lng,
+          isDefault: true,
+        },
+      },
     },
   });
   const session = await issueSession(user);
