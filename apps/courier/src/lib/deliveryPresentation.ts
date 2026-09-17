@@ -8,6 +8,13 @@ export interface DeliveryStep {
   target: DeliveryTarget;
 }
 
+export interface DeliveryAddressDisplay {
+  line1: string;
+  line2?: string | null;
+  city: string;
+  postalCode?: string | null;
+}
+
 const STEPS: Record<string, DeliveryStep> = {
   COURIER_ASSIGNED: {
     title: "Recolher na VAIPIZZA",
@@ -31,6 +38,12 @@ const STEPS: Record<string, DeliveryStep> = {
 
 export function getDeliveryStep(status: string): DeliveryStep | null {
   return STEPS[status] ?? null;
+}
+
+export function formatDeliveryAddress(address: DeliveryAddressDisplay) {
+  const firstLine = [address.line1, address.line2].filter(Boolean).join(", ");
+  const secondLine = [address.postalCode, address.city].filter(Boolean).join(" ");
+  return [firstLine, secondLine].filter(Boolean).join(" · ");
 }
 
 export function buildDirectionsUrl(lat: number, lng: number) {
