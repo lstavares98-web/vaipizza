@@ -10,7 +10,7 @@ import { forceReassignCourier, listNearbyCouriers } from "../dispatch/dispatch.s
 import { lookupManualCustomer } from "./manualCustomer.js";
 import { createManualOrder } from "./manualOrder.service.js";
 import { buildOrderCustomerDisplay } from "./orderCustomerDisplay.js";
-import { searchAddressCoordinates } from "../addresses/forwardGeocode.js";
+import { composeAddressSearchQuery, searchAddressCoordinates } from "../addresses/forwardGeocode.js";
 
 export const restaurantOrdersRouter = Router();
 restaurantOrdersRouter.use(
@@ -38,6 +38,7 @@ const manualOrderSchema = z.object({
     lat: z.number().min(-90).max(90),
     lng: z.number().min(-180).max(180),
   }).optional(),
+  deliveryInstructions: z.string().trim().max(300).optional(),
   paymentMethod: z.enum(["CASH", "MBWAY", "TERMINAL"]),
   amountTendered: z.number().positive().optional(),
   notes: z.string().trim().max(500).optional(),
@@ -80,8 +81,21 @@ restaurantOrdersRouter.get(
   "/address-search",
   requireRole(Role.RESTAURANT_OWNER, Role.RESTAURANT_STAFF),
   asyncHandler(async (req, res) => {
-    const { q } = z.object({ q: z.string().trim().min(4).max(220) }).parse(req.query);
-    const suggestions = await searchAddressCoordinates(q);
+    const input = z.object({
+      q: z.string().trim().min(4).max(220).optional(),
+      line1: z.string().trim().min(2).max(200).optional(),
+      postalCode: z.string().trim().max(30).optional(),
+      city: z.string().trim().max(100).optional(),
+    }).refine((value) => Boolean(value.q || value.line1), {
+      message: "Indique a rua ou a pesquisa da morada",
+    }).parse(req.query);
+
+    const query = input.q ?? composeAddressSearchQuery({
+      line1: input.line1 ?? "",
+      postalCode: input.postalCode,
+      city: input.city,
+    });
+    const suggestions = await searchAddressCoordinates(query);
     res.json({ success: true, suggestions });
   }),
 );
