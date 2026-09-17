@@ -8,6 +8,7 @@ import * as ordersService from "./orders.service.js";
 import { cancelOrderBeforeHandoff } from "./cancelOrder.service.js";
 import { forceReassignCourier, listNearbyCouriers } from "../dispatch/dispatch.service.js";
 import { lookupManualCustomer } from "./manualCustomer.js";
+import { createManualOrder } from "./manualOrder.service.js";
 
 export const restaurantOrdersRouter = Router();
 restaurantOrdersRouter.use(
@@ -18,6 +19,38 @@ restaurantOrdersRouter.use(
 
 const listQuerySchema = z.object({
   status: z.string().optional(), // comma-separated OrderStatus values
+});
+
+const manualOrderSchema = z.object({
+  origin: z.enum(["PHONE", "COUNTER"]),
+  fulfillmentType: z.enum(["DELIVERY", "PICKUP"]),
+  registeredUserId: z.string().optional(),
+  customerName: z.string().trim().max(120).optional(),
+  customerPhone: z.string().trim().max(40).optional(),
+  addressId: z.string().optional(),
+  delivery: z.object({
+    line1: z.string().trim().min(1).max(200),
+    line2: z.string().trim().max(160).optional(),
+    city: z.string().trim().min(1).max(100),
+    postalCode: z.string().trim().max(30).optional(),
+    lat: z.number().min(-90).max(90),
+    lng: z.number().min(-180).max(180),
+  }).optional(),
+  paymentMethod: z.enum(["CASH", "MBWAY", "TERMINAL"]),
+  amountTendered: z.number().positive().optional(),
+  notes: z.string().trim().max(500).optional(),
+  items: z.array(z.object({
+    productId: z.string().optional(),
+    comboId: z.string().optional(),
+    secondaryProductId: z.string().optional(),
+    quantity: z.number().int().min(1).max(50),
+    modifierOptionIds: z.array(z.string()).default([]),
+    comboSelections: z.array(z.object({
+      groupId: z.string(),
+      optionIds: z.array(z.string()),
+    })).default([]),
+    notes: z.string().trim().max(300).optional(),
+  })).min(1).max(50),
 });
 
 restaurantOrdersRouter.get(
@@ -37,6 +70,16 @@ restaurantOrdersRouter.get(
     const { phone } = z.object({ phone: z.string().trim().min(7).max(40) }).parse(req.query);
     const result = await lookupManualCustomer(req.auth!.restaurantId!, phone);
     res.json({ success: true, ...result });
+  }),
+);
+
+restaurantOrdersRouter.post(
+  "/manual",
+  requireRole(Role.RESTAURANT_OWNER, Role.RESTAURANT_STAFF),
+  asyncHandler(async (req, res) => {
+    const input = manualOrderSchema.parse(req.body);
+    const order = await createManualOrder(req.auth!.restaurantId!, req.auth!.role, input);
+    res.status(201).json({ success: true, order });
   }),
 );
 
