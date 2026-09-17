@@ -74,9 +74,12 @@ export default function NewOrder() {
   const [registeredUserId, setRegisteredUserId] = useState<string | undefined>();
   const [selectedAddressId, setSelectedAddressId] = useState<string | undefined>();
   const [delivery, setDelivery] = useState<Address | null>(null);
-  const [addressQuery, setAddressQuery] = useState("");
+  const [addressLine1, setAddressLine1] = useState("");
+  const [addressPostalCode, setAddressPostalCode] = useState("");
+  const [addressCity, setAddressCity] = useState("");
   const [addressSuggestions, setAddressSuggestions] = useState<AddressSuggestion[]>([]);
   const [addressBusy, setAddressBusy] = useState(false);
+  const [deliveryInstructions, setDeliveryInstructions] = useState("");
 
   const [categories, setCategories] = useState<Category[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
@@ -118,6 +121,12 @@ export default function NewOrder() {
     }
   }, [origin, fulfillmentType, phoneSearch]);
 
+  function populateAddressSearch(address: Address) {
+    setAddressLine1(address.line1);
+    setAddressPostalCode(address.postalCode ?? "");
+    setAddressCity(address.city);
+  }
+
   async function searchCustomer() {
     if (!phoneSearch.trim()) return;
     setLookupBusy(true);
@@ -128,6 +137,11 @@ export default function NewOrder() {
       setLookup(result);
       setSelectedAddressId(undefined);
       setDelivery(null);
+      setAddressSuggestions([]);
+      setAddressLine1("");
+      setAddressPostalCode("");
+      setAddressCity("");
+      setDeliveryInstructions("");
       if (result.type === "REGISTERED") {
         setRegisteredUserId(result.customer.id);
         setCustomerName(result.customer.name);
@@ -140,6 +154,7 @@ export default function NewOrder() {
         setCustomerPhone(result.customer.phone);
         if (result.lastDelivery?.lat != null && result.lastDelivery?.lng != null && result.lastDelivery.line1 && result.lastDelivery.city) {
           setDelivery(result.lastDelivery);
+          populateAddressSearch(result.lastDelivery);
         }
       } else {
         setRegisteredUserId(undefined);
@@ -154,13 +169,21 @@ export default function NewOrder() {
   }
 
   async function searchAddress() {
-    if (addressQuery.trim().length < 4) return;
+    if (addressLine1.trim().length < 2) return;
     setAddressBusy(true);
     setError(null);
     try {
-      const { data } = await api.get("/restaurant/orders/address-search", { params: { q: addressQuery } });
+      const { data } = await api.get("/restaurant/orders/address-search", {
+        params: {
+          line1: addressLine1.trim(),
+          postalCode: addressPostalCode.trim() || undefined,
+          city: addressCity.trim() || undefined,
+        },
+      });
       setAddressSuggestions(data.suggestions ?? []);
-      if (!(data.suggestions ?? []).length) setError("Não encontrei essa morada. Tente escrever rua, número e localidade.");
+      if (!(data.suggestions ?? []).length) {
+        setError("Não encontrei essa morada. Confirme a rua e, se possível, indique também o código postal e a localidade.");
+      }
     } catch (err: any) {
       setError(err?.response?.data?.message ?? "Não foi possível pesquisar a morada.");
     } finally {
@@ -171,8 +194,9 @@ export default function NewOrder() {
   function chooseSuggestion(suggestion: AddressSuggestion) {
     setDelivery(suggestion);
     setSelectedAddressId(undefined);
-    setAddressQuery(suggestion.displayName || `${suggestion.line1}, ${suggestion.city}`);
+    populateAddressSearch(suggestion);
     setAddressSuggestions([]);
+    setError(null);
   }
 
   const visibleProducts = useMemo(
@@ -311,6 +335,7 @@ export default function NewOrder() {
           lat: delivery.lat,
           lng: delivery.lng,
         } : undefined,
+        deliveryInstructions: fulfillmentType === "DELIVERY" ? deliveryInstructions.trim() || undefined : undefined,
         paymentMethod,
         amountTendered: paymentMethod === "CASH" && amountTendered ? Number(amountTendered.replace(",", ".")) : undefined,
         notes: orderNotes.trim() || undefined,
@@ -334,6 +359,7 @@ export default function NewOrder() {
   }
 
   const registeredAddresses = lookup?.type === "REGISTERED" ? lookup.customer.addresses : [];
+  const selectedSavedAddress = selectedAddressId ? registeredAddresses.find((address) => address.id === selectedAddressId) : undefined;
 
   return (
     <div className="page-content manual-order-page">
@@ -378,37 +404,61 @@ export default function NewOrder() {
             </div>
             {fulfillmentType === "DELIVERY" && (
               <div className="delivery-box">
+                {selectedSavedAddress && (
+                  <div className="selected-address-card">
+                    <strong>✓ Morada habitual selecionada</strong>
+                    <p>{selectedSavedAddress.line1}{selectedSavedAddress.line2 ? `, ${selectedSavedAddress.line2}` : ""}</p>
+                    <p>{[selectedSavedAddress.postalCode, selectedSavedAddress.city].filter(Boolean).join(" ")}</p>
+                    <small>Confirme com o cliente. Se hoje estiver noutro local, pesquise outra morada abaixo.</small>
+                  </div>
+                )}
                 {registeredAddresses.length > 0 && (
                   <div className="saved-addresses">
                     <strong>Moradas guardadas</strong>
                     {registeredAddresses.map((address) => (
-                      <button key={address.id} className={selectedAddressId === address.id ? "selected" : ""} onClick={() => { setSelectedAddressId(address.id); setDelivery(null); }}>
-                        <b>{address.label || "Morada"}</b><span>{address.line1}{address.line2 ? `, ${address.line2}` : ""} · {address.city}</span>
+                      <button key={address.id} className={selectedAddressId === address.id ? "selected" : ""} onClick={() => { setSelectedAddressId(address.id); setDelivery(null); setAddressSuggestions([]); }}>
+                        <b>{selectedAddressId === address.id ? "✓ " : ""}{address.label || "Morada"}</b><span>{address.line1}{address.line2 ? `, ${address.line2}` : ""} · {[address.postalCode, address.city].filter(Boolean).join(" ")}</span>
                       </button>
                     ))}
                   </div>
                 )}
                 {lookup?.type === "CONTACT" && lookup.lastDelivery?.line1 && lookup.lastDelivery?.city && (
-                  <button className="last-address-btn" onClick={() => { setDelivery(lookup.lastDelivery); setSelectedAddressId(undefined); }}>
-                    Usar última entrega: {lookup.lastDelivery.line1}, {lookup.lastDelivery.city}
+                  <button className="last-address-btn" onClick={() => { setDelivery(lookup.lastDelivery); setSelectedAddressId(undefined); populateAddressSearch(lookup.lastDelivery); setAddressSuggestions([]); }}>
+                    Usar última entrega: {lookup.lastDelivery.line1}{lookup.lastDelivery.postalCode ? ` · ${lookup.lastDelivery.postalCode}` : ""}, {lookup.lastDelivery.city}
                   </button>
                 )}
-                <div className="customer-search-row">
-                  <input value={addressQuery} onChange={(e) => setAddressQuery(e.target.value)} placeholder="Rua, número, localidade" onKeyDown={(e) => e.key === "Enter" && searchAddress()} />
-                  <button onClick={searchAddress} disabled={addressBusy || addressQuery.trim().length < 4}>{addressBusy ? "A procurar..." : "Pesquisar morada"}</button>
+
+                <strong>{selectedSavedAddress || delivery ? "Pesquisar outra morada" : "Pesquisar morada de entrega"}</strong>
+                <div className="manual-two-cols">
+                  <label>Rua e número<input value={addressLine1} onChange={(e) => setAddressLine1(e.target.value)} placeholder="Ex.: Rua do Souto, 10" onKeyDown={(e) => e.key === "Enter" && searchAddress()} /></label>
+                  <label>Código postal<input value={addressPostalCode} onChange={(e) => setAddressPostalCode(e.target.value)} placeholder="Ex.: 4700-329" onKeyDown={(e) => e.key === "Enter" && searchAddress()} /></label>
+                  <label>Localidade<input value={addressCity} onChange={(e) => setAddressCity(e.target.value)} placeholder="Ex.: Braga" onKeyDown={(e) => e.key === "Enter" && searchAddress()} /></label>
                 </div>
-                {addressSuggestions.length > 0 && <div className="address-suggestions">{addressSuggestions.map((suggestion, index) => <button key={`${suggestion.lat}-${suggestion.lng}-${index}`} onClick={() => chooseSuggestion(suggestion)}>{suggestion.displayName}</button>)}</div>}
+                <button onClick={searchAddress} disabled={addressBusy || addressLine1.trim().length < 2}>{addressBusy ? "A procurar..." : "Pesquisar morada"}</button>
+                <small className="hint">O código postal e a localidade ajudam a evitar resultados de ruas semelhantes noutros bairros.</small>
+
+                {addressSuggestions.length > 0 && (
+                  <div className="address-suggestions">
+                    {addressSuggestions.map((suggestion, index) => (
+                      <button key={`${suggestion.lat}-${suggestion.lng}-${index}`} onClick={() => chooseSuggestion(suggestion)}>{suggestion.displayName}</button>
+                    ))}
+                  </div>
+                )}
                 {delivery && !selectedAddressId && (
                   <div className="selected-address-card">
-                    <strong>Morada selecionada</strong>
-                    <div className="manual-two-cols">
-                      <label>Rua / número<input value={delivery.line1} onChange={(e) => setDelivery({ ...delivery, line1: e.target.value })} /></label>
-                      <label>Complemento<input value={delivery.line2 ?? ""} onChange={(e) => setDelivery({ ...delivery, line2: e.target.value })} placeholder="Andar, porta, referência" /></label>
-                      <label>Cidade<input value={delivery.city} onChange={(e) => setDelivery({ ...delivery, city: e.target.value })} /></label>
-                      <label>Código postal<input value={delivery.postalCode ?? ""} onChange={(e) => setDelivery({ ...delivery, postalCode: e.target.value })} /></label>
-                    </div>
-                    <small>Coordenadas confirmadas pela pesquisa de morada.</small>
+                    <strong>✓ Morada encontrada — confirme com o cliente</strong>
+                    <p>{delivery.line1}</p>
+                    <p>{[delivery.postalCode, delivery.city].filter(Boolean).join(" ")}</p>
+                    <label>Andar / porta / complemento<input value={delivery.line2 ?? ""} onChange={(e) => setDelivery({ ...delivery, line2: e.target.value })} placeholder="Ex.: 3.º esquerdo, porta B" /></label>
+                    <small>As coordenadas ficam associadas à morada escolhida. Se a rua estiver errada, pesquise e selecione outra sugestão.</small>
                   </div>
+                )}
+
+                {(selectedAddressId || delivery) && (
+                  <label>
+                    Referência / instruções para o estafeta
+                    <textarea rows={2} value={deliveryInstructions} onChange={(e) => setDeliveryInstructions(e.target.value)} maxLength={300} placeholder="Ex.: portão azul, perto da escola, tocar no 3.º esquerdo" />
+                  </label>
                 )}
               </div>
             )}
@@ -453,7 +503,7 @@ export default function NewOrder() {
 
           <label>Pagamento<select value={paymentMethod} onChange={(e) => setPaymentMethod(e.target.value as typeof paymentMethod)}><option value="CASH">Dinheiro</option><option value="MBWAY">MB WAY</option><option value="TERMINAL">Terminal</option></select></label>
           {paymentMethod === "CASH" && <label>Cliente paga com (opcional)<input inputMode="decimal" value={amountTendered} onChange={(e) => setAmountTendered(e.target.value)} placeholder="Ex.: 20,00" /></label>}
-          <label>Observações<textarea rows={3} value={orderNotes} onChange={(e) => setOrderNotes(e.target.value)} placeholder="Notas gerais do pedido" /></label>
+          <label>Observações do pedido<textarea rows={3} value={orderNotes} onChange={(e) => setOrderNotes(e.target.value)} placeholder="Ex.: sem cebola, atenção à preparação" /></label>
           {error && <p className="form-error notice-error">{error}</p>}
           <button className="manual-submit" disabled={busy || cart.length === 0} onClick={submitOrder}>{busy ? "A criar pedido..." : "Criar pedido"}</button>
         </aside>
