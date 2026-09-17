@@ -33,7 +33,9 @@ describe("normalizePhone", () => {
 
 describe("lookupManualCustomer", () => {
   beforeEach(() => {
-    vi.clearAllMocks();
+    state.userFindMany.mockReset();
+    state.contactFindUnique.mockReset();
+    state.orderFindFirst.mockReset();
     state.userFindMany.mockResolvedValue([]);
     state.contactFindUnique.mockResolvedValue(null);
     state.orderFindFirst.mockResolvedValue(null);
@@ -49,7 +51,6 @@ describe("lookupManualCustomer", () => {
         addresses: [{ id: "a1", label: "Casa", line1: "Rua A", line2: null, city: "Braga", postalCode: "4700-000", lat: 41.55, lng: -8.42, isDefault: true }],
       },
     ]);
-    state.contactFindUnique.mockResolvedValueOnce({ id: "c1", name: "Maria antiga", phoneNormalized: "+351912345678" });
 
     const result = await lookupManualCustomer("r1", "912345678");
 
