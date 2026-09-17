@@ -7,7 +7,7 @@
     "generate:pwa-icons": "node scripts/generate-pwa-icons.mjs",
     "predev": "npm run generate:pwa-icons",
     "dev": "vite --port 3000",
-    "prebuild": "npm run generate:pwa-icons",
+    "prebuild": "npm test",
     "build": "tsc -b && vite build",
     "preview": "vite preview --port 3000",
     "lint": "eslint . --ext ts,tsx",
