@@ -12,7 +12,7 @@ interface AuthContextValue {
   user: AuthUser | null;
   loading: boolean;
   login: (email: string, password: string) => Promise<void>;
-  register: (name: string, email: string, password: string, phone?: string) => Promise<void>;
+  register: (name: string, email: string, password: string, phone: string, addressLine1: string, postalCode: string) => Promise<void>;
   logout: () => Promise<void>;
 }
 
@@ -40,8 +40,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUser(data.user);
   }
 
-  async function register(name: string, email: string, password: string, phone?: string) {
-    const { data } = await api.post("/auth/register", { name, email, password, phone });
+  async function register(name: string, email: string, password: string, phone: string, addressLine1: string, postalCode: string) {
+    const { data } = await api.post("/auth/register", { name, email, password, phone, addressLine1, postalCode });
     tokenStore.set(data.accessToken, data.refreshToken);
     setUser(data.user);
   }
