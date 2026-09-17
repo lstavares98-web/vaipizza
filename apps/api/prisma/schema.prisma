@@ -539,6 +539,7 @@ model Order {
   deliveryLine2Snapshot String?
   deliveryCitySnapshot String?
   deliveryPostalCodeSnapshot String?
+  deliveryInstructions String?
 
   fulfillmentType FulfillmentType @default(DELIVERY)
   addressId       String?
