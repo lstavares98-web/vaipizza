@@ -1,0 +1,50 @@
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import { Role } from "@yummix/types";
+
+const state = vi.hoisted(() => {
+  const userFindUnique = vi.fn();
+  const txUserUpdate = vi.fn();
+  const txRefreshUpdateMany = vi.fn();
+  const hashPassword = vi.fn(async () => "new-password-hash");
+  const tx = {
+    user: { update: txUserUpdate },
+    refreshToken: { updateMany: txRefreshUpdateMany },
+  };
+  const prisma = {
+    user: { findUnique: userFindUnique },
+    $transaction: vi.fn(async (callback: (client: typeof tx) => Promise<unknown>) => callback(tx)),
+  };
+  return { prisma, userFindUnique, txUserUpdate, txRefreshUpdateMany, hashPassword };
+});
+
+vi.mock("../../config/prisma.js", () => ({ prisma: state.prisma }));
+vi.mock("bcryptjs", () => ({ default: { hash: state.hashPassword, compare: vi.fn() } }));
+
+import { changeOwnPassword } from "./auth.service.js";
+
+describe("forced customer password change", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    state.userFindUnique.mockResolvedValue({
+      id: "customer-1",
+      role: Role.CUSTOMER,
+      mustChangePassword: true,
+    });
+    state.txUserUpdate.mockResolvedValue({ id: "customer-1", mustChangePassword: false });
+    state.txRefreshUpdateMany.mockResolvedValue({ count: 1 });
+  });
+
+  it("stores the new password, clears the forced-change flag and revokes existing refresh sessions", async () => {
+    await changeOwnPassword("customer-1", "MinhaNovaSenha123");
+
+    expect(state.hashPassword).toHaveBeenCalledWith("MinhaNovaSenha123", 12);
+    expect(state.txUserUpdate).toHaveBeenCalledWith({
+      where: { id: "customer-1" },
+      data: { passwordHash: "new-password-hash", mustChangePassword: false },
+    });
+    expect(state.txRefreshUpdateMany).toHaveBeenCalledWith({
+      where: { userId: "customer-1", revokedAt: null },
+      data: { revokedAt: expect.any(Date) },
+    });
+  });
+});
