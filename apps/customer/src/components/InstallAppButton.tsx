@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import "./InstallAppButton.css";
+import { getInstallAction } from "./installAppPolicy";
 
 interface BeforeInstallPromptEvent extends Event {
   prompt: () => Promise<void>;
@@ -23,6 +24,7 @@ export default function InstallAppButton({ variant = "topbar" }: { variant?: "to
   const [installed, setInstalled] = useState(isStandaloneMode);
   const [guide, setGuide] = useState<"ios" | "browser" | null>(null);
   const ios = useMemo(isIosDevice, []);
+  const action = getInstallAction({ standalone: installed, ios, hasNativePrompt: Boolean(installPrompt) });
 
   useEffect(() => {
     const onPrompt = (event: Event) => {
@@ -47,16 +49,16 @@ export default function InstallAppButton({ variant = "topbar" }: { variant?: "to
     };
   }, []);
 
-  if (installed) return null;
+  if (action === "hidden") return null;
 
   async function install() {
-    if (installPrompt) {
+    if (action === "native" && installPrompt) {
       await installPrompt.prompt();
       const choice = await installPrompt.userChoice;
       if (choice.outcome === "accepted") setInstallPrompt(null);
       return;
     }
-    setGuide(ios ? "ios" : "browser");
+    setGuide(action === "ios-guide" ? "ios" : "browser");
   }
 
   return (
