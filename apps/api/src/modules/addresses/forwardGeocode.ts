@@ -1,5 +1,11 @@
 import { env } from "../../config/env.js";
 
+const DEFAULT_GEOCODE_PROVIDER_URL = "https://nominatim.openstreetmap.org/reverse";
+
+export function resolveGeocodeProviderUrl(configuredUrl: string): string {
+  return configuredUrl.trim() || DEFAULT_GEOCODE_PROVIDER_URL;
+}
+
 export interface ForwardGeocodeSuggestion {
   line1: string;
   city: string;
@@ -86,5 +92,5 @@ export async function forwardGeocodeWithProvider(
 }
 
 export function searchAddressCoordinates(query: string) {
-  return forwardGeocodeWithProvider(query, env.REVERSE_GEOCODE_URL);
+  return forwardGeocodeWithProvider(query, resolveGeocodeProviderUrl(env.REVERSE_GEOCODE_URL));
 }
