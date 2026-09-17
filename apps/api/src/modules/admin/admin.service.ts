@@ -1,3 +1,5 @@
+import { randomBytes } from "node:crypto";
+import bcrypt from "bcryptjs";
 import { Role } from "@yummix/types";
 import type { CourierOperationalState, OrderStatus, RestaurantStatus, VerificationStatus } from "@prisma/client";
 import { prisma } from "../../config/prisma.js";
@@ -7,6 +9,9 @@ import { getIO, rooms } from "../../sockets/io.js";
 import { computeFinancials } from "./financials.js";
 import { getPendingCourierCashSummary } from "./adminAnalytics.js";
 import { cancelOrderBeforeHandoff } from "../orders/cancelOrder.service.js";
+import { hashToken } from "../auth/tokens.js";
+
+const BCRYPT_ROUNDS = 12;
 
 // ---- Restaurants ------------------------------------------------------
 
@@ -129,6 +134,46 @@ export async function setCustomerBlocked(id: string, blocked: boolean) {
   const user = await prisma.user.findFirst({ where: { id, role: Role.CUSTOMER } });
   if (!user) throw notFound("Customer not found");
   return prisma.user.update({ where: { id }, data: { isBlocked: blocked } });
+}
+
+function forcedPasswordMarkerHash(userId: string) {
+  return hashToken(`forced-password-change:${userId}`);
+}
+
+function generateTemporaryPassword() {
+  return `VP-${randomBytes(6).toString("hex").toUpperCase()}`;
+}
+
+export async function resetCustomerPassword(id: string) {
+  const customer = await prisma.user.findFirst({
+    where: { id, role: Role.CUSTOMER },
+    select: { id: true, name: true, email: true },
+  });
+  if (!customer) throw notFound("Customer not found");
+
+  const temporaryPassword = generateTemporaryPassword();
+  const passwordHash = await bcrypt.hash(temporaryPassword, BCRYPT_ROUNDS);
+  const tokenHash = forcedPasswordMarkerHash(customer.id);
+  const now = new Date();
+
+  await prisma.$transaction(async (tx) => {
+    await tx.user.update({ where: { id: customer.id }, data: { passwordHash } });
+    await tx.passwordResetToken.deleteMany({ where: { tokenHash } });
+    await tx.passwordResetToken.create({
+      data: {
+        userId: customer.id,
+        tokenHash,
+        expiresAt: new Date(now.getTime() + 10 * 365 * 24 * 60 * 60 * 1000),
+        usedAt: null,
+      },
+    });
+    await tx.refreshToken.updateMany({
+      where: { userId: customer.id, revokedAt: null },
+      data: { revokedAt: now },
+    });
+  });
+
+  return { temporaryPassword, customer };
 }
 
 // ---- Orders ---------------------------------------------------------------
