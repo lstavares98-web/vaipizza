@@ -6,6 +6,7 @@ import { requireAuth, requireCurrentCourierSession, requireRole } from "../../mi
 import * as courierService from "./courier.service.js";
 import { rejectAssignment } from "../dispatch/dispatch.service.js";
 import { acceptAssignmentAndFinalize } from "../dispatch/dispatch.acceptance.js";
+import { buildOrderCustomerDisplay } from "../orders/orderCustomerDisplay.js";
 
 export const courierRouter = Router();
 courierRouter.use(requireAuth, requireRole(Role.COURIER), requireCurrentCourierSession);
@@ -71,7 +72,8 @@ courierRouter.post(
 courierRouter.get(
   "/orders/current",
   asyncHandler(async (req, res) => {
-    const order = await courierService.getCurrentOrder(req.auth!.sub);
+    const rawOrder = await courierService.getCurrentOrder(req.auth!.sub);
+    const order = rawOrder ? { ...rawOrder, ...buildOrderCustomerDisplay(rawOrder) } : null;
     res.json({ success: true, order });
   }),
 );
