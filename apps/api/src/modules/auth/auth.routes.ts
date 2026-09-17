@@ -14,12 +14,20 @@ import * as authService from "./auth.service.js";
 
 export const authRouter = Router();
 
-const sanitizeUser = (user: { id: string; email: string; name: string; role: string; restaurantId: string | null }) => ({
+const sanitizeUser = (user: {
+  id: string;
+  email: string;
+  name: string;
+  role: string;
+  restaurantId: string | null;
+  mustChangePassword?: boolean;
+}) => ({
   id: user.id,
   email: user.email,
   name: user.name,
   role: user.role,
   restaurantId: user.restaurantId,
+  mustChangePassword: user.mustChangePassword ?? false,
 });
 
 authRouter.post(
