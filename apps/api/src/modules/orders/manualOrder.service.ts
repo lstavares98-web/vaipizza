@@ -42,6 +42,7 @@ export interface ManualOrderInput {
   customerPhone?: string;
   addressId?: string;
   delivery?: ManualOrderDeliveryInput;
+  deliveryInstructions?: string;
   paymentMethod: "CASH" | "MBWAY" | "TERMINAL";
   amountTendered?: number;
   notes?: string;
@@ -295,6 +296,7 @@ export async function createManualOrder(restaurantId: string, actorRole: RoleTyp
         deliveryLine2Snapshot: delivery?.line2 ?? null,
         deliveryCitySnapshot: delivery?.city ?? null,
         deliveryPostalCodeSnapshot: delivery?.postalCode ?? null,
+        deliveryInstructions: input.fulfillmentType === "DELIVERY" ? input.deliveryInstructions?.trim() || null : null,
         fulfillmentType: input.fulfillmentType,
         addressId,
         customerLat: delivery?.lat ?? null,
