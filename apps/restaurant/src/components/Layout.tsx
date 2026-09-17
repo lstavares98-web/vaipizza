@@ -4,6 +4,7 @@ import { CashIcon, ComboIcon, LogoutIcon, MenuBookIcon, OrdersIcon, ReportsIcon,
 
 const NAV = [
   { to: "/", label: "Pedidos", end: true, Icon: OrdersIcon },
+  { to: "/novo-pedido", label: "Novo pedido", Icon: OrdersIcon },
   { to: "/menu", label: "Menu", Icon: MenuBookIcon },
   { to: "/combos", label: "Combos", Icon: ComboIcon },
   { to: "/cash", label: "Caixa", Icon: CashIcon },
