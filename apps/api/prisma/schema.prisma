@@ -102,6 +102,16 @@ model Address {
   @@index([userId])
 }
 
+model CustomerContact {
+  id              String   @id @default(cuid())
+  phoneNormalized String   @unique
+  name            String
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  orders Order[]
+}
+
 // ---------------------------------------------------------------------------
 // Restaurants
 // ---------------------------------------------------------------------------
@@ -221,7 +231,7 @@ model Product {
   name        String
   description String?
   basePrice   Float
-  imageUrl    String?
+  imageUrl     String?
   imagePublicId String?
 
   isAvailable  Boolean @default(true)
@@ -472,6 +482,12 @@ model CouponRedemption {
 // Orders
 // ---------------------------------------------------------------------------
 
+enum OrderOrigin {
+  APP
+  PHONE
+  COUNTER
+}
+
 enum OrderStatus {
   NEW
   ACCEPTED
@@ -509,10 +525,20 @@ model Order {
   id           String   @id @default(cuid())
   orderNumber  Int      @default(autoincrement()) // short human-friendly id, e.g. "#154"
 
-  userId       String
-  user         User     @relation(fields: [userId], references: [id])
+  userId       String?
+  user         User?    @relation(fields: [userId], references: [id])
+  customerContactId String?
+  customerContact   CustomerContact? @relation(fields: [customerContactId], references: [id], onDelete: SetNull)
   restaurantId String
   restaurant   Restaurant @relation(fields: [restaurantId], references: [id])
+
+  origin OrderOrigin @default(APP)
+  customerNameSnapshot String?
+  customerPhoneSnapshot String?
+  deliveryLine1Snapshot String?
+  deliveryLine2Snapshot String?
+  deliveryCitySnapshot String?
+  deliveryPostalCodeSnapshot String?
 
   fulfillmentType FulfillmentType @default(DELIVERY)
   addressId       String?
@@ -571,6 +597,8 @@ model Order {
 
   @@index([restaurantId, status])
   @@index([userId])
+  @@index([customerContactId])
+  @@index([origin])
   @@index([courierId])
   @@index([status])
 }
