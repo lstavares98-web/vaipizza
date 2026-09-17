@@ -7,6 +7,7 @@ import { requireAuth, requireOwnRestaurant, requireRole } from "../../middleware
 import * as ordersService from "./orders.service.js";
 import { cancelOrderBeforeHandoff } from "./cancelOrder.service.js";
 import { forceReassignCourier, listNearbyCouriers } from "../dispatch/dispatch.service.js";
+import { lookupManualCustomer } from "./manualCustomer.js";
 
 export const restaurantOrdersRouter = Router();
 restaurantOrdersRouter.use(
@@ -26,6 +27,16 @@ restaurantOrdersRouter.get(
     const statuses = status ? (status.split(",") as OrderStatus[]) : undefined;
     const orders = await ordersService.listOrdersForRestaurant(req.auth!.restaurantId!, statuses);
     res.json({ success: true, orders });
+  }),
+);
+
+restaurantOrdersRouter.get(
+  "/customer-lookup",
+  requireRole(Role.RESTAURANT_OWNER, Role.RESTAURANT_STAFF),
+  asyncHandler(async (req, res) => {
+    const { phone } = z.object({ phone: z.string().trim().min(7).max(40) }).parse(req.query);
+    const result = await lookupManualCustomer(req.auth!.restaurantId!, phone);
+    res.json({ success: true, ...result });
   }),
 );
 
