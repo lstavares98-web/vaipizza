@@ -1,4 +1,5 @@
 import { env } from "../../config/env.js";
+import { resolveGeocodeProviderUrl } from "./forwardGeocode.js";
 
 export interface AddressSuggestion {
   line1: string;
@@ -63,5 +64,5 @@ export async function reverseGeocodeWithProvider(
 }
 
 export function reverseGeocodeCoordinates(lat: number, lng: number) {
-  return reverseGeocodeWithProvider(lat, lng, env.REVERSE_GEOCODE_URL);
+  return reverseGeocodeWithProvider(lat, lng, resolveGeocodeProviderUrl(env.REVERSE_GEOCODE_URL));
 }
