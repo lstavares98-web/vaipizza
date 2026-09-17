@@ -5,24 +5,86 @@ on:
     branches:
       - redesign-vaipizza
   workflow_dispatch:
+    inputs:
+      app:
+        description: Frontend de staging a publicar
+        required: true
+        type: choice
+        options:
+          - customer
+          - restaurant
+          - admin
+          - courier
+          - kds
 
 jobs:
-  deploy-staging:
+  changes:
     runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - package: '@yummix/customer'
-            site_id: '8f6a94ae-b550-47ac-88a0-d9ca28f79b65'
-          - package: '@yummix/restaurant'
-            site_id: 'bfb4f12b-72a2-41ab-b528-aa896878d5eb'
-          - package: '@yummix/admin'
-            site_id: 'c791d22c-c4b8-45b0-983d-1378cca11327'
-          - package: '@yummix/courier'
-            site_id: 'b8dbc44d-390d-4027-834d-0250819f8c1e'
-          - package: '@yummix/kds'
-            site_id: 'bad86175-249d-4306-be03-7221f4ce46ad'
+    outputs:
+      customer: ${{ steps.detect.outputs.customer }}
+      restaurant: ${{ steps.detect.outputs.restaurant }}
+      admin: ${{ steps.detect.outputs.admin }}
+      courier: ${{ steps.detect.outputs.courier }}
+      kds: ${{ steps.detect.outputs.kds }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+      - id: detect
+        shell: bash
+        run: |
+          set -euo pipefail
+          customer=false
+          restaurant=false
+          admin=false
+          courier=false
+          kds=false
+
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            case "${{ inputs.app }}" in
+              customer) customer=true ;;
+              restaurant) restaurant=true ;;
+              admin) admin=true ;;
+              courier) courier=true ;;
+              kds) kds=true ;;
+            esac
+          else
+            before="${{ github.event.before }}"
+            if [[ -z "$before" || "$before" == "0000000000000000000000000000000000000000" ]]; then
+              before="$(git rev-parse HEAD^ 2>/dev/null || echo HEAD)"
+            fi
+
+            while IFS= read -r file; do
+              case "$file" in
+                apps/customer/*) customer=true ;;
+                apps/restaurant/*) restaurant=true ;;
+                apps/admin/*) admin=true ;;
+                apps/courier/*) courier=true ;;
+                apps/kds/*) kds=true ;;
+                packages/types/*|packages/config/*|package.json|package-lock.json|netlify.toml)
+                  customer=true
+                  restaurant=true
+                  admin=true
+                  courier=true
+                  kds=true
+                  ;;
+                packages/validation/*|apps/api/*|.github/*|docs/*)
+                  # API/CI/docs changes do not require a Netlify frontend deploy.
+                  ;;
+              esac
+            done < <(git diff --name-only "$before" "$GITHUB_SHA")
+          fi
+
+          echo "customer=$customer" >> "$GITHUB_OUTPUT"
+          echo "restaurant=$restaurant" >> "$GITHUB_OUTPUT"
+          echo "admin=$admin" >> "$GITHUB_OUTPUT"
+          echo "courier=$courier" >> "$GITHUB_OUTPUT"
+          echo "kds=$kds" >> "$GITHUB_OUTPUT"
+
+  deploy-customer:
+    needs: changes
+    if: needs.changes.outputs.customer == 'true'
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -30,7 +92,71 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
-      - name: Deploy ${{ matrix.package }} to staging
+      - name: Deploy customer to staging
         env:
           NETLIFY_AUTH_TOKEN: ${{ secrets.NETLIFY_AUTH_TOKEN }}
-        run: npx -y netlify-cli@latest deploy --prod --build --filter "${{ matrix.package }}" --site "${{ matrix.site_id }}" --auth "$NETLIFY_AUTH_TOKEN" --message "staging ${GITHUB_SHA}"
+        run: npx -y netlify-cli@latest deploy --prod --build --filter "@yummix/customer" --site "8f6a94ae-b550-47ac-88a0-d9ca28f79b65" --auth "$NETLIFY_AUTH_TOKEN" --message "staging ${GITHUB_SHA}"
+
+  deploy-restaurant:
+    needs: changes
+    if: needs.changes.outputs.restaurant == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Deploy restaurant to staging
+        env:
+          NETLIFY_AUTH_TOKEN: ${{ secrets.NETLIFY_AUTH_TOKEN }}
+        run: npx -y netlify-cli@latest deploy --prod --build --filter "@yummix/restaurant" --site "bfb4f12b-72a2-41ab-b528-aa896878d5eb" --auth "$NETLIFY_AUTH_TOKEN" --message "staging ${GITHUB_SHA}"
+
+  deploy-admin:
+    needs: changes
+    if: needs.changes.outputs.admin == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Deploy admin to staging
+        env:
+          NETLIFY_AUTH_TOKEN: ${{ secrets.NETLIFY_AUTH_TOKEN }}
+        run: npx -y netlify-cli@latest deploy --prod --build --filter "@yummix/admin" --site "c791d22c-c4b8-45b0-983d-1378cca11327" --auth "$NETLIFY_AUTH_TOKEN" --message "staging ${GITHUB_SHA}"
+
+  deploy-courier:
+    needs: changes
+    if: needs.changes.outputs.courier == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Deploy courier to staging
+        env:
+          NETLIFY_AUTH_TOKEN: ${{ secrets.NETLIFY_AUTH_TOKEN }}
+        run: npx -y netlify-cli@latest deploy --prod --build --filter "@yummix/courier" --site "b8dbc44d-390d-4027-834d-0250819f8c1e" --auth "$NETLIFY_AUTH_TOKEN" --message "staging ${GITHUB_SHA}"
+
+  deploy-kds:
+    needs: changes
+    if: needs.changes.outputs.kds == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Deploy kds to staging
+        env:
+          NETLIFY_AUTH_TOKEN: ${{ secrets.NETLIFY_AUTH_TOKEN }}
+        run: npx -y netlify-cli@latest deploy --prod --build --filter "@yummix/kds" --site "bad86175-249d-4306-be03-7221f4ce46ad" --auth "$NETLIFY_AUTH_TOKEN" --message "staging ${GITHUB_SHA}"
