@@ -9,6 +9,7 @@ import { cancelOrderBeforeHandoff } from "./cancelOrder.service.js";
 import { forceReassignCourier, listNearbyCouriers } from "../dispatch/dispatch.service.js";
 import { lookupManualCustomer } from "./manualCustomer.js";
 import { createManualOrder } from "./manualOrder.service.js";
+import { searchAddressCoordinates } from "../addresses/forwardGeocode.js";
 
 export const restaurantOrdersRouter = Router();
 restaurantOrdersRouter.use(
@@ -70,6 +71,16 @@ restaurantOrdersRouter.get(
     const { phone } = z.object({ phone: z.string().trim().min(7).max(40) }).parse(req.query);
     const result = await lookupManualCustomer(req.auth!.restaurantId!, phone);
     res.json({ success: true, ...result });
+  }),
+);
+
+restaurantOrdersRouter.get(
+  "/address-search",
+  requireRole(Role.RESTAURANT_OWNER, Role.RESTAURANT_STAFF),
+  asyncHandler(async (req, res) => {
+    const { q } = z.object({ q: z.string().trim().min(4).max(220) }).parse(req.query);
+    const suggestions = await searchAddressCoordinates(q);
+    res.json({ success: true, suggestions });
   }),
 );
 
