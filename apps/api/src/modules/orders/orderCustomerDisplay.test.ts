@@ -18,19 +18,28 @@ describe("buildOrderCustomerDisplay", () => {
     });
   });
 
-  it("builds courier-safe customer and address from manual order snapshots", () => {
+  it("builds courier-safe customer and complete address from manual order snapshots", () => {
     expect(buildOrderCustomerDisplay({
       user: null,
       address: null,
       customerNameSnapshot: "João",
       customerPhoneSnapshot: "+351913333333",
       deliveryLine1Snapshot: "Rua B, 10",
+      deliveryLine2Snapshot: "3.º esquerdo",
       deliveryCitySnapshot: "Braga",
+      deliveryPostalCodeSnapshot: "4700-000",
       customerLat: 41.56,
       customerLng: -8.41,
-    })).toEqual({
+    } as any)).toEqual({
       user: { name: "João", phone: "+351913333333" },
-      address: { line1: "Rua B, 10", city: "Braga", lat: 41.56, lng: -8.41 },
+      address: {
+        line1: "Rua B, 10",
+        line2: "3.º esquerdo",
+        city: "Braga",
+        postalCode: "4700-000",
+        lat: 41.56,
+        lng: -8.41,
+      },
     });
   });
 
