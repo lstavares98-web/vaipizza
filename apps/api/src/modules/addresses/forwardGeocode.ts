@@ -6,6 +6,19 @@ export function resolveGeocodeProviderUrl(configuredUrl: string): string {
   return configuredUrl.trim() || DEFAULT_GEOCODE_PROVIDER_URL;
 }
 
+export interface AddressSearchParts {
+  line1: string;
+  postalCode?: string;
+  city?: string;
+}
+
+export function composeAddressSearchQuery(parts: AddressSearchParts): string {
+  return [parts.line1, parts.postalCode, parts.city]
+    .map((part) => part?.trim())
+    .filter((part): part is string => Boolean(part))
+    .join(", ");
+}
+
 export interface ForwardGeocodeSuggestion {
   line1: string;
   city: string;
