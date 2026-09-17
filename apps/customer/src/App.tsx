@@ -7,6 +7,7 @@ import RequireAuth from "./components/RequireAuth";
 import Login from "./pages/Login";
 import Register from "./pages/Register";
 import ForgotPassword from "./pages/ForgotPassword";
+import ChangePassword from "./pages/ChangePassword";
 import Home from "./pages/Home";
 import Restaurants from "./pages/Restaurants";
 import RestaurantMenu from "./pages/RestaurantMenu";
@@ -29,6 +30,14 @@ export default function App() {
               <Route path="/login" element={<Login />} />
               <Route path="/register" element={<Register />} />
               <Route path="/forgot-password" element={<ForgotPassword />} />
+              <Route
+                path="/alterar-palavra-passe"
+                element={
+                  <RequireAuth allowPasswordChange>
+                    <ChangePassword />
+                  </RequireAuth>
+                }
+              />
               <Route path="/privacidade" element={<PrivacyPolicy />} />
               <Route path="/restaurants" element={<Restaurants />} />
               <Route path="/restaurants/:slug" element={<RestaurantMenu />} />
