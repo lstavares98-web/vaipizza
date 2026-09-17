@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { forwardGeocodeWithProvider, parseForwardGeocodeResponse } from "./forwardGeocode.js";
+import { forwardGeocodeWithProvider, parseForwardGeocodeResponse, resolveGeocodeProviderUrl } from "./forwardGeocode.js";
 
 describe("parseForwardGeocodeResponse", () => {
   it("maps Nominatim search rows into counter-friendly addresses", () => {
@@ -13,6 +13,16 @@ describe("parseForwardGeocodeResponse", () => {
     ])).toEqual([
       { line1: "Rua do Souto 10", city: "Braga", postalCode: "4700-329", lat: 41.5501, lng: -8.4201, displayName: "Rua do Souto 10, Braga, Portugal" },
     ]);
+  });
+});
+
+describe("geocode provider resolution", () => {
+  it("uses the public Nominatim reverse endpoint when staging has no provider configured", () => {
+    expect(resolveGeocodeProviderUrl(" ")).toBe("https://nominatim.openstreetmap.org/reverse");
+  });
+
+  it("keeps an explicitly configured provider", () => {
+    expect(resolveGeocodeProviderUrl("https://geo.example.test/reverse")).toBe("https://geo.example.test/reverse");
   });
 });
 
