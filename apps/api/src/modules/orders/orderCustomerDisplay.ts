@@ -1,5 +1,12 @@
 type DisplayUser = { name: string; phone: string | null };
-type DisplayAddress = { line1: string; city: string; lat: number; lng: number };
+type DisplayAddress = {
+  line1: string;
+  line2?: string | null;
+  city: string;
+  postalCode?: string | null;
+  lat: number;
+  lng: number;
+};
 
 interface OrderCustomerSource {
   user: DisplayUser | null;
@@ -7,7 +14,9 @@ interface OrderCustomerSource {
   customerNameSnapshot: string | null;
   customerPhoneSnapshot: string | null;
   deliveryLine1Snapshot: string | null;
+  deliveryLine2Snapshot?: string | null;
   deliveryCitySnapshot: string | null;
+  deliveryPostalCodeSnapshot?: string | null;
   customerLat: number | null;
   customerLng: number | null;
 }
@@ -30,7 +39,9 @@ export function buildOrderCustomerDisplay(order: OrderCustomerSource): { user: D
     address: hasManualAddress
       ? {
           line1: order.deliveryLine1Snapshot!,
+          line2: order.deliveryLine2Snapshot ?? null,
           city: order.deliveryCitySnapshot!,
+          postalCode: order.deliveryPostalCodeSnapshot ?? null,
           lat: order.customerLat!,
           lng: order.customerLng!,
         }
