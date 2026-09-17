@@ -1,0 +1,50 @@
+name: Deploy verified staging frontends
+
+on:
+  push:
+    branches:
+      - feat/pre-production-readiness
+    paths:
+      - .github/workflows/staging-frontends-deploy.yml
+
+permissions:
+  contents: read
+
+jobs:
+  deploy-staging:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout promoted staging branch
+        uses: actions/checkout@v4
+        with:
+          ref: redesign-vaipizza
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Deploy Admin staging
+        env:
+          NETLIFY_AUTH_TOKEN: ${{ secrets.NETLIFY_AUTH_TOKEN }}
+        run: npx -y netlify-cli@latest deploy --build --prod --site c791d22c-c4b8-45b0-983d-1378cca11327 --auth "$NETLIFY_AUTH_TOKEN" --filter @yummix/admin --message "staging 5fdc31e"
+
+      - name: Deploy Gestão staging
+        env:
+          NETLIFY_AUTH_TOKEN: ${{ secrets.NETLIFY_AUTH_TOKEN }}
+        run: npx -y netlify-cli@latest deploy --build --prod --site bfb4f12b-72a2-41ab-b528-aa896878d5eb --auth "$NETLIFY_AUTH_TOKEN" --filter @yummix/restaurant --message "staging 5fdc31e"
+
+      - name: Deploy Cliente staging
+        env:
+          NETLIFY_AUTH_TOKEN: ${{ secrets.NETLIFY_AUTH_TOKEN }}
+        run: npx -y netlify-cli@latest deploy --build --prod --site 8f6a94ae-b550-47ac-88a0-d9ca28f79b65 --auth "$NETLIFY_AUTH_TOKEN" --filter @yummix/customer --message "staging 5fdc31e"
+
+      - name: Deploy Estafeta staging
+        env:
+          NETLIFY_AUTH_TOKEN: ${{ secrets.NETLIFY_AUTH_TOKEN }}
+        run: npx -y netlify-cli@latest deploy --build --prod --site b8dbc44d-390d-4027-834d-0250819f8c1e --auth "$NETLIFY_AUTH_TOKEN" --filter @yummix/courier --message "staging 5fdc31e"
