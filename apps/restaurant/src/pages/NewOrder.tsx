@@ -423,7 +423,7 @@ export default function NewOrder() {
                   </div>
                 )}
                 {lookup?.type === "CONTACT" && lookup.lastDelivery?.line1 && lookup.lastDelivery?.city && (
-                  <button className="last-address-btn" onClick={() => { setDelivery(lookup.lastDelivery); setSelectedAddressId(undefined); populateAddressSearch(lookup.lastDelivery); setAddressSuggestions([]); }}>
+                  <button className="last-address-btn" onClick={() => { setDelivery(lookup.lastDelivery); setSelectedAddressId(undefined); populateAddressSearch(lookup.lastDelivery!); setAddressSuggestions([]); }}>
                     Usar última entrega: {lookup.lastDelivery.line1}{lookup.lastDelivery.postalCode ? ` · ${lookup.lastDelivery.postalCode}` : ""}, {lookup.lastDelivery.city}
                   </button>
                 )}
