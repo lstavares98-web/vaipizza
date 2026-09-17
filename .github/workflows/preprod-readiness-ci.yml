@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - feat/pre-production-readiness
+      - feat/phone-counter-orders
   workflow_dispatch:
 
 jobs:
@@ -25,6 +26,9 @@ jobs:
 
       - name: API tests
         run: npm run test -w apps/api
+
+      - name: Customer tests
+        run: npm run test -w apps/customer
 
       - name: API build
         run: npm run build -w apps/api
