@@ -4,6 +4,7 @@ import Layout from "./components/Layout";
 import RequireAuth from "./components/RequireAuth";
 import Login from "./pages/Login";
 import OrdersDashboard from "./pages/OrdersDashboard";
+import NewOrder from "./pages/NewOrder";
 import Menu from "./pages/Menu";
 import Settings from "./pages/Settings";
 import CashSettlement from "./pages/CashSettlement";
@@ -26,6 +27,14 @@ export default function App() {
               element={
                 <Protected>
                   <OrdersDashboard />
+                </Protected>
+              }
+            />
+            <Route
+              path="/novo-pedido"
+              element={
+                <Protected>
+                  <NewOrder />
                 </Protected>
               }
             />
