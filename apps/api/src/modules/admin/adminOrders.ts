@@ -1,6 +1,7 @@
 import type { OrderStatus, Prisma } from "@prisma/client";
 import { prisma } from "../../config/prisma.js";
 import { notFound } from "../../utils/AppError.js";
+import { buildOrderCustomerDisplay } from "../orders/orderCustomerDisplay.js";
 
 const ADMIN_TIME_ZONE = "Europe/Lisbon";
 
@@ -90,7 +91,7 @@ export function buildAdminOrderWhere(filters: AdminOrderFilters): Prisma.OrderWh
 }
 
 export async function listAdminOrders(filters: AdminOrderFilters) {
-  return prisma.order.findMany({
+  const orders = await prisma.order.findMany({
     where: buildAdminOrderWhere(filters),
     include: {
       restaurant: { select: { id: true, name: true } },
@@ -99,6 +100,11 @@ export async function listAdminOrders(filters: AdminOrderFilters) {
     },
     orderBy: { createdAt: "desc" },
     take: 250,
+  });
+
+  return orders.map((order) => {
+    const display = buildOrderCustomerDisplay({ ...order, address: null });
+    return { ...order, user: order.user ?? display.user };
   });
 }
 
@@ -123,5 +129,11 @@ export async function getAdminOrderDetail(id: string) {
     },
   });
   if (!order) throw notFound("Pedido não encontrado");
-  return order;
+
+  const display = buildOrderCustomerDisplay(order);
+  return {
+    ...order,
+    user: order.user ?? display.user,
+    address: order.address ?? display.address,
+  };
 }
