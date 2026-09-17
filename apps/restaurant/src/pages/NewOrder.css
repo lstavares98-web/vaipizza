@@ -1,0 +1,64 @@
+.manual-order-layout { display: grid; grid-template-columns: minmax(0, 1fr) 360px; gap: 1rem; align-items: start; }
+.manual-order-main { display: flex; flex-direction: column; gap: 1rem; }
+.manual-section, .manual-order-summary { background: var(--surface); border: 1px solid var(--border); border-radius: 20px; padding: 1rem; box-shadow: 0 10px 30px rgba(46,50,39,.04); }
+.manual-section h2, .manual-order-summary h2 { margin: 0 0 .8rem; color: var(--green-dark); font-family: var(--font-body); font-style: normal; font-size: 1rem; }
+.manual-order-summary { position: sticky; top: 1rem; display: flex; flex-direction: column; gap: .8rem; }
+.segmented-control { display: inline-grid; grid-template-columns: repeat(2, minmax(110px, 1fr)); gap: .25rem; padding: .25rem; border-radius: 14px; background: var(--surface-soft); margin-bottom: .8rem; }
+.segmented-control button { border: 0; border-radius: 11px; padding: .6rem .8rem; background: transparent; color: var(--muted); font-weight: 800; }
+.segmented-control button.active { background: var(--green-dark); color: white; box-shadow: 0 5px 14px rgba(7,50,25,.14); }
+.customer-search-row { display: grid; grid-template-columns: 1fr auto; gap: .5rem; align-items: center; }
+.customer-search-row button, .last-address-btn, .address-suggestions button, .manual-submit, .modal-actions button:not(.link-btn) { border: 0; border-radius: 12px; background: var(--green-dark); color: white; min-height: 42px; padding: .6rem .8rem; font-weight: 800; }
+.success-note { background: #eaf6ee; border: 1px solid #c9e7d3; color: var(--success); border-radius: 12px; padding: .65rem .75rem; font-size: .76rem; font-weight: 700; }
+.manual-two-cols { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .7rem; margin-top: .7rem; }
+.manual-two-cols label, .manual-order-summary label, .manual-config-modal > label { display: flex; flex-direction: column; gap: .35rem; color: #514c43; font-size: .72rem; font-weight: 800; }
+.delivery-box { display: flex; flex-direction: column; gap: .7rem; }
+.saved-addresses { display: grid; gap: .45rem; }
+.saved-addresses > strong { font-size: .75rem; color: var(--muted); }
+.saved-addresses button, .last-address-btn { text-align: left; border: 1px solid var(--border); background: #fff; color: var(--text); border-radius: 12px; padding: .7rem; display: flex; flex-direction: column; gap: .2rem; }
+.saved-addresses button.selected { border-color: #77a88b; background: #eff7f1; }
+.saved-addresses button span, .last-address-btn { font-size: .72rem; }
+.address-suggestions { display: flex; flex-direction: column; gap: .35rem; }
+.address-suggestions button { text-align: left; background: #f2ecdf; color: var(--green-dark); font-size: .72rem; }
+.selected-address-card { border: 1px solid #cfe3d6; background: #f4faf6; border-radius: 14px; padding: .8rem; }
+.selected-address-card > strong { color: var(--green-dark); }
+.selected-address-card > small { display: block; margin-top: .5rem; color: var(--muted); }
+.manual-categories { margin-top: 0; }
+.manual-product-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .55rem; }
+.manual-product-card { min-height: 82px; border: 1px solid var(--border); background: #fff; border-radius: 14px; padding: .75rem; display: flex; justify-content: space-between; gap: .7rem; align-items: center; text-align: left; }
+.manual-product-card:hover { border-color: #9cbea9; background: #fbfdfb; }
+.manual-product-card span { display: flex; flex-direction: column; gap: .2rem; min-width: 0; }
+.manual-product-card strong { color: var(--green-dark); }
+.manual-product-card small { color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 280px; }
+.manual-product-card b { white-space: nowrap; }
+.manual-subheading { margin: 1rem 0 .55rem; font-family: var(--font-body); font-style: normal; font-size: .82rem; color: var(--brand); }
+.combo-card { background: #fffaf0; }
+.manual-cart-line { display: grid; grid-template-columns: 1fr auto auto; gap: .55rem; align-items: center; padding: .65rem 0; border-bottom: 1px solid var(--border); }
+.manual-cart-line > div:first-child { min-width: 0; display: flex; flex-direction: column; gap: .15rem; }
+.manual-cart-line > div:first-child strong { font-size: .78rem; }
+.manual-cart-line > div:first-child small { color: var(--muted); font-size: .66rem; }
+.qty-control { display: inline-flex; align-items: center; gap: .35rem; }
+.qty-control button { width: 28px; height: 28px; border: 1px solid var(--border); border-radius: 8px; background: #fff; font-weight: 900; }
+.qty-control span { min-width: 18px; text-align: center; font-weight: 800; }
+.manual-total { display: flex; justify-content: space-between; align-items: end; padding-top: .35rem; }
+.manual-total span { color: var(--muted); font-size: .72rem; }
+.manual-total strong { color: var(--green-dark); font-size: 1.25rem; }
+.manual-submit { width: 100%; min-height: 48px; font-size: .82rem; }
+.secondary-action { background: var(--surface-soft) !important; color: var(--green-dark) !important; border: 1px solid var(--border) !important; }
+.manual-config-modal { width: min(100%, 700px); }
+.option-group { margin: .8rem 0; border: 1px solid var(--border); border-radius: 14px; padding: .75rem; }
+.option-group > strong { color: var(--green-dark); font-size: .82rem; }
+.option-group > small { display: block; color: var(--muted); margin: .15rem 0 .5rem; }
+.option-row { display: grid; grid-template-columns: auto 1fr auto; gap: .5rem; align-items: center; padding: .45rem 0; border-top: 1px solid #eee7da; font-size: .75rem; }
+.option-row input { width: auto; }
+.option-row b { font-size: .68rem; color: var(--muted); }
+
+@media (max-width: 980px) {
+  .manual-order-layout { grid-template-columns: 1fr; }
+  .manual-order-summary { position: static; }
+}
+@media (max-width: 640px) {
+  .manual-two-cols, .manual-product-grid { grid-template-columns: 1fr; }
+  .customer-search-row { grid-template-columns: 1fr; }
+  .manual-cart-line { grid-template-columns: 1fr auto; }
+  .manual-cart-line > b { grid-column: 2; }
+}
