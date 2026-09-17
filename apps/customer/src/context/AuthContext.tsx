@@ -6,13 +6,15 @@ interface AuthUser {
   email: string;
   name: string;
   role: string;
+  mustChangePassword: boolean;
 }
 
 interface AuthContextValue {
   user: AuthUser | null;
   loading: boolean;
-  login: (email: string, password: string) => Promise<void>;
+  login: (email: string, password: string) => Promise<AuthUser>;
   register: (name: string, email: string, password: string, phone: string, addressLine1: string, postalCode: string) => Promise<void>;
+  changePassword: (password: string) => Promise<void>;
   logout: () => Promise<void>;
 }
 
@@ -38,12 +40,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const { data } = await api.post("/auth/customer/login", { email, password });
     tokenStore.set(data.accessToken, data.refreshToken);
     setUser(data.user);
+    return data.user as AuthUser;
   }
 
   async function register(name: string, email: string, password: string, phone: string, addressLine1: string, postalCode: string) {
     const { data } = await api.post("/auth/register", { name, email, password, phone, addressLine1, postalCode });
     tokenStore.set(data.accessToken, data.refreshToken);
     setUser(data.user);
+  }
+
+  async function changePassword(password: string) {
+    await api.post("/users/me/password", { password });
+    tokenStore.clear();
+    setUser(null);
   }
 
   async function logout() {
@@ -54,7 +63,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }
 
   return (
-    <AuthContext.Provider value={{ user, loading, login, register, logout }}>{children}</AuthContext.Provider>
+    <AuthContext.Provider value={{ user, loading, login, register, changePassword, logout }}>{children}</AuthContext.Provider>
   );
 }
 
