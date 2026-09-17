@@ -121,7 +121,7 @@ export default function Customers() {
                   {c.isBlocked ? "Desbloquear" : "Bloquear"}
                 </button>
                 <button onClick={() => resetPassword(c)} disabled={resettingId === c.id}>
-                  {resettingId === c.id ? "A gerar..." : "Gerar senha temporária"}
+                  {resettingId === c.id ? "A gerar..." : "Gerar palavra-passe temporária"}
                 </button>
               </td>
             </tr>

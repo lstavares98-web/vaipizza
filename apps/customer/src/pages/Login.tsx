@@ -1,10 +1,12 @@
 import { useState, type FormEvent } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 
 export default function Login() {
   const { login } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
+  const passwordChanged = Boolean((location.state as { passwordChanged?: boolean } | null)?.passwordChanged);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -30,6 +32,7 @@ export default function Login() {
         <h1>Bem-vindo de volta</h1>
       </div>
       <div className="auth-card">
+        {passwordChanged && <p>Palavra-passe atualizada. Entre novamente com a nova palavra-passe.</p>}
         <form onSubmit={handleSubmit} className="auth-form">
           <label>
             Email
