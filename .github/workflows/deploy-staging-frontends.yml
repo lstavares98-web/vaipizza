@@ -1,0 +1,36 @@
+name: Deploy staging frontends
+
+on:
+  push:
+    branches:
+      - redesign-vaipizza
+  workflow_dispatch:
+
+jobs:
+  deploy-staging:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - package: '@yummix/customer'
+            site_id: '8f6a94ae-b550-47ac-88a0-d9ca28f79b65'
+          - package: '@yummix/restaurant'
+            site_id: 'bfb4f12b-72a2-41ab-b528-aa896878d5eb'
+          - package: '@yummix/admin'
+            site_id: 'c791d22c-c4b8-45b0-983d-1378cca11327'
+          - package: '@yummix/courier'
+            site_id: 'b8dbc44d-390d-4027-834d-0250819f8c1e'
+          - package: '@yummix/kds'
+            site_id: 'bad86175-249d-4306-be03-7221f4ce46ad'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Deploy ${{ matrix.package }} to staging
+        env:
+          NETLIFY_AUTH_TOKEN: ${{ secrets.NETLIFY_AUTH_TOKEN }}
+        run: npx -y netlify-cli@latest deploy --prod --build --filter "${{ matrix.package }}" --site "${{ matrix.site_id }}" --auth "$NETLIFY_AUTH_TOKEN" --message "staging ${GITHUB_SHA}"
