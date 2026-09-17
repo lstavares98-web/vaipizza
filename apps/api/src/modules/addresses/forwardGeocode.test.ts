@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
+import * as forwardGeocodeModule from "./forwardGeocode.js";
 import { forwardGeocodeWithProvider, parseForwardGeocodeResponse, resolveGeocodeProviderUrl } from "./forwardGeocode.js";
 
 describe("parseForwardGeocodeResponse", () => {
@@ -23,6 +24,18 @@ describe("geocode provider resolution", () => {
 
   it("keeps an explicitly configured provider", () => {
     expect(resolveGeocodeProviderUrl("https://geo.example.test/reverse")).toBe("https://geo.example.test/reverse");
+  });
+});
+
+describe("manual address search query", () => {
+  it("combines street, postal code and city to reduce ambiguous matches", () => {
+    const composeAddressSearchQuery = (forwardGeocodeModule as any).composeAddressSearchQuery;
+    expect(composeAddressSearchQuery).toBeTypeOf("function");
+    expect(composeAddressSearchQuery({
+      line1: "Rua do Souto 10",
+      postalCode: "4700-329",
+      city: "Braga",
+    })).toBe("Rua do Souto 10, 4700-329, Braga");
   });
 });
 
