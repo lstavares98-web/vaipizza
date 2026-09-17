@@ -6,6 +6,7 @@ on:
       - feat/pre-production-readiness
       - feat/phone-counter-orders
       - fix/geocode-provider-fallback
+      - feat/customer-address-admin-reset
   workflow_dispatch:
 
 jobs:
