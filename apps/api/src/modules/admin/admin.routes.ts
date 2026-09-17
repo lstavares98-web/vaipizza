@@ -167,6 +167,14 @@ adminRouter.post(
   }),
 );
 
+adminRouter.post(
+  "/customers/:id/reset-password",
+  asyncHandler(async (req, res) => {
+    const result = await adminService.resetCustomerPassword(req.params.id!);
+    res.json({ success: true, ...result });
+  }),
+);
+
 // ---- Orders -------------------------------------------------------------
 
 adminRouter.get(
