@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { api } from "../lib/api";
 import { getSocket } from "../lib/socket";
 import { useCourierRuntime } from "../context/CourierRuntimeContext";
-import { buildDirectionsUrl, getDeliveryStep } from "../lib/deliveryPresentation";
+import { buildDirectionsUrl, formatDeliveryAddress, getDeliveryStep } from "../lib/deliveryPresentation";
 import { startOfferAlert, stopOfferAlert } from "../lib/offerAlert";
 
 interface OrderItem { id: string; productNameSnapshot: string; quantity: number; }
@@ -15,8 +15,9 @@ interface ActiveOrder {
   paymentMethod: "CARD" | "CASH" | "MBWAY" | "TERMINAL";
   amountTendered: number | null;
   changeDue: number | null;
+  deliveryInstructions: string | null;
   restaurant: { name: string; address: string; lat: number; lng: number };
-  address: { line1: string; city: string; lat: number; lng: number } | null;
+  address: { line1: string; line2?: string | null; city: string; postalCode?: string | null; lat: number; lng: number } | null;
   user: { name: string; phone: string | null };
   items: OrderItem[];
 }
@@ -162,7 +163,7 @@ export default function ActiveDelivery() {
   const directionsUrl = buildDirectionsUrl(targetLat, targetLng);
   const targetName = isCustomerTarget ? order.user.name : (order.restaurant.name || "VAIPIZZA");
   const targetAddress = isCustomerTarget && order.address
-    ? `${order.address.line1}, ${order.address.city}`
+    ? formatDeliveryAddress(order.address)
     : order.restaurant.address;
   const stageLabel = isCustomerTarget ? "Entrega" : "Recolha";
   const stageHint = !isCustomerTarget
@@ -219,6 +220,9 @@ export default function ActiveDelivery() {
           <p className="page-eyebrow">{isCustomerTarget ? "Destino do cliente" : "Local de recolha"}</p>
           <h2>{targetName}</h2>
           <p>{targetAddress}</p>
+          {isCustomerTarget && order.deliveryInstructions && (
+            <p className="delivery-status-copy"><strong>Referência / instruções:</strong> {order.deliveryInstructions}</p>
+          )}
           <div className={`delivery-quick-actions ${canCallCustomer ? "" : "single"}`}>
             <a className="nav-btn" href={directionsUrl} target="_blank" rel="noreferrer">Navegar</a>
             {canCallCustomer && <a className="call-btn" href={`tel:${order.user.phone}`}>Ligar</a>}
