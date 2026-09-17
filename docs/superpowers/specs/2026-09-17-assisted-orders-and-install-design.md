@@ -104,7 +104,8 @@ Step 4 — Fulfillment/payment:
 
 - Delivery or Takeaway.
 - Delivery requires a confirmed geocoded address and applies the same delivery-radius and delivery-fee rules as customer checkout.
-- Payment uses existing supported methods and existing MB WAY confirmation/cash-change rules.
+- Assisted orders support `CASH`, `MBWAY`, and `TERMINAL` only in this phase. `CARD` remains available in customer self-checkout but is out of scope for assisted orders because the restaurant flow does not hand a Stripe checkout session back to the caller.
+- MB WAY confirmation and cash/change continue using the existing operational rules.
 
 Step 5 — Create:
 
