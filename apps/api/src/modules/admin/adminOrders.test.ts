@@ -1,5 +1,22 @@
-import { describe, expect, it } from "vitest";
-import { buildAdminOrderWhere, lisbonDayBounds } from "./adminOrders.js";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+
+const state = vi.hoisted(() => {
+  const orderFindMany = vi.fn();
+  return {
+    orderFindMany,
+    prisma: {
+      order: { findMany: orderFindMany },
+    },
+  };
+});
+
+vi.mock("../../config/prisma.js", () => ({ prisma: state.prisma }));
+
+import { buildAdminOrderWhere, lisbonDayBounds, listAdminOrders } from "./adminOrders.js";
+
+beforeEach(() => {
+  vi.clearAllMocks();
+});
 
 describe("lisbonDayBounds", () => {
   it("maps a summer Lisbon business day to DST-aware UTC bounds", () => {
@@ -38,5 +55,29 @@ describe("buildAdminOrderWhere", () => {
         lt: new Date("2026-09-16T23:00:00.000Z"),
       },
     });
+  });
+});
+
+describe("listAdminOrders", () => {
+  it("normalizes an anonymous manual order so the Admin can render it safely", async () => {
+    state.orderFindMany.mockResolvedValueOnce([
+      {
+        id: "order-50",
+        orderNumber: 50,
+        user: null,
+        customerNameSnapshot: null,
+        customerPhoneSnapshot: null,
+        deliveryLine1Snapshot: null,
+        deliveryLine2Snapshot: null,
+        deliveryCitySnapshot: null,
+        deliveryPostalCodeSnapshot: null,
+        customerLat: null,
+        customerLng: null,
+      },
+    ]);
+
+    const orders = await listAdminOrders({});
+
+    expect(orders[0]?.user).toEqual({ name: "Cliente de balcão", phone: null });
   });
 });
