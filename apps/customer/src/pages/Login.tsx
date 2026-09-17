@@ -15,8 +15,8 @@ export default function Login() {
     setError(null);
     setSubmitting(true);
     try {
-      await login(email, password);
-      navigate("/pedir");
+      const user = await login(email, password);
+      navigate(user.mustChangePassword ? "/alterar-palavra-passe" : "/pedir");
     } catch (err: any) {
       setError(err.response?.data?.message ?? "Não foi possível entrar");
     } finally {
