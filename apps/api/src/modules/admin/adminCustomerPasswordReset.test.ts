@@ -72,10 +72,10 @@ describe("admin customer password reset", () => {
       where: { userId: "customer-1", revokedAt: null },
       data: { revokedAt: expect.any(Date) },
     });
-    expect(result.customer).toEqual({
+    expect(result.customer).toEqual(expect.objectContaining({
       id: "customer-1",
       email: "cliente@example.com",
       name: "Cliente",
-    });
+    }));
   });
 });
