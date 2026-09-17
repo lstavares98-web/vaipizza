@@ -9,6 +9,7 @@ import { cancelOrderBeforeHandoff } from "./cancelOrder.service.js";
 import { forceReassignCourier, listNearbyCouriers } from "../dispatch/dispatch.service.js";
 import { lookupManualCustomer } from "./manualCustomer.js";
 import { createManualOrder } from "./manualOrder.service.js";
+import { buildOrderCustomerDisplay } from "./orderCustomerDisplay.js";
 import { searchAddressCoordinates } from "../addresses/forwardGeocode.js";
 
 export const restaurantOrdersRouter = Router();
@@ -59,7 +60,8 @@ restaurantOrdersRouter.get(
   asyncHandler(async (req, res) => {
     const { status } = listQuerySchema.parse(req.query);
     const statuses = status ? (status.split(",") as OrderStatus[]) : undefined;
-    const orders = await ordersService.listOrdersForRestaurant(req.auth!.restaurantId!, statuses);
+    const rawOrders = await ordersService.listOrdersForRestaurant(req.auth!.restaurantId!, statuses);
+    const orders = rawOrders.map((order) => ({ ...order, ...buildOrderCustomerDisplay(order) }));
     res.json({ success: true, orders });
   }),
 );
