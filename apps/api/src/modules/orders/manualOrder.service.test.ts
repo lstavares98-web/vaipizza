@@ -204,4 +204,22 @@ describe("createManualOrder", () => {
     expect(order.deliveryLine1Snapshot).toBe("Rua A, 10");
     expect(order.customerLat).toBe(41.551);
   });
+
+  it("stores courier delivery instructions separately from kitchen notes", async () => {
+    const order = await createManualOrder("r1", "RESTAURANT_STAFF", {
+      ...baseInput,
+      origin: "PHONE",
+      fulfillmentType: "DELIVERY",
+      paymentMethod: "CASH",
+      customerName: "Ana",
+      customerPhone: "912345678",
+      delivery: { line1: "Rua A, 10", line2: "3.º Esq.", city: "Braga", postalCode: "4700-000", lat: 41.551, lng: -8.421 },
+      deliveryInstructions: "Portão azul, perto da escola",
+      notes: "Sem cebola",
+      amountTendered: 20,
+    } as any);
+
+    expect(order.deliveryInstructions).toBe("Portão azul, perto da escola");
+    expect(order.notes).toBe("Sem cebola");
+  });
 });
